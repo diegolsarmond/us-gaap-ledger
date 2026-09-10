@@ -12,12 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccessRouteImport } from './routes/access'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AuditLogRouteImport } from './routes/audit-log'
+import { Route as BalanceSheetRouteImport } from './routes/balance-sheet'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
 import { Route as DreRouteImport } from './routes/dre'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as JournalsRouteImport } from './routes/journals'
 import { Route as PayablesRouteImport } from './routes/payables'
+import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ReceivablesRouteImport } from './routes/receivables'
 import { Route as StatementsRouteImport } from './routes/statements'
 import { Route as TaxesRouteImport } from './routes/taxes'
@@ -36,6 +39,16 @@ const AccessRoute = AccessRouteImport.update({
 const AccountsRoute = AccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogRoute = AuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BalanceSheetRoute = BalanceSheetRouteImport.update({
+  id: '/balance-sheet',
+  path: '/balance-sheet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CashFlowRoute = CashFlowRouteImport.update({
@@ -68,6 +81,11 @@ const PayablesRoute = PayablesRouteImport.update({
   path: '/payables',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReceivablesRoute = ReceivablesRouteImport.update({
   id: '/receivables',
   path: '/receivables',
@@ -93,12 +111,15 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
+  '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
@@ -108,12 +129,15 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
+  '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
@@ -124,12 +148,15 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
+  '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
@@ -141,12 +168,15 @@ export interface FileRouteTypes {
     | '/'
     | '/access'
     | '/accounts'
+    | '/audit-log'
+    | '/balance-sheet'
     | '/cash-flow'
     | '/dre'
     | '/inventory'
     | '/invoices'
     | '/journals'
     | '/payables'
+    | '/projects'
     | '/receivables'
     | '/statements'
     | '/taxes'
@@ -156,12 +186,15 @@ export interface FileRouteTypes {
     | '/'
     | '/access'
     | '/accounts'
+    | '/audit-log'
+    | '/balance-sheet'
     | '/cash-flow'
     | '/dre'
     | '/inventory'
     | '/invoices'
     | '/journals'
     | '/payables'
+    | '/projects'
     | '/receivables'
     | '/statements'
     | '/taxes'
@@ -171,12 +204,15 @@ export interface FileRouteTypes {
     | '/'
     | '/access'
     | '/accounts'
+    | '/audit-log'
+    | '/balance-sheet'
     | '/cash-flow'
     | '/dre'
     | '/inventory'
     | '/invoices'
     | '/journals'
     | '/payables'
+    | '/projects'
     | '/receivables'
     | '/statements'
     | '/taxes'
@@ -187,12 +223,15 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccessRoute: typeof AccessRoute
   AccountsRoute: typeof AccountsRoute
+  AuditLogRoute: typeof AuditLogRoute
+  BalanceSheetRoute: typeof BalanceSheetRoute
   CashFlowRoute: typeof CashFlowRoute
   DreRoute: typeof DreRoute
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
   JournalsRoute: typeof JournalsRoute
   PayablesRoute: typeof PayablesRoute
+  ProjectsRoute: typeof ProjectsRoute
   ReceivablesRoute: typeof ReceivablesRoute
   StatementsRoute: typeof StatementsRoute
   TaxesRoute: typeof TaxesRoute
@@ -220,6 +259,20 @@ declare module '@tanstack/react-router' {
       path: '/accounts'
       fullPath: '/accounts'
       preLoaderRoute: typeof AccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-log': {
+      id: '/audit-log'
+      path: '/audit-log'
+      fullPath: '/audit-log'
+      preLoaderRoute: typeof AuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/balance-sheet': {
+      id: '/balance-sheet'
+      path: '/balance-sheet'
+      fullPath: '/balance-sheet'
+      preLoaderRoute: typeof BalanceSheetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cash-flow': {
@@ -264,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayablesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/receivables': {
       id: '/receivables'
       path: '/receivables'
@@ -299,12 +359,15 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccessRoute: AccessRoute,
   AccountsRoute: AccountsRoute,
+  AuditLogRoute: AuditLogRoute,
+  BalanceSheetRoute: BalanceSheetRoute,
   CashFlowRoute: CashFlowRoute,
   DreRoute: DreRoute,
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
   JournalsRoute: JournalsRoute,
   PayablesRoute: PayablesRoute,
+  ProjectsRoute: ProjectsRoute,
   ReceivablesRoute: ReceivablesRoute,
   StatementsRoute: StatementsRoute,
   TaxesRoute: TaxesRoute,

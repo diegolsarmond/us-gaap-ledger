@@ -1,211 +1,305 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useBook } from "@/components/book-context";
-import { Badge, Kpi, Note, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { acct, dash, pct, usd } from "@/lib/format";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAccounting } from "@/lib/accounting-store";
+import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
+import { acct, dash, pct, usd, formatDate } from "@/lib/format";
 import { pageHead } from "@/lib/head";
-import { period } from "@/lib/mock";
 
 export const Route = createFileRoute("/")({
   head: () =>
     pageHead(
-      "Dashboard financeiro · LedgerX",
-      "Caixa, receita, despesa e resultado do período, com lançamento casado e variação cambial automática.",
+      "Financial Operations Dashboard · LedgerX",
+      "Real-time US GAAP financial ledger dashboard with double-entry audit trails and multi-currency tracking."
     ),
   component: Dashboard,
 });
 
 function Dashboard() {
-  const { book } = useBook();
-  const k = book.kpis;
-  const je = book.journalEntry;
-  const debits = je.lines.reduce((a, l) => a + l.debit, 0);
-  const credits = je.lines.reduce((a, l) => a + l.credit, 0);
-  const delta = debits - credits;
+  const {
+    activeCompany,
+    cashOnHand,
+    totalRevenue,
+    totalCOGS,
+    grossProfit,
+    totalOpEx,
+    totalFXVariance,
+    netIncome,
+    journals,
+    isLedgerBalanced,
+    bills,
+    invoices,
+    projects,
+    userPersona,
+  } = useAccounting();
+
+  const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+  const netMarginPct = totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0;
+
+  const recentJournals = journals.slice(0, 6);
+  const openInvoicesCount = invoices.filter((i) => i.status === "Open" || i.status === "Overdue").length;
+  const openBillsCount = bills.filter((b) => b.status === "Open").length;
 
   return (
-    <div className="space-y-3">
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+        <div>
+          <PageTitle
+            title={`${activeCompany.name} · Operations Overview`}
+            description={`US GAAP Accrual Books · Fiscal Period ${activeCompany.activePeriod} · Functional Currency USD`}
+          />
+        </div>
+
+        {/* Action Shortcuts for Staff & Admins */}
+        {!userPersona.allowedReportsOnly && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/invoices"
+              className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+            >
+              + New Invoice
+            </Link>
+            <Link
+              to="/payables"
+              className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+            >
+              + Enter Bill
+            </Link>
+            <Link
+              to="/journals"
+              className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-90 shadow-2xs"
+            >
+              + Post Journal
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Period Lock Banner if Locked */}
+      {activeCompany.isPeriodClosed && (
+        <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[12.5px]">
+            <span className="size-2 rounded-full bg-down animate-pulse" />
+            <span className="font-semibold">Fiscal Period {activeCompany.activePeriod} is Locked:</span>
+            <span>Routine entries blocked. Only authorized CPA/Admin overrides with documented audit justifications are accepted.</span>
+          </div>
+          <Badge tone="down">LOCKED</Badge>
+        </div>
+      )}
+
+      {/* Core KPIs */}
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
-          label="Cash on Hand"
-          value={usd(k.cash)}
-          hint={`▲ ${usd(k.cashDelta)} vs Nov`}
+          label="Cash & Liquid Reserves"
+          value={usd(cashOnHand)}
+          hint="Operating & Reserve accounts"
           tone="up"
         />
         <Kpi
-          label="Revenue"
-          value={usd(k.revenue)}
-          hint={`▲ ${pct(k.revenueDelta)} MoM`}
+          label="Gross Revenue (YTD/MTD)"
+          value={usd(totalRevenue)}
+          hint={`${openInvoicesCount} open customer receivables`}
           tone="up"
         />
         <Kpi
-          label="Expenses"
-          value={usd(k.expenses)}
-          hint={`▲ ${pct(k.expensesDelta)} MoM`}
-          tone="down"
+          label="COGS & Direct Costs"
+          value={usd(totalCOGS)}
+          hint={`Gross Margin: ${pct(grossMarginPct)}`}
+          tone="neutral"
         />
-        <Kpi label="Net Income" value={usd(k.netIncome)} hint={`${pct(k.margin)} margin`} />
+        <Kpi
+          label="Net Operating Income"
+          value={usd(netIncome)}
+          hint={`Net Margin: ${pct(netMarginPct)}`}
+          tone={netIncome >= 0 ? "up" : "down"}
+        />
       </section>
 
+      {/* Second Row: Ledger Status & Operational Highlights */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        {/* Recent Journal Entries */}
         <Panel
           className="lg:col-span-2"
-          title="Journal Entry"
-          subtitle={`${je.id} · ${je.date}`}
+          title="General Ledger Activity"
+          subtitle={`Most recent double-entry journals (${journals.length} total entries posted)`}
           aside={
-            <Badge tone={delta === 0 ? "up" : "down"}>
-              {delta === 0 ? "Balanced · Δ $0.00" : `Δ ${acct(delta)}`}
+            <Badge tone={isLedgerBalanced ? "up" : "down"}>
+              {isLedgerBalanced ? "Balanced · Δ $0.00" : "Unbalanced Δ"}
             </Badge>
           }
         >
-          <div className="p-4">
-            <Table>
-              <thead>
-                <tr className="border-b border-line/70">
-                  <Th>Date</Th>
-                  <Th>Account</Th>
-                  <Th align="right">Debit</Th>
-                  <Th align="right">Credit</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {je.lines.map((l, i) => (
-                  <tr key={i}>
-                    <Td className="text-ink3">{l.date}</Td>
-                    <Td>{l.account}</Td>
-                    <Td align="right" className={l.debit ? "font-medium" : "text-ink3"}>
-                      {dash(l.debit)}
+          <Table>
+            <thead>
+              <tr className="border-b border-line/60">
+                <Th>Entry ID</Th>
+                <Th>Date</Th>
+                <Th>Description / Memo</Th>
+                <Th>Type</Th>
+                <Th align="right">Debits</Th>
+                <Th align="right">Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentJournals.map((j) => {
+                const totalDebits = j.lines.reduce((s, l) => s + l.debit, 0);
+                return (
+                  <tr key={j.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <Td className="font-mono text-[11.5px] font-semibold">{j.id}</Td>
+                    <Td className="text-ink3 text-[11.5px]">{formatDate(j.date)}</Td>
+                    <Td className="text-ink2 font-medium max-w-[240px] truncate">{j.memo}</Td>
+                    <Td className="text-ink3 text-[11.5px]">
+                      <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10.5px] ring-1 ring-line">
+                        {j.sourceType}
+                      </span>
                     </Td>
-                    <Td align="right" className={l.credit ? "font-medium" : "text-ink3"}>
-                      {dash(l.credit)}
+                    <Td align="right" className="font-mono font-medium">
+                      {usd(totalDebits)}
+                    </Td>
+                    <Td align="right">
+                      <Badge tone={j.status === "Posted" ? "up" : "neutral"}>{j.status}</Badge>
                     </Td>
                   </tr>
-                ))}
-                <tr className="border-t-2 border-line font-semibold">
-                  <Td className="col-head" align="left">
-                    Totals
-                  </Td>
-                  <Td>{je.memo}</Td>
-                  <Td align="right">{usd(debits)}</Td>
-                  <Td align="right">{usd(credits)}</Td>
-                </tr>
-              </tbody>
-            </Table>
-            <div className="mt-3">
-              <Note>Lançamento casado — débitos iguais aos créditos. Pronto para postar.</Note>
-            </div>
+                );
+              })}
+            </tbody>
+          </Table>
+          <div className="p-3 border-t border-line/50 flex items-center justify-between text-[11.5px]">
+            <span className="text-ink3">Every operational invoice, bill, and payment writes directly to this ledger.</span>
+            <Link to="/journals" className="text-brand font-medium hover:underline">
+              View Full General Ledger →
+            </Link>
           </div>
         </Panel>
 
-        <Panel title="FX Variance" aside={<Badge>Auto</Badge>}>
-          <div className="p-4">
-            <p className="text-[11px] text-ink3">Postado automaticamente em {book.fx.account}</p>
-            <div className="mt-3 flex flex-col gap-1.5 text-[12px] tabular-nums">
-              {book.fx.lines.map((l) => (
-                <div key={l.currency} className="flex items-center justify-between">
-                  <span className="text-ink2">
-                    {l.currency} · {l.txns} txns
-                    <span className="ml-2 font-mono text-[10px] text-ink3">{l.rate}</span>
-                  </span>
-                  <span className={`font-medium ${l.amount >= 0 ? "text-up" : "text-down"}`}>
-                    {acct(l.amount)}
-                  </span>
-                </div>
-              ))}
+        {/* FX Variance & Multi-Currency Panel */}
+        <Panel
+          title="Foreign Exchange (Realized)"
+          subtitle="Account 6300 · Realized FX Gain/Loss"
+          aside={
+            <Badge tone={totalFXVariance >= 0 ? "up" : "down"}>
+              {totalFXVariance >= 0 ? "Net Gain" : "Net Loss"}
+            </Badge>
+          }
+        >
+          <div className="p-4 space-y-3">
+            <p className="text-[12px] text-ink2">
+              Bills settled in foreign currencies (MXN, GBP, EUR) compute exchange gain or loss upon bank wire settlement.
+            </p>
+
+            <div className="rounded-lg bg-ink/[0.03] p-3 ring-1 ring-line/60 space-y-2">
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-ink3">Baja Components (MXN Wire)</span>
+                <span className="font-medium text-up">+$35.04 (Gain)</span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-ink3">Pemberton Freight (GBP Bill)</span>
+                <span className="font-mono text-ink2">0.7900 Rate</span>
+              </div>
+              <div className="flex items-center justify-between text-[12.5px] font-semibold border-t border-line/60 pt-2">
+                <span>Net Realized FX Variance</span>
+                <span className={totalFXVariance >= 0 ? "text-up font-mono" : "text-down font-mono"}>
+                  {acct(totalFXVariance)}
+                </span>
+              </div>
             </div>
-            <div className="mt-3 flex items-center justify-between border-t border-line/70 pt-3 text-[13px] font-semibold tabular-nums">
-              <span className="text-ink2">Net variance</span>
-              <span className={book.fx.net >= 0 ? "text-up" : "text-down"}>
-                {acct(book.fx.net)}
-              </span>
+
+            <div className="pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                Active Projects Health ({projects.length})
+              </p>
+              <div className="space-y-1.5 text-[11.5px]">
+                {projects.slice(0, 2).map((p) => (
+                  <div key={p.id} className="flex items-center justify-between border-b border-line/40 pb-1">
+                    <span className="text-ink2 truncate max-w-[170px]">{p.name}</span>
+                    <span className="font-medium text-ink">{usd(p.budget)}</span>
+                  </div>
+                ))}
+              </div>
+              <Link to="/projects" className="mt-2 block text-right text-[11px] font-medium text-brand hover:underline">
+                View Project Profitability →
+              </Link>
             </div>
           </div>
         </Panel>
       </div>
 
-      <Panel
-        title="Invoices"
-        subtitle={`${period.label} · sales tax informado manualmente`}
-        aside={<span className="text-[11px] text-ink3">{book.invoices.length} de 28</span>}
-      >
-        <Table>
-          <thead>
-            <tr className="border-b border-line/60">
-              <Th>Invoice</Th>
-              <Th>Client</Th>
-              <Th>Tipo</Th>
-              <Th>Sales Tax</Th>
-              <Th align="right">Amount</Th>
-              <Th align="right">Status</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {book.invoices.map((i) => (
-              <tr key={i.id} className="border-b border-line/50 last:border-0">
-                <Td className="font-mono font-medium">{i.id}</Td>
-                <Td className="text-ink2">{i.client}</Td>
-                <Td className="text-ink2">{i.kind}</Td>
-                <Td>{i.tax}</Td>
-                <Td align="right" className="font-medium">
-                  {usd(i.amount)}
-                </Td>
-                <Td align="right">
-                  <Badge
-                    tone={
-                      i.status === "Open" ? "brand" : i.status === "Overdue" ? "down" : "neutral"
-                    }
-                  >
-                    {i.status}
-                  </Badge>
-                </Td>
+      {/* Operational Highlights: AR vs AP */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Panel
+          title="Accounts Receivable Snapshot"
+          subtitle={`${openInvoicesCount} invoices pending collection`}
+          aside={
+            <Link to="/invoices" className="text-[11.5px] text-brand font-medium hover:underline">
+              Manage AR →
+            </Link>
+          }
+        >
+          <Table>
+            <thead>
+              <tr className="border-b border-line/60">
+                <Th>Invoice</Th>
+                <Th>Customer</Th>
+                <Th>Due Date</Th>
+                <Th align="right">Amount</Th>
+                <Th align="right">Status</Th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
-      </Panel>
+            </thead>
+            <tbody>
+              {invoices.slice(0, 4).map((i) => (
+                <tr key={i.id} className="border-b border-line/40 last:border-0">
+                  <Td className="font-mono text-[11.5px] font-medium">{i.id}</Td>
+                  <Td className="text-ink2 text-[12px]">{i.customerName}</Td>
+                  <Td className="text-ink3 text-[11.5px]">{formatDate(i.dueDate)}</Td>
+                  <Td align="right" className="font-medium font-mono">
+                    {usd(i.total)}
+                  </Td>
+                  <Td align="right">
+                    <Badge tone={i.status === "Paid" ? "up" : i.status === "Overdue" ? "down" : "brand"}>
+                      {i.status}
+                    </Badge>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
 
-      <Panel
-        title="Statement of Operations · DRE"
-        subtitle={`${period.label} · ${book.client.basis} basis`}
-      >
-        <Table>
-          <thead>
-            <tr className="border-b border-line/60">
-              <Th>Line</Th>
-              <Th align="right">Debit</Th>
-              <Th align="right">Credit</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {book.dre.map((l) => (
-              <tr key={l.line} className="border-b border-line/50">
-                <Td className={l.level === 1 ? "pl-5 font-medium" : "pl-8 text-ink2"}>{l.line}</Td>
-                <Td align="right" className={l.debit ? "" : "text-ink3"}>
-                  {dash(l.debit)}
-                </Td>
-                <Td align="right" className={l.credit ? "" : "text-ink3"}>
-                  {dash(l.credit)}
-                </Td>
+        <Panel
+          title="Accounts Payable Snapshot"
+          subtitle={`${openBillsCount} vendor obligations pending payment`}
+          aside={
+            <Link to="/payables" className="text-[11.5px] text-brand font-medium hover:underline">
+              Manage AP →
+            </Link>
+          }
+        >
+          <Table>
+            <thead>
+              <tr className="border-b border-line/60">
+                <Th>Bill / Ref</Th>
+                <Th>Vendor</Th>
+                <Th>Due Date</Th>
+                <Th align="right">USD Base</Th>
+                <Th align="right">Status</Th>
               </tr>
-            ))}
-            <tr className="border-b border-line/50 font-semibold">
-              <Td className="pl-5">Total Expenses</Td>
-              <Td align="right">{usd(book.dreTotals.expenses)}</Td>
-              <Td align="right" className="text-ink3">
-                —
-              </Td>
-            </tr>
-            <tr className="bg-ink/[0.03] font-semibold">
-              <Td className="pl-5">Net Income</Td>
-              <Td align="right" className="text-up">
-                {usd(book.dreTotals.netIncome)}
-              </Td>
-              <Td align="right" className="text-ink3">
-                —
-              </Td>
-            </tr>
-          </tbody>
-        </Table>
-      </Panel>
+            </thead>
+            <tbody>
+              {bills.slice(0, 4).map((b) => (
+                <tr key={b.id} className="border-b border-line/40 last:border-0">
+                  <Td className="font-mono text-[11.5px] font-medium">{b.id}</Td>
+                  <Td className="text-ink2 text-[12px]">{b.vendorName}</Td>
+                  <Td className="text-ink3 text-[11.5px]">{formatDate(b.dueDate)}</Td>
+                  <Td align="right" className="font-medium font-mono">
+                    {usd(b.usdAmount)}
+                  </Td>
+                  <Td align="right">
+                    <Badge tone={b.status === "Paid" ? "up" : "brand"}>{b.status}</Badge>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
+      </div>
     </div>
   );
 }
