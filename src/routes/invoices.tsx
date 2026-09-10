@@ -11,7 +11,7 @@ export const Route = createFileRoute("/invoices")({
       "Invoices de serviço e produto · LedgerX",
       "Emissão de invoices com sales tax informado manualmente, cliente tax-exempt e baixa contábil automática.",
     ),
-  component: Invoices;
+  component: Invoices,
 });
 
 function Invoices() {
