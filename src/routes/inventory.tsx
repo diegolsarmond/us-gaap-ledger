@@ -26,8 +26,17 @@ function Inventory() {
       />
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Valor do estoque" value={usd(value)} hint="Conta 1300" />
-        <Kpi label="Unidades" value={units.toLocaleString("en-US")} hint={`${book.inventory.length} SKUs`} />
-        <Kpi label="CMV do mês" value={usd(book.dre[2].debit)} hint="Conta 5000" tone="down" />
+        <Kpi
+          label="Unidades"
+          value={units.toLocaleString("en-US")}
+          hint={`${book.inventory.length} SKUs`}
+        />
+        <Kpi
+          label="CMV do mês"
+          value={usd(book.dre[2]?.debit ?? 0)}
+          hint="Conta 5000"
+          tone="down"
+        />
       </section>
       <Panel title="Itens em estoque" subtitle={book.client.name}>
         <Table>

@@ -82,7 +82,9 @@ function Access() {
                   <Td className="text-ink2">{u.role}</Td>
                   <Td className="text-ink2">{u.client}</Td>
                   <Td align="right">
-                    <Badge tone={u.active ? "up" : "neutral"}>{u.active ? "Ativo" : "Convite"}</Badge>
+                    <Badge tone={u.active ? "up" : "neutral"}>
+                      {u.active ? "Ativo" : "Convite"}
+                    </Badge>
                   </Td>
                 </tr>
               ))}

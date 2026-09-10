@@ -35,7 +35,11 @@ function Payables() {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Total em aberto" value={usd(total)} hint={`${book.payables.length} títulos`} />
         <Kpi label="Em atraso" value={usd(late)} tone="down" hint="Acima de 15 dias" />
-        <Kpi label="A vencer em 7 dias" value={usd(book.payables[1].amount)} hint="Atlas Logistics" />
+        <Kpi
+          label="A vencer em 7 dias"
+          value={usd(book.payables[1]?.amount ?? 0)}
+          hint="Atlas Logistics"
+        />
       </section>
       <Panel title="Títulos a pagar" subtitle={book.client.name}>
         <Table>

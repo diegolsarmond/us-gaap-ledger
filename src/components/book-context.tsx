@@ -10,7 +10,7 @@ type Ctx = {
 const BookContext = createContext<Ctx | null>(null);
 
 export function BookProvider({ children }: { children: ReactNode }) {
-  const [clientId, setClientId] = useState(clients[0].id);
+  const [clientId, setClientId] = useState(clients[0]?.id ?? "harbor-ridge");
   const book = useMemo(() => getBook(clientId), [clientId]);
   return (
     <BookContext.Provider value={{ clientId, setClientId, book }}>{children}</BookContext.Provider>

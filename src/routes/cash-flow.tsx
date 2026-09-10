@@ -47,7 +47,11 @@ function CashFlow() {
                   c.kind === "closing" ? "bg-ink/[0.03] font-semibold" : ""
                 }`}
               >
-                <Td className={c.kind === "in" || c.kind === "out" ? "pl-8 text-ink2" : "pl-5 font-medium"}>
+                <Td
+                  className={
+                    c.kind === "in" || c.kind === "out" ? "pl-8 text-ink2" : "pl-5 font-medium"
+                  }
+                >
                   {c.line}
                 </Td>
                 <Td

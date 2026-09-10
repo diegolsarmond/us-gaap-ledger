@@ -59,7 +59,9 @@ function Journals() {
                   </Td>
                   <Td align="right">
                     <Badge
-                      tone={j.status === "Posted" ? "up" : j.status === "Auto" ? "brand" : "neutral"}
+                      tone={
+                        j.status === "Posted" ? "up" : j.status === "Auto" ? "brand" : "neutral"
+                      }
                     >
                       {j.status}
                     </Badge>

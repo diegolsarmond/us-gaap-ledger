@@ -35,9 +35,17 @@ function Receivables() {
         }
       />
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Kpi label="Total a receber" value={usd(total)} hint={`${book.receivables.length} títulos`} />
+        <Kpi
+          label="Total a receber"
+          value={usd(total)}
+          hint={`${book.receivables.length} títulos`}
+        />
         <Kpi label="Em atraso" value={usd(late)} tone="down" hint="Acima de 15 dias" />
-        <Kpi label="Maior exposição" value={usd(book.receivables[0].amount)} hint="Meridian Labs Inc." />
+        <Kpi
+          label="Maior exposição"
+          value={usd(book.receivables[0]?.amount ?? 0)}
+          hint="Meridian Labs Inc."
+        />
       </section>
       <Panel title="Títulos a receber" subtitle={book.client.name}>
         <Table>

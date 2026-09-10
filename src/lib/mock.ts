@@ -48,8 +48,19 @@ const s = (n: number, f: number) => Math.round(n * f * 100) / 100;
 
 export type Book = ReturnType<typeof getBook>;
 
-export function getClient(id: string) {
-  return clients.find((c) => c.id === id) ?? clients[0];
+const fallbackClient: Client = {
+  id: "harbor-ridge",
+  initials: "HR",
+  name: "Harbor Ridge LLC",
+  ein: "84-2201987",
+  entity: "LLC",
+  basis: "Accrual",
+  state: "FL",
+  factor: 1,
+};
+
+export function getClient(id: string): Client {
+  return clients.find((c) => c.id === id) ?? clients[0] ?? fallbackClient;
 }
 
 export function getBook(clientId: string) {
@@ -140,14 +151,26 @@ export function getBook(clientId: string) {
       { code: "1100", name: "Accounts Receivable", type: "Asset", debit: s(61200, f), credit: 0 },
       { code: "1300", name: "Inventory", type: "Asset", debit: s(38940, f), credit: 0 },
       { code: "2000", name: "Accounts Payable", type: "Liability", debit: 0, credit: s(29480, f) },
-      { code: "2200", name: "Sales Tax Payable", type: "Liability", debit: 0, credit: s(4128.6, f) },
+      {
+        code: "2200",
+        name: "Sales Tax Payable",
+        type: "Liability",
+        debit: 0,
+        credit: s(4128.6, f),
+      },
       { code: "3000", name: "Owner's Equity", type: "Equity", debit: 0, credit: s(83513.65, f) },
       { code: "4000", name: "Service Revenue", type: "Revenue", debit: 0, credit: s(96540, f) },
       { code: "4100", name: "Product Revenue", type: "Revenue", debit: 0, credit: s(32200, f) },
       { code: "5000", name: "Cost of Goods Sold", type: "Expense", debit: cogs, credit: 0 },
       { code: "6100", name: "Selling & Marketing", type: "Expense", debit: selling, credit: 0 },
       { code: "6200", name: "General & Administrative", type: "Expense", debit: admin, credit: 0 },
-      { code: "6300", name: "Foreign Exchange Gain/Loss", type: "Expense", debit: 0, credit: fxGain },
+      {
+        code: "6300",
+        name: "Foreign Exchange Gain/Loss",
+        type: "Expense",
+        debit: 0,
+        credit: fxGain,
+      },
     ],
     fx: {
       account: "6300 · Foreign Exchange Gain/Loss",
@@ -383,10 +406,30 @@ export function getBook(clientId: string) {
       },
     ],
     unclassified: [
-      { date: "2026-12-02", memo: "BAJA COMPONENTS MXN WIRE", amount: s(-8420.55, f), suggestion: "5000 · Cost of Goods Sold" },
-      { date: "2026-12-08", memo: "STRIPE PAYOUT 8842", amount: s(14210, f), suggestion: "4000 · Service Revenue" },
-      { date: "2026-12-12", memo: "HARBOR PROPERTY MGMT", amount: s(-4500, f), suggestion: "6200 · General & Administrative" },
-      { date: "2026-12-15", memo: "GUSTO PAYROLL", amount: s(-18200, f), suggestion: "6200 · General & Administrative" },
+      {
+        date: "2026-12-02",
+        memo: "BAJA COMPONENTS MXN WIRE",
+        amount: s(-8420.55, f),
+        suggestion: "5000 · Cost of Goods Sold",
+      },
+      {
+        date: "2026-12-08",
+        memo: "STRIPE PAYOUT 8842",
+        amount: s(14210, f),
+        suggestion: "4000 · Service Revenue",
+      },
+      {
+        date: "2026-12-12",
+        memo: "HARBOR PROPERTY MGMT",
+        amount: s(-4500, f),
+        suggestion: "6200 · General & Administrative",
+      },
+      {
+        date: "2026-12-15",
+        memo: "GUSTO PAYROLL",
+        amount: s(-18200, f),
+        suggestion: "6200 · General & Administrative",
+      },
     ],
   };
 }
@@ -396,7 +439,16 @@ export const roles = [
     name: "Administrador",
     scope: "Interno",
     members: 1,
-    modules: ["Lançamentos", "Faturas", "Estoque", "A pagar", "A receber", "Relatórios", "Impostos", "Acessos"],
+    modules: [
+      "Lançamentos",
+      "Faturas",
+      "Estoque",
+      "A pagar",
+      "A receber",
+      "Relatórios",
+      "Impostos",
+      "Acessos",
+    ],
   },
   {
     name: "Contador assistente",
@@ -413,8 +465,32 @@ export const roles = [
 ];
 
 export const users = [
-  { name: "Carlos A.", email: "carlos@ledgerx.us", role: "Administrador", client: "Todos", active: true },
-  { name: "Renata M.", email: "renata@ledgerx.us", role: "Contador assistente", client: "Todos", active: true },
-  { name: "Dan Whitfield", email: "dan@harborridge.com", role: "Cliente (portal)", client: "Harbor Ridge LLC", active: true },
-  { name: "Aiko Tanaka", email: "aiko@meridianlabs.com", role: "Cliente (portal)", client: "Meridian Labs Inc.", active: false },
+  {
+    name: "Carlos A.",
+    email: "carlos@ledgerx.us",
+    role: "Administrador",
+    client: "Todos",
+    active: true,
+  },
+  {
+    name: "Renata M.",
+    email: "renata@ledgerx.us",
+    role: "Contador assistente",
+    client: "Todos",
+    active: true,
+  },
+  {
+    name: "Dan Whitfield",
+    email: "dan@harborridge.com",
+    role: "Cliente (portal)",
+    client: "Harbor Ridge LLC",
+    active: true,
+  },
+  {
+    name: "Aiko Tanaka",
+    email: "aiko@meridianlabs.com",
+    role: "Cliente (portal)",
+    client: "Meridian Labs Inc.",
+    active: false,
+  },
 ];

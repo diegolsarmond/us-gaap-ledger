@@ -29,7 +29,11 @@ function Taxes() {
         description="Apuração informada manualmente — nenhuma integração governamental nesta etapa."
       />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <Panel className="lg:col-span-2" title="Apurações e comprovantes" subtitle={book.client.name}>
+        <Panel
+          className="lg:col-span-2"
+          title="Apurações e comprovantes"
+          subtitle={book.client.name}
+        >
           <Table>
             <thead>
               <tr className="border-b border-line/60">
@@ -44,7 +48,10 @@ function Taxes() {
             </thead>
             <tbody>
               {book.taxes.map((t) => (
-                <tr key={`${t.jurisdiction}-${t.period}`} className="border-b border-line/50 last:border-0">
+                <tr
+                  key={`${t.jurisdiction}-${t.period}`}
+                  className="border-b border-line/50 last:border-0"
+                >
                   <Td className="font-medium">{t.jurisdiction}</Td>
                   <Td className="text-ink3">{t.period}</Td>
                   <Td align="right">{usd(t.base)}</Td>

@@ -14,7 +14,6 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/app-shell";
 import { BookProvider } from "@/components/book-context";
 
-
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -144,4 +143,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

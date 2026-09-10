@@ -31,7 +31,12 @@ function Dashboard() {
           hint={`▲ ${usd(k.cashDelta)} vs Nov`}
           tone="up"
         />
-        <Kpi label="Revenue" value={usd(k.revenue)} hint={`▲ ${pct(k.revenueDelta)} MoM`} tone="up" />
+        <Kpi
+          label="Revenue"
+          value={usd(k.revenue)}
+          hint={`▲ ${pct(k.revenueDelta)} MoM`}
+          tone="up"
+        />
         <Kpi
           label="Expenses"
           value={usd(k.expenses)}
@@ -109,7 +114,9 @@ function Dashboard() {
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-line/70 pt-3 text-[13px] font-semibold tabular-nums">
               <span className="text-ink2">Net variance</span>
-              <span className={book.fx.net >= 0 ? "text-up" : "text-down"}>{acct(book.fx.net)}</span>
+              <span className={book.fx.net >= 0 ? "text-up" : "text-down"}>
+                {acct(book.fx.net)}
+              </span>
             </div>
           </div>
         </Panel>
