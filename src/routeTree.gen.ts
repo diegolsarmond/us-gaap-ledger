@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccessRouteImport } from './routes/access'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
 import { Route as DreRouteImport } from './routes/dre'
@@ -18,11 +19,18 @@ import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as JournalsRouteImport } from './routes/journals'
 import { Route as PayablesRouteImport } from './routes/payables'
 import { Route as ReceivablesRouteImport } from './routes/receivables'
+import { Route as StatementsRouteImport } from './routes/statements'
+import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccessRoute = AccessRouteImport.update({
+  id: '/access',
+  path: '/access',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountsRoute = AccountsRouteImport.update({
@@ -65,6 +73,16 @@ const ReceivablesRoute = ReceivablesRouteImport.update({
   path: '/receivables',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StatementsRoute = StatementsRouteImport.update({
+  id: '/statements',
+  path: '/statements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaxesRoute = TaxesRouteImport.update({
+  id: '/taxes',
+  path: '/taxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TrialBalanceRoute = TrialBalanceRouteImport.update({
   id: '/trial-balance',
   path: '/trial-balance',
@@ -73,6 +91,7 @@ const TrialBalanceRoute = TrialBalanceRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
@@ -81,10 +100,13 @@ export interface FileRoutesByFullPath {
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
   '/receivables': typeof ReceivablesRoute
+  '/statements': typeof StatementsRoute
+  '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
@@ -93,11 +115,14 @@ export interface FileRoutesByTo {
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
   '/receivables': typeof ReceivablesRoute
+  '/statements': typeof StatementsRoute
+  '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/cash-flow': typeof CashFlowRoute
   '/dre': typeof DreRoute
@@ -106,12 +131,15 @@ export interface FileRoutesById {
   '/journals': typeof JournalsRoute
   '/payables': typeof PayablesRoute
   '/receivables': typeof ReceivablesRoute
+  '/statements': typeof StatementsRoute
+  '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access'
     | '/accounts'
     | '/cash-flow'
     | '/dre'
@@ -120,10 +148,13 @@ export interface FileRouteTypes {
     | '/journals'
     | '/payables'
     | '/receivables'
+    | '/statements'
+    | '/taxes'
     | '/trial-balance'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access'
     | '/accounts'
     | '/cash-flow'
     | '/dre'
@@ -132,10 +163,13 @@ export interface FileRouteTypes {
     | '/journals'
     | '/payables'
     | '/receivables'
+    | '/statements'
+    | '/taxes'
     | '/trial-balance'
   id:
     | '__root__'
     | '/'
+    | '/access'
     | '/accounts'
     | '/cash-flow'
     | '/dre'
@@ -144,11 +178,14 @@ export interface FileRouteTypes {
     | '/journals'
     | '/payables'
     | '/receivables'
+    | '/statements'
+    | '/taxes'
     | '/trial-balance'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessRoute: typeof AccessRoute
   AccountsRoute: typeof AccountsRoute
   CashFlowRoute: typeof CashFlowRoute
   DreRoute: typeof DreRoute
@@ -157,6 +194,8 @@ export interface RootRouteChildren {
   JournalsRoute: typeof JournalsRoute
   PayablesRoute: typeof PayablesRoute
   ReceivablesRoute: typeof ReceivablesRoute
+  StatementsRoute: typeof StatementsRoute
+  TaxesRoute: typeof TaxesRoute
   TrialBalanceRoute: typeof TrialBalanceRoute
 }
 
@@ -167,6 +206,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/access': {
+      id: '/access'
+      path: '/access'
+      fullPath: '/access'
+      preLoaderRoute: typeof AccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounts': {
@@ -225,6 +271,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReceivablesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/statements': {
+      id: '/statements'
+      path: '/statements'
+      fullPath: '/statements'
+      preLoaderRoute: typeof StatementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/taxes': {
+      id: '/taxes'
+      path: '/taxes'
+      fullPath: '/taxes'
+      preLoaderRoute: typeof TaxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/trial-balance': {
       id: '/trial-balance'
       path: '/trial-balance'
@@ -237,6 +297,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessRoute: AccessRoute,
   AccountsRoute: AccountsRoute,
   CashFlowRoute: CashFlowRoute,
   DreRoute: DreRoute,
@@ -245,6 +306,8 @@ const rootRouteChildren: RootRouteChildren = {
   JournalsRoute: JournalsRoute,
   PayablesRoute: PayablesRoute,
   ReceivablesRoute: ReceivablesRoute,
+  StatementsRoute: StatementsRoute,
+  TaxesRoute: TaxesRoute,
   TrialBalanceRoute: TrialBalanceRoute,
 }
 export const routeTree = rootRouteImport
