@@ -49,8 +49,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-canvas text-ink">
-      <aside className="hidden w-60 shrink-0 border-r border-line/80 frost-bar md:block">
-        <div className="flex h-14 items-center gap-2.5 border-b border-line/70 px-4">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line/80 frost-bar md:flex">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/70 px-4">
           <div className="grid size-7 place-items-center rounded-md bg-ink font-mono text-[11px] font-semibold text-white">
             LX
           </div>
@@ -59,10 +59,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="text-[10px] uppercase tracking-[0.14em] text-ink3">US GAAP</p>
           </div>
         </div>
-        <nav className="px-2.5 py-3">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain">
           {groups.map((g) => (
             <div key={g.label}>
-              <p className="px-2 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink3 first:pt-1">
+              <p className="px-2 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink3 first:pt-1">
                 {g.label}
               </p>
               {g.items.map((i) => (
@@ -70,10 +70,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={i.to}
                   to={i.to}
                   activeOptions={{ exact: i.to === "/" }}
-                  className="mt-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-ink2 transition-colors hover:text-ink"
+                  className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink2 transition-colors hover:text-ink"
                   activeProps={{
                     className:
-                      "mt-0.5 flex items-center gap-2.5 rounded-md bg-white/80 px-2.5 py-2 text-[13px] font-medium text-ink ring-1 ring-line",
+                      "mt-0.5 flex items-center gap-2 rounded-md bg-white/80 px-2.5 py-1.5 text-[13px] font-medium text-ink ring-1 ring-line",
                   }}
                 >
                   {({ isActive }) => (
@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="mx-3 mb-6 mt-3 rounded-lg bg-ink/[0.04] p-3 ring-1 ring-line/70">
+        <div className="mx-3 mb-4 mt-2 shrink-0 rounded-lg bg-ink/[0.04] p-3 ring-1 ring-line/70">
           <p className="text-[11px] font-medium text-ink2">Período</p>
           <p className="text-[12px] font-semibold">{period.label}</p>
           <p className="mt-1 text-[11px] text-up">Fechado · variação $0.00</p>
