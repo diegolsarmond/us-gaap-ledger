@@ -67,19 +67,27 @@ function InvoicesPage() {
   const handleUpdateItem = (
     index: number,
     field: "sku" | "description" | "qty" | "unitPrice",
-    val: any
+    val: string | number
   ) => {
     const next = [...formItems];
-    next[index]![field] = val;
+    const current = { ...next[index]! };
 
-    // If sku selected from catalog, auto-fill description & price
     if (field === "sku") {
+      current.sku = String(val);
       const match = inventory.find((i) => i.sku === val);
       if (match) {
-        next[index]!.description = match.name;
-        next[index]!.unitPrice = match.unitPrice;
+        current.description = match.name;
+        current.unitPrice = match.unitPrice;
       }
+    } else if (field === "description") {
+      current.description = String(val);
+    } else if (field === "qty") {
+      current.qty = Number(val) || 0;
+    } else if (field === "unitPrice") {
+      current.unitPrice = Number(val) || 0;
     }
+
+    next[index] = current;
     setFormItems(next);
   };
 

@@ -99,8 +99,8 @@ export interface JournalLine {
   accountCode: string;
   debit: number;
   credit: number;
-  memo?: string;
-  projectId?: string;
+  memo?: string | undefined;
+  projectId?: string | undefined;
 }
 
 export interface JournalEntry {
@@ -108,12 +108,12 @@ export interface JournalEntry {
   date: string;
   memo: string;
   sourceType: "Invoice" | "Bill" | "Payment" | "Manual" | "OpeningBalance" | "InventoryAdjustment" | "BankStaging";
-  sourceId?: string;
+  sourceId?: string | undefined;
   currency: string;
   fxRate: number;
   lines: JournalLine[];
   status: "Posted" | "Reversed";
-  overrideReason?: string;
+  overrideReason?: string | undefined;
   createdBy: string;
   createdAt: string;
 }
@@ -147,7 +147,7 @@ export interface InventoryItem {
 export interface InvoiceItem {
   id: string;
   description: string;
-  sku?: string;
+  sku?: string | undefined;
   isProduct: boolean;
   qty: number;
   unitPrice: number;
@@ -157,7 +157,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   customerName: string;
-  customerEin?: string;
+  customerEin?: string | undefined;
   date: string;
   dueDate: string;
   kind: "Product" | "Service" | "Mixed";
@@ -168,8 +168,8 @@ export interface Invoice {
   total: number;
   taxExempt: boolean;
   status: "Open" | "Paid" | "Overdue";
-  projectId?: string;
-  paymentDate?: string;
+  projectId?: string | undefined;
+  paymentDate?: string | undefined;
 }
 
 export interface BillItem {
@@ -177,10 +177,10 @@ export interface BillItem {
   description: string;
   accountCode: string;
   isInventory: boolean;
-  sku?: string;
-  qty?: number;
+  sku?: string | undefined;
+  qty?: number | undefined;
   amount: number;
-  projectId?: string;
+  projectId?: string | undefined;
 }
 
 export interface Bill {
@@ -195,10 +195,10 @@ export interface Bill {
   usdAmount: number;
   items: BillItem[];
   status: "Open" | "Paid";
-  paymentDate?: string;
-  paidFxRate?: number;
-  realizedFxDiff?: number;
-  projectId?: string;
+  paymentDate?: string | undefined;
+  paidFxRate?: number | undefined;
+  realizedFxDiff?: number | undefined;
+  projectId?: string | undefined;
 }
 
 export interface Project {
@@ -232,7 +232,7 @@ export interface StagingRow {
   description: string;
   amount: number;
   suggestedAccount: string;
-  classifiedAccount?: string;
+  classifiedAccount?: string | undefined;
   status: "Pending" | "Classified";
 }
 
@@ -244,8 +244,8 @@ export interface TaxRecord {
   rate: string;
   dueAmount: number;
   status: "Paid" | "Pending Remittance";
-  receiptFileName?: string;
-  paidAt?: string;
+  receiptFileName?: string | undefined;
+  paidAt?: string | undefined;
 }
 
 export interface AuditLogEntry {
@@ -257,7 +257,7 @@ export interface AuditLogEntry {
   targetType: string;
   targetId: string;
   details: string;
-  overrideReason?: string;
+  overrideReason?: string | undefined;
 }
 
 export const INITIAL_COMPANIES: ClientCompany[] = [
@@ -795,7 +795,7 @@ function createInitialCompanyData(companyId: string) {
 
 export type CompanyState = ReturnType<typeof createInitialCompanyData>;
 
-interface AccountingContextType {
+export interface AccountingContextType {
   activeCompany: ClientCompany;
   companies: ClientCompany[];
   setActiveCompanyId: (id: string) => void;
@@ -811,15 +811,21 @@ interface AccountingContextType {
     date: string;
     memo: string;
     sourceType: JournalEntry["sourceType"];
-    sourceId?: string;
-    currency?: string;
-    fxRate?: number;
-    lines: { accountCode: string; debit: number; credit: number; memo?: string; projectId?: string }[];
-    overrideReason?: string;
-  }) => { success: boolean; error?: string; entryId?: string };
-  reverseJournalEntry: (id: string, reason: string) => { success: boolean; error?: string };
+    sourceId?: string | undefined;
+    currency?: string | undefined;
+    fxRate?: number | undefined;
+    lines: {
+      accountCode: string;
+      debit: number;
+      credit: number;
+      memo?: string | undefined;
+      projectId?: string | undefined;
+    }[];
+    overrideReason?: string | undefined;
+  }) => { success: boolean; error?: string | undefined; entryId?: string | undefined };
+  reverseJournalEntry: (id: string, reason: string) => { success: boolean; error?: string | undefined };
 
-  togglePeriodLock: (reason?: string) => void;
+  togglePeriodLock: (reason?: string | undefined) => void;
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, "id" | "costLots">) => void;
@@ -827,12 +833,12 @@ interface AccountingContextType {
   setCostMethod: (method: "FIFO" | "WeightedAverage") => void;
 
   invoices: Invoice[];
-  createInvoice: (inv: Omit<Invoice, "id" | "status">) => { success: boolean; error?: string; invoiceId?: string };
-  recordInvoicePayment: (invoiceId: string, paymentDate: string) => { success: boolean; error?: string };
+  createInvoice: (inv: Omit<Invoice, "id" | "status">) => { success: boolean; error?: string | undefined; invoiceId?: string | undefined };
+  recordInvoicePayment: (invoiceId: string, paymentDate: string) => { success: boolean; error?: string | undefined };
 
   bills: Bill[];
-  createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => { success: boolean; error?: string; billId?: string };
-  payBill: (billId: string, paymentDate: string, settlementFxRate?: number) => { success: boolean; error?: string };
+  createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => { success: boolean; error?: string | undefined; billId?: string | undefined };
+  payBill: (billId: string, paymentDate: string, settlementFxRate?: number | undefined) => { success: boolean; error?: string | undefined };
 
   projects: Project[];
   createProject: (p: Omit<Project, "id">) => void;
@@ -926,7 +932,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  const addAuditLog = (action: string, targetType: string, targetId: string, details: string, overrideReason?: string) => {
+  const addAuditLog = (action: string, targetType: string, targetId: string, details: string, overrideReason?: string | undefined) => {
     const newLog: AuditLogEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "medium" }) + " EST",
@@ -1058,7 +1064,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return { success: true };
   };
 
-  const togglePeriodLock = (reason?: string) => {
+  const togglePeriodLock = (reason?: string | undefined) => {
     if (!userPersona.canClosePeriod) {
       alert("Access Denied: Only an Administrator can lock or unlock accounting periods.");
       return;
@@ -1125,7 +1131,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     });
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string; projectId?: string }[] = [];
+    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
 
     jeLines.push({
       accountCode: "1100",
@@ -1242,7 +1248,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status: "Open",
     };
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string; projectId?: string }[] = [];
+    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
 
     newBill.items.forEach((item) => {
       jeLines.push({
@@ -1304,7 +1310,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return { success: true, billId };
   };
 
-  const payBill = (billId: string, paymentDate: string, settlementFxRate?: number) => {
+  const payBill = (billId: string, paymentDate: string, settlementFxRate?: number | undefined) => {
     const bill = currentData.bills.find((b) => b.id === billId);
     if (!bill) return { success: false, error: "Bill not found." };
     if (bill.status === "Paid") return { success: false, error: "Bill is already paid." };
@@ -1314,7 +1320,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const originalApUsd = bill.usdAmount;
     const diff = Math.round((originalApUsd - actualCashPaidUsd) * 100) / 100;
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string; projectId?: string }[] = [];
+    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
 
     jeLines.push({
       accountCode: "2000",

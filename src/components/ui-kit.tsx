@@ -93,12 +93,18 @@ export function Table({ children }: { children: ReactNode }) {
 export function Th({
   children,
   align = "left",
+  className = "",
 }: {
-  children: ReactNode;
-  align?: "left" | "right";
+  children?: ReactNode;
+  align?: "left" | "right" | "center";
+  className?: string;
 }) {
   return (
-    <th className={`col-head px-4 py-2 ${align === "right" ? "text-right" : "text-left"}`}>
+    <th
+      className={`col-head px-4 py-2 ${
+        align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
+      } ${className}`}
+    >
       {children}
     </th>
   );
@@ -108,24 +114,45 @@ export function Td({
   children,
   align = "left",
   className = "",
+  colSpan,
 }: {
-  children: ReactNode;
-  align?: "left" | "right";
+  children?: ReactNode;
+  align?: "left" | "right" | "center";
   className?: string;
+  colSpan?: number;
 }) {
   return (
-    <td className={`px-4 py-2.5 ${align === "right" ? "text-right" : ""} ${className}`}>
+    <td
+      colSpan={colSpan}
+      className={`px-4 py-2.5 ${
+        align === "right" ? "text-right" : align === "center" ? "text-center" : ""
+      } ${className}`}
+    >
       {children}
     </td>
   );
 }
 
-export function Note({ children, tone = "up" }: { children: ReactNode; tone?: "up" | "brand" }) {
+export function Note({
+  children,
+  tone = "up",
+}: {
+  children: ReactNode;
+  tone?: "up" | "brand" | "neutral";
+}) {
   const cls =
-    tone === "up" ? "bg-up/[0.06] text-up ring-up/15" : "bg-brand/[0.06] text-brand ring-brand/15";
+    tone === "up"
+      ? "bg-up/[0.06] text-up ring-up/15"
+      : tone === "brand"
+      ? "bg-brand/[0.06] text-brand ring-brand/15"
+      : "bg-ink/[0.04] text-ink2 ring-line/80";
   return (
     <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] ring-1 ${cls}`}>
-      <span className={`size-1.5 rounded-full ${tone === "up" ? "bg-up" : "bg-brand"}`} />
+      <span
+        className={`size-1.5 rounded-full ${
+          tone === "up" ? "bg-up" : tone === "brand" ? "bg-brand" : "bg-line"
+        }`}
+      />
       {children}
     </div>
   );
