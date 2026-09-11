@@ -165,7 +165,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
   };
 
   const selectedConfig =
-    SUPPORTED_CURRENCY_PAIRS.find((c) => c.key === selectedKey) || SUPPORTED_CURRENCY_PAIRS[0];
+    SUPPORTED_CURRENCY_PAIRS.find((c) => c.key === selectedKey) ?? SUPPORTED_CURRENCY_PAIRS[0]!;
   const currentRate = rates[selectedConfig.key];
 
   // Helper para formatar valor numérico

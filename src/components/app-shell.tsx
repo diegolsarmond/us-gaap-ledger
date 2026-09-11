@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useAccounting, USER_PERSONAS, type UserRole } from "@/lib/accounting-store";
 import { Badge } from "@/components/ui-kit";
 import { useModal } from "@/components/modal-provider";
-import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal, BookOpen, HelpCircle } from "lucide-react";
 import { CurrencyRateTicker } from "@/components/currency-rate-ticker";
+import { ModuleTutorialModal } from "@/components/module-tutorial-modal";
 
 interface NavGroup {
   label: string;
@@ -94,7 +95,33 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [autoOpenTutorial, setAutoOpenTutorial] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("quantum_auto_open_tutorial");
+      return saved !== null ? saved === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleAutoOpen = (enabled: boolean) => {
+    setAutoOpenTutorial(enabled);
+    try {
+      localStorage.setItem("quantum_auto_open_tutorial", String(enabled));
+    } catch {}
+  };
+
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const prevPathRef = useRef<string>(path);
+
+  // Abre automaticamente o tutorial do módulo ao navegar entre rotas
+  useEffect(() => {
+    if (autoOpenTutorial && prevPathRef.current !== path) {
+      setTutorialOpen(true);
+    }
+    prevPathRef.current = path;
+  }, [path, autoOpenTutorial]);
 
   // Client portal filter: Only allowed to view designated reports and statement uploads
   const filteredNavGroups = navGroups
@@ -230,6 +257,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                         <Link
                           key={i.to}
                           to={i.to}
+                          onClick={() => {
+                            if (autoOpenTutorial) setTutorialOpen(true);
+                          }}
                           activeOptions={{ exact: i.to === "/parameters" }}
                           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-ink2 transition-colors hover:bg-ink/[0.03] hover:text-ink"
                           activeProps={{
@@ -263,6 +293,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Link
                     key={i.to}
                     to={i.to}
+                    onClick={() => {
+                      if (autoOpenTutorial) setTutorialOpen(true);
+                    }}
                     activeOptions={{ exact: i.to === "/" }}
                     className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-ink2 transition-colors hover:text-ink"
                     activeProps={{
@@ -316,8 +349,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* US GAAP CPA Disclaimer */}
-        <div className="px-3 pb-3 text-[9.5px] leading-tight text-ink3">
+        {/* US GAAP CPA Disclaimer & Quick Tutorial Shortcut */}
+        <div className="px-3 pb-3 space-y-2 text-[9.5px] leading-tight text-ink3">
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md bg-brand/10 hover:bg-brand/15 text-brand text-[11.5px] font-semibold transition-colors cursor-pointer border border-brand/20 shadow-2xs"
+          >
+            <BookOpen className="size-3.5" />
+            <span>Guia & Tutoriais</span>
+          </button>
           <p>
             US GAAP Operational Model. Financial policies and year-end statements require approval
             by a qualified U.S. CPA.
@@ -337,7 +378,21 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           {/* Right Action Tools */}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2.5">
+            {/* Botão de Tutorial Contextual do Módulo */}
+            <button
+              type="button"
+              onClick={() => setTutorialOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 hover:bg-brand/15 px-2.5 py-1.5 text-brand text-[12px] font-semibold transition-all shadow-2xs cursor-pointer active:scale-95"
+              title="Abrir tutorial explicativo deste módulo com diagrama em setas"
+            >
+              <HelpCircle className="size-3.5 text-brand" />
+              <span className="hidden sm:inline">Tutorial do Módulo</span>
+              <span className="rounded bg-brand/20 px-1 py-0.2 font-mono text-[9px] font-bold">
+                {autoOpenTutorial ? "AUTO" : "GUIA"}
+              </span>
+            </button>
+
             {/* Persona / Role Selector */}
             <div className="relative">
               <button
@@ -467,6 +522,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </footer>
       </main>
+
+      {/* Modal de Tutoriais Explicativos com Setas */}
+      <ModuleTutorialModal
+        isOpen={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+        currentPath={path}
+        autoOpenOnNavigate={autoOpenTutorial}
+        onToggleAutoOpen={handleToggleAutoOpen}
+      />
     </div>
   );
 }
