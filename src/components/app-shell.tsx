@@ -4,6 +4,7 @@ import { useAccounting, USER_PERSONAS, type UserRole } from "@/lib/accounting-st
 import { Badge } from "@/components/ui-kit";
 import { useModal } from "@/components/modal-provider";
 import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { CurrencyRateTicker } from "@/components/currency-rate-ticker";
 
 interface NavGroup {
   label: string;
@@ -440,11 +441,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               )}
             </div>
 
-            {/* Base Currency Badge */}
-            <div className="hidden items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-[11.5px] ring-1 ring-line lg:flex">
-              <span className="text-ink3">Base:</span>
-              <span className="font-semibold text-ink">{activeCompany.baseCurrency}</span>
-            </div>
+            {/* Base Currency & Live FX Ticker Dropdown */}
+            <CurrencyRateTicker baseCurrency={activeCompany.baseCurrency} />
           </div>
         </header>
 
