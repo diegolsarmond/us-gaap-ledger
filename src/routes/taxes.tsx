@@ -4,6 +4,7 @@ import { useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
+import { useModal } from "@/components/modal-provider";
 
 export const Route = createFileRoute("/taxes")({
   head: () =>
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/taxes")({
 });
 
 function TaxesPage() {
+  const modal = useModal();
   const { activeCompany, taxes, invoices, accountBalances, recordTaxRemittance, userPersona } =
     useAccounting();
 
@@ -36,15 +38,23 @@ function TaxesPage() {
   const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
   const salesTaxPayableBalance = accountBalances["2200"]?.net || 0;
 
-  const handleRemitPayment = (taxId: string) => {
-    const fileName = window.prompt(
-      "Enter payment confirmation file name or receipt number:",
-      `Receipt_FL_DOR_Confirmation_${Date.now()}.pdf`,
-    );
+  const handleRemitPayment = async (taxId: string) => {
+    const fileName = await modal.showPrompt({
+      title: "Recolhimento de Imposto (Remittance)",
+      message: "Informe o número do comprovante ou nome do arquivo de confirmação de pagamento junto ao órgão fiscal (ex: Florida DOR / IRS):",
+      defaultValue: `Receipt_FL_DOR_Confirmation_${Date.now()}.pdf`,
+      placeholder: "Comprovante_Recolhimento.pdf",
+      confirmText: "Confirmar Recolhimento",
+      cancelText: "Cancelar",
+    });
     if (!fileName) return;
 
     recordTaxRemittance(taxId, fileName);
-    alert(`Remittance payment posted! Debited Sales Tax Payable (2200) and credited Cash (1000).`);
+    await modal.showAlert({
+      title: "Pagamento de Imposto Registrado",
+      message: "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable (2200)\n• Crédito: Cash / Banco (1000)\n\nComprovante anexado: " + fileName,
+      tone: "success",
+    });
   };
 
   const handleExportCsv = () => {

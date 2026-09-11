@@ -4,17 +4,20 @@ import { useAccounting, type InvoiceItem } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
+import { useModal } from "@/components/modal-provider";
+import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/invoices")({
   head: () =>
     pageHead(
       "Invoices & Accounts Receivable · LedgerX",
-      "Issue product and service invoices with manual sales tax, tax-exempt certification, and automatic COGS relief.",
+      "Issue US GAAP compliant customer invoices with automatic inventory relief, sales tax accrual, and subledger aging.",
     ),
   component: InvoicesPage,
 });
 
 function InvoicesPage() {
+  const modal = useModal();
   const {
     activeCompany,
     invoices,
@@ -24,6 +27,11 @@ function InvoicesPage() {
     recordInvoicePayment,
     userPersona,
   } = useAccounting();
+
+  // Screen View Mode
+  const [view, setView] = useState<"list" | "create">("list");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // Invoice creation form state
   const [customerName, setCustomerName] = useState("Northgate Supply Co.");
@@ -38,8 +46,6 @@ function InvoicesPage() {
   const [formItems, setFormItems] = useState<
     { sku: string; description: string; qty: number; unitPrice: number }[]
   >([{ sku: "HR-1001", description: "Marine Hardware Stainless Kit", qty: 10, unitPrice: 124.0 }]);
-
-  const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   // Computations
   const subtotal = formItems.reduce((s, it) => s + it.qty * it.unitPrice, 0);
@@ -92,12 +98,15 @@ function InvoicesPage() {
     setFormItems(formItems.filter((_, i) => i !== idx));
   };
 
-  const handleCreateInvoice = (e: React.FormEvent) => {
+  const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
 
     if (!customerName.trim()) {
-      setFeedback({ msg: "Please enter customer legal name.", type: "error" });
+      await modal.showAlert({
+        title: "Campo Obrigatório",
+        message: "Por favor informe a Razão Social / Nome Legal do Cliente.",
+        tone: "warning",
+      });
       return;
     }
 
@@ -112,8 +121,8 @@ function InvoicesPage() {
     }));
 
     const result = createInvoice({
-      customerName,
-      customerEin: customerEin || undefined,
+      customerName: customerName.trim(),
+      customerEin: customerEin.trim() || undefined,
       date,
       dueDate,
       kind,
@@ -127,22 +136,41 @@ function InvoicesPage() {
     });
 
     if (result.success) {
-      setFeedback({
-        msg: `Invoice ${result.invoiceId} successfully issued and posted to General Ledger!`,
-        type: "success",
-      });
+      const invId = result.invoiceId;
       setCustomerName("");
       setCustomerEin("");
+      setView("list");
+      await modal.showAlert({
+        title: "Fatura Emitida e Contabilizada",
+        message: `Fatura ${invId} emitida com sucesso!\n\nLançamentos automáticos no Razão Geral:\n• Débito em Contas a Receber (1100): ${usd(totalAmount)}\n• Crédito em Receita Operacional (4000/4100): ${usd(subtotal)}\n• Crédito em Impostos sobre Vendas a Recolher (2200): ${usd(taxAmount)}${
+          kind === "Product" ? "\n• Baixa no Estoque (1300) e reconhecimento de CPV (5000)." : ""
+        }`,
+        tone: "success",
+      });
     } else {
-      setFeedback({ msg: result.error || "Failed to create invoice.", type: "error" });
+      await modal.showAlert({
+        title: "Erro ao Emitir Fatura",
+        message: result.error || "Não foi possível emitir a fatura.",
+        tone: "error",
+      });
     }
   };
 
-  const handleRecordPayment = (invId: string) => {
+  const handleRecordPayment = async (invId: string) => {
     const paymentDate = new Date().toISOString().split("T")[0]!;
     const res = recordInvoicePayment(invId, paymentDate);
     if (!res.success) {
-      alert(res.error);
+      await modal.showAlert({
+        title: "Erro no Recebimento",
+        message: res.error || "Não foi possível registrar o recebimento.",
+        tone: "error",
+      });
+    } else {
+      await modal.showAlert({
+        title: "Recebimento Confirmado",
+        message: `Recebimento da fatura ${invId} registrado com sucesso!\n\nConciliado no Razão Geral com crédito em Contas a Receber (1100) e débito em Disponibilidades / Caixa (1000).`,
+        tone: "success",
+      });
     }
   };
 
@@ -174,251 +202,358 @@ function InvoicesPage() {
     exportToCsv(`${activeCompany.id}_invoices`, headers, rows);
   };
 
+  const filteredInvoices = invoices.filter((inv) => {
+    const matchesSearch =
+      inv.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "ALL" || inv.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="space-y-4">
-      {/* Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
-        <PageTitle
-          title="Invoices & Accounts Receivable"
-          description={`Trade invoicing and receivables management for ${activeCompany.name} · US GAAP Standard`}
-        />
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
-        >
-          Export Invoices (CSV)
-        </button>
-      </div>
+      {view === "list" ? (
+        /* ================= TELA DE LISTAGEM ================= */
+        <div className="space-y-4">
+          {/* Page Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+            <PageTitle
+              title="Invoices & Accounts Receivable (AR)"
+              description={`Trade invoicing and receivables management for ${activeCompany.name} · US GAAP Standard`}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs transition-colors cursor-pointer"
+              >
+                Export Invoices (CSV)
+              </button>
+              {userPersona.canCreateJournals && (
+                <button
+                  type="button"
+                  onClick={() => setView("create")}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="size-4" />
+                  Emitir Nova Fatura
+                </button>
+              )}
+            </div>
+          </div>
 
-      {/* KPI Row */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Kpi
-          label="Open Receivables (AR)"
-          value={usd(totalOpen)}
-          hint="Account 1100 · Current terms"
-          tone="neutral"
-        />
-        <Kpi
-          label="Overdue Receivables"
-          value={usd(totalOverdue)}
-          hint="Past payment due date"
-          tone={totalOverdue > 0 ? "down" : "neutral"}
-        />
-        <Kpi
-          label="Collections Received MTD"
-          value={usd(totalPaid)}
-          hint="Cleared to Cash (Account 1000)"
-          tone="up"
-        />
-      </section>
+          {/* KPI Row */}
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Kpi
+              label="Open Receivables (AR)"
+              value={usd(totalOpen)}
+              hint="Account 1100 · Current terms"
+              tone="neutral"
+            />
+            <Kpi
+              label="Overdue Receivables"
+              value={usd(totalOverdue)}
+              hint="Past payment due date"
+              tone={totalOverdue > 0 ? "down" : "neutral"}
+            />
+            <Kpi
+              label="Collections Received MTD"
+              value={usd(totalPaid)}
+              hint="Cleared to Cash (Account 1000)"
+              tone="up"
+            />
+          </section>
 
-      {/* Main Grid: Invoices Table & Create Form */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Invoices List */}
-        <div className="lg:col-span-7 space-y-3">
+          {/* Search & Status Filters */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative min-w-[240px] max-w-sm flex-1">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por ID ou nome do cliente..."
+                className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              {["ALL", "Open", "Paid", "Overdue"].map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setStatusFilter(st)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                    statusFilter === st
+                      ? "bg-brand text-white"
+                      : "bg-surface text-ink2 hover:bg-muted ring-1 ring-line"
+                  }`}
+                >
+                  {st === "ALL" ? "Todas as Faturas" : st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Invoices List Full Width */}
           <Panel
             title="Invoices Register"
-            subtitle={`${invoices.length} invoices issued`}
-            aside={<span className="text-[11.5px] text-ink3">State Sales Tax by State</span>}
+            subtitle={`${filteredInvoices.length} de ${invoices.length} faturas emitidas`}
+            aside={<span className="text-[11.5px] text-ink3">State Sales Tax by Customer Jurisdiction</span>}
           >
             <div className="overflow-x-auto">
               <Table>
                 <thead>
                   <tr className="border-b border-line/60">
                     <Th>Invoice</Th>
-                    <Th>Customer</Th>
+                    <Th>Customer Legal Name</Th>
                     <Th>Type</Th>
+                    <Th>Issue Date</Th>
                     <Th>Due Date</Th>
-                    <Th align="right">Amount</Th>
-                    <Th align="right">Status</Th>
+                    <Th align="right">Subtotal</Th>
+                    <Th align="right">Tax</Th>
+                    <Th align="right">Total Amount</Th>
+                    <Th align="center">Status</Th>
                     <Th align="center">Action</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
-                    >
-                      <Td className="font-mono text-[11.5px] font-semibold">{inv.id}</Td>
-                      <Td className="text-ink2 font-medium">
-                        <p className="truncate max-w-[180px]">{inv.customerName}</p>
-                        {inv.taxExempt && (
-                          <span className="text-[10px] text-brand font-medium">Tax-Exempt</span>
-                        )}
-                      </Td>
-                      <Td className="text-ink3 text-[11.5px]">{inv.kind}</Td>
-                      <Td className="text-ink3 text-[11.5px]">{formatDate(inv.dueDate)}</Td>
-                      <Td align="right" className="font-mono font-medium text-[12px]">
-                        {usd(inv.total)}
-                      </Td>
-                      <Td align="right">
-                        <Badge
-                          tone={
-                            inv.status === "Paid"
-                              ? "up"
-                              : inv.status === "Overdue"
-                                ? "down"
-                                : "brand"
-                          }
-                        >
-                          {inv.status}
-                        </Badge>
-                      </Td>
-                      <Td align="center">
-                        {inv.status !== "Paid" && !userPersona.allowedReportsOnly && (
-                          <button
-                            type="button"
-                            onClick={() => handleRecordPayment(inv.id)}
-                            className="rounded bg-up/10 px-2 py-1 text-[11px] font-semibold text-up hover:bg-up/20 ring-1 ring-up/25 transition-colors"
-                          >
-                            Receive $
-                          </button>
-                        )}
+                  {filteredInvoices.length === 0 ? (
+                    <tr>
+                      <Td colSpan={10} className="py-8 text-center text-[12px] text-ink3">
+                        Nenhuma fatura encontrada para o filtro informado.
                       </Td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredInvoices.map((inv) => (
+                      <tr
+                        key={inv.id}
+                        className="border-b border-line/40 last:border-0 hover:bg-black/[0.01] transition-colors"
+                      >
+                        <Td className="font-mono text-[11.5px] font-semibold text-brand">
+                          {inv.id}
+                        </Td>
+                        <Td className="text-ink2 font-medium">
+                          <p className="font-semibold text-ink text-[12px]">{inv.customerName}</p>
+                          {inv.customerEin && (
+                            <span className="block text-[10.5px] font-mono text-ink3">
+                              EIN: {inv.customerEin}
+                            </span>
+                          )}
+                          {inv.taxExempt && (
+                            <span className="text-[10px] text-brand font-semibold">Tax-Exempt</span>
+                          )}
+                        </Td>
+                        <Td className="text-ink3 text-[11.5px]">{inv.kind}</Td>
+                        <Td className="text-ink3 text-[11.5px]">{formatDate(inv.date)}</Td>
+                        <Td className="text-ink3 text-[11.5px]">{formatDate(inv.dueDate)}</Td>
+                        <Td align="right" className="font-mono text-[12px]">
+                          {usd(inv.subtotal)}
+                        </Td>
+                        <Td align="right" className="font-mono text-[12px] text-ink3">
+                          {usd(inv.taxAmount)}
+                        </Td>
+                        <Td align="right" className="font-mono font-semibold text-[12px] text-ink">
+                          {usd(inv.total)}
+                        </Td>
+                        <Td align="center">
+                          <Badge
+                            tone={
+                              inv.status === "Paid"
+                                ? "up"
+                                : inv.status === "Overdue"
+                                  ? "down"
+                                  : "brand"
+                            }
+                          >
+                            {inv.status}
+                          </Badge>
+                        </Td>
+                        <Td align="center">
+                          {inv.status !== "Paid" && !userPersona.allowedReportsOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleRecordPayment(inv.id)}
+                              className="rounded bg-up/10 px-2.5 py-1 text-[11px] font-semibold text-up hover:bg-up/20 ring-1 ring-up/25 transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Receber $
+                            </button>
+                          )}
+                        </Td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </Table>
             </div>
+            <div className="p-4 border-t border-line/50">
+              <Note tone="brand">
+                US GAAP: Faturas emitidas debitam Contas a Receber (1100) e creditam Receita (4000/4100).
+                A apropriação dos impostos é mantida no Passivo (2200) até o efetivo recolhimento.
+              </Note>
+            </div>
           </Panel>
         </div>
-
-        {/* Create Invoice Form */}
-        <div className="lg:col-span-5">
-          {!userPersona.canCreateJournals ? (
-            <Panel title="Client Portal Notice">
-              <div className="p-6 text-center text-ink3 text-[12.5px]">
-                <p>
-                  Client portal users can review invoices but cannot generate new billing entries.
+      ) : (
+        /* ================= TELA DE CADASTRO ================= */
+        <div className="space-y-4 max-w-4xl mx-auto">
+          {/* Top Bar with Back Button */}
+          <div className="flex items-center justify-between border-b border-line/60 pb-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer shadow-2xs"
+              >
+                <ArrowLeft className="size-3.5" />
+                Voltar para Faturas
+              </button>
+              <div>
+                <h1 className="text-[16px] font-semibold text-ink">Emitir Nova Fatura de Venda</h1>
+                <p className="text-[12px] text-ink3">
+                  Lançamento de contas a receber com integração automática ao Razão Geral e Estoque
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {!userPersona.canCreateJournals ? (
+            <Panel title="Acesso Restrito">
+              <div className="p-6 text-center text-ink3 text-[12.5px]">
+                Usuários do portal do cliente possuem permissão apenas para consulta de faturas.
               </div>
             </Panel>
           ) : (
-            <Panel
-              title="Issue & Post Invoice"
-              subtitle="Automatically creates AR, Revenue, Tax, and COGS journal entries"
-            >
-              <form onSubmit={handleCreateInvoice} className="p-4 space-y-3">
-                {feedback && (
-                  <div
-                    className={`rounded-md p-2.5 text-[12px] ring-1 ${
-                      feedback.type === "success"
-                        ? "bg-up/[0.08] text-up ring-up/20"
-                        : "bg-down/[0.08] text-down ring-down/20"
-                    }`}
+            <form onSubmit={handleCreateInvoice} className="space-y-4">
+              <Panel
+                title="Dados do Cliente e Parâmetros da Fatura"
+                subtitle="Informações cadastrais e alocação de centro de custo"
+              >
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Razão Social do Cliente (Legal Name) *
+                      </label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="Ex: Acme Marine Logistics LLC"
+                        required
+                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Tax ID / EIN do Cliente (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={customerEin}
+                        onChange={(e) => setCustomerEin(e.target.value)}
+                        placeholder="Ex: 12-3456789"
+                        className="w-full rounded-md bg-canvas px-3 py-2 font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Tipo de Faturamento
+                      </label>
+                      <select
+                        value={kind}
+                        onChange={(e) => setKind(e.target.value as "Product" | "Service")}
+                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                      >
+                        <option value="Product">Produto (Baixa Estoque & CPV)</option>
+                        <option value="Service">Serviço / Consultoria</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Alocação de Projeto
+                      </label>
+                      <select
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
+                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                      >
+                        <option value="">Geral (Sem Projeto)</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.code} — {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Data de Emissão *
+                      </label>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        required
+                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Data de Vencimento *
+                      </label>
+                      <input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        required
+                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </Panel>
+
+              {/* Line Items */}
+              <Panel
+                title="Itens e Serviços da Fatura"
+                subtitle="Discrimine as mercadorias ou serviços prestados com quantidades e valores unitários"
+                aside={
+                  <button
+                    type="button"
+                    onClick={handleAddItemRow}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline cursor-pointer"
                   >
-                    {feedback.msg}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                    Customer Legal Name
-                  </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g. Acme Marine Logistics LLC"
-                    required
-                    className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Invoice Type
-                    </label>
-                    <select
-                      value={kind}
-                      onChange={(e) => setKind(e.target.value as "Product" | "Service")}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    >
-                      <option value="Product">Product (Relieves Inventory & COGS)</option>
-                      <option value="Service">Service (Labor/Consulting only)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Project Allocation
-                    </label>
-                    <select
-                      value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    >
-                      <option value="">None (General Overhead)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.code} — {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Issue Date
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Payment Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div className="space-y-2 pt-2 border-t border-line/60">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Invoice Line Items
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAddItemRow}
-                      className="text-[11px] font-semibold text-brand hover:underline"
-                    >
-                      + Add Item
-                    </button>
-                  </div>
-
+                    <Plus className="size-3.5" /> Adicionar Item
+                  </button>
+                }
+              >
+                <div className="p-5 space-y-3">
                   {formItems.map((item, idx) => (
                     <div
                       key={idx}
-                      className="rounded-lg bg-ink/[0.02] p-2.5 ring-1 ring-line/50 space-y-1.5"
+                      className="grid grid-cols-12 gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
                     >
-                      <div className="flex items-center justify-between gap-1">
+                      <div className="col-span-12 sm:col-span-5">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                          {kind === "Product" ? "Item do Catálogo de Estoque" : "Descrição do Serviço"}
+                        </label>
                         {kind === "Product" ? (
                           <select
                             value={item.sku}
                             onChange={(e) => handleUpdateItem(idx, "sku", e.target.value)}
-                            className="w-full rounded bg-white px-2 py-1 text-[11.5px] ring-1 ring-line"
+                            className="w-full rounded-md bg-surface px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand"
                           >
                             {inventory
                               .filter((i) => i.type === "Product")
                               .map((it) => (
                                 <option key={it.sku} value={it.sku}>
-                                  {it.sku} · {it.name} (Qty: {it.qtyOnHand})
+                                  {it.sku} · {it.name} (Disp: {it.qtyOnHand})
                                 </option>
                               ))}
                           </select>
@@ -427,111 +562,129 @@ function InvoicesPage() {
                             type="text"
                             value={item.description}
                             onChange={(e) => handleUpdateItem(idx, "description", e.target.value)}
-                            placeholder="Service Description"
-                            className="w-full rounded bg-white px-2 py-1 text-[11.5px] ring-1 ring-line"
+                            placeholder="Descrição detalhada do serviço..."
+                            className="w-full rounded-md bg-surface px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand"
                           />
                         )}
+                      </div>
+
+                      <div className="col-span-5 sm:col-span-3">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                          Quantidade
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.qty}
+                          onChange={(e) => handleUpdateItem(idx, "qty", Number(e.target.value))}
+                          className="w-full rounded-md bg-surface px-2.5 py-1.5 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
+                        />
+                      </div>
+
+                      <div className="col-span-5 sm:col-span-3">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                          Preço Unitário ($)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) =>
+                            handleUpdateItem(idx, "unitPrice", Number(e.target.value))
+                          }
+                          className="w-full rounded-md bg-surface px-2.5 py-1.5 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
+                        />
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
                         {formItems.length > 1 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
-                            className="text-[11px] text-down px-1 font-bold hover:opacity-80"
+                            className="text-rose-500 hover:text-rose-700 transition-colors p-1"
+                            title="Remover linha"
                           >
-                            ×
+                            <Trash2 className="size-4" />
                           </button>
                         )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[10px] text-ink3">Quantity</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.qty}
-                            onChange={(e) => handleUpdateItem(idx, "qty", Number(e.target.value))}
-                            className="w-full rounded bg-white px-2 py-1 text-right font-mono text-[11.5px] ring-1 ring-line"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-ink3">Unit Price ($)</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) =>
-                              handleUpdateItem(idx, "unitPrice", Number(e.target.value))
-                            }
-                            className="w-full rounded bg-white px-2 py-1 text-right font-mono text-[11.5px] ring-1 ring-line"
-                          />
-                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
+              </Panel>
 
-                {/* Sales Tax Options */}
-                <div className="rounded-lg bg-ink/[0.02] p-2.5 ring-1 ring-line/50 space-y-2">
-                  <label className="flex items-center gap-2 text-[12px] text-ink cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={taxExempt}
-                      onChange={(e) => setTaxExempt(e.target.checked)}
-                      className="size-3.5 rounded accent-brand"
-                    />
-                    <span className="font-medium">Customer is Tax-Exempt (Form ST-3 on file)</span>
-                  </label>
+              {/* Taxes & Financial Summary */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Panel title="Tributação Estadual (Sales Tax)">
+                  <div className="p-4 space-y-3">
+                    <label className="flex items-center gap-2 text-[12.5px] text-ink cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={taxExempt}
+                        onChange={(e) => setTaxExempt(e.target.checked)}
+                        className="size-4 rounded accent-brand"
+                      />
+                      <span className="font-medium">
+                        Cliente Isento de Imposto (Certificado Form ST-3)
+                      </span>
+                    </label>
 
-                  {!taxExempt && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11.5px] text-ink2">State/County Tax Rate:</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={taxRate}
-                          onChange={(e) => setTaxRate(e.target.value)}
-                          className="w-20 rounded bg-white px-2 py-1 text-right font-mono text-[11.5px] ring-1 ring-line"
-                        />
-                        <span className="text-[11.5px] text-ink3">%</span>
+                    {!taxExempt && (
+                      <div className="flex items-center justify-between gap-3 pt-2">
+                        <span className="text-[12px] text-ink2">Alíquota Estadual / Municipal (%):</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={taxRate}
+                            onChange={(e) => setTaxRate(e.target.value)}
+                            className="w-20 rounded-md bg-canvas px-2.5 py-1 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
+                          />
+                          <span className="text-[12px] text-ink3 font-medium">%</span>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </Panel>
+
+                <Panel title="Resumo Contábil da Fatura">
+                  <div className="p-4 space-y-2 text-[12.5px] font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-ink3 font-sans">Subtotal dos Itens:</span>
+                      <span>{usd(subtotal)}</span>
                     </div>
-                  )}
-                </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink3 font-sans">Impostos Calculados ({effectiveTaxRate}%):</span>
+                      <span>{usd(taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-line/60 pt-2 font-semibold text-[14px]">
+                      <span className="text-ink font-sans">Total Contábil (AR):</span>
+                      <span className="text-brand">{usd(totalAmount)}</span>
+                    </div>
+                  </div>
+                </Panel>
+              </div>
 
-                {/* Totals Summary */}
-                <div className="rounded-lg bg-ink/[0.03] p-2.5 ring-1 ring-line/60 space-y-1 text-[12px] font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-ink3 font-sans">Subtotal:</span>
-                    <span>{usd(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink3 font-sans">Sales Tax ({effectiveTaxRate}%):</span>
-                    <span>{usd(taxAmount)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-line/60 pt-1 font-semibold text-[13px]">
-                    <span className="text-ink font-sans">Total Amount:</span>
-                    <span className="text-brand">{usd(totalAmount)}</span>
-                  </div>
-                </div>
-
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setView("list")}
+                  className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
                 <button
                   type="submit"
-                  className="w-full rounded-md bg-brand py-2 text-[12.5px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
+                  className="rounded-md bg-brand px-6 py-2.5 text-[13px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
                 >
-                  Issue & Post Invoice
+                  Emitir e Contabilizar Fatura
                 </button>
-
-                <Note tone="brand">
-                  US GAAP: Automatically debits Accounts Receivable (1100) and credits Revenue
-                  (4000/4100) + Tax (2200). Product sales relieve inventory lots under{" "}
-                  {activeCompany.costMethod}.
-                </Note>
-              </form>
-            </Panel>
+              </div>
+            </form>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useAccounting } from "@/lib/accounting-store";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate } from "@/lib/format";
 import { pageHead } from "@/lib/head";
+import { useModal } from "@/components/modal-provider";
 
 export const Route = createFileRoute("/statements")({
   head: () =>
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/statements")({
 });
 
 function StatementsPage() {
+  const modal = useModal();
   const {
     activeCompany,
     statements,
@@ -33,7 +35,7 @@ function StatementsPage() {
     {},
   );
 
-  const handleSimulateUpload = (e: React.FormEvent) => {
+  const handleSimulateUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     const name =
       customFileName.trim() ||
@@ -44,7 +46,11 @@ function StatementsPage() {
       accountCode: selectedAccount,
     });
     setCustomFileName("");
-    alert(`File "${name}" uploaded and parsed into Staging Feed!`);
+    await modal.showAlert({
+      title: "Extrato Carregado com Sucesso",
+      message: `O arquivo "${name}" foi processado e inserido na esteira de Staging Feed para classificação contábil.`,
+      tone: "success",
+    });
   };
 
   const handleClassify = (rowId: string, defaultAccount: string) => {

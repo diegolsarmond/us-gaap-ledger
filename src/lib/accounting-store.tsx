@@ -1008,7 +1008,9 @@ export interface AccountingContextType {
     reason: string,
   ) => { success: boolean; error?: string | undefined };
 
-  togglePeriodLock: (reason?: string | undefined) => void;
+  togglePeriodLock: (
+    reason?: string | undefined,
+  ) => { success: boolean; error?: string | undefined };
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, "id" | "costLots">) => void;
@@ -1298,8 +1300,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const togglePeriodLock = (reason?: string | undefined) => {
     if (!userPersona.canClosePeriod) {
-      alert("Access Denied: Only an Administrator can lock or unlock accounting periods.");
-      return;
+      return {
+        success: false,
+        error: "Access Denied: Only an Administrator can lock or unlock accounting periods.",
+      };
     }
     const newStatus = !activeCompany.isPeriodClosed;
     setCompanies((prev) =>
@@ -1312,6 +1316,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       `Accounting period ${activeCompany.activePeriod} was marked as ${newStatus ? "CLOSED & LOCKED" : "OPEN"}.`,
       reason,
     );
+    return { success: true };
   };
 
   const createInvoice: AccountingContextType["createInvoice"] = (invData) => {

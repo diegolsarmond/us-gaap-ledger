@@ -2,61 +2,88 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { usd, formatDate, exportToCsv, acct } from "@/lib/format";
+import { usd, formatDate, acct, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
+import { useModal } from "@/components/modal-provider";
+import { ArrowLeft, Plus, Search } from "lucide-react";
 
 export const Route = createFileRoute("/payables")({
   head: () =>
     pageHead(
-      "Bills & Accounts Payable · LedgerX",
-      "Multi-currency vendor bills with automated realized foreign exchange gain and loss calculations.",
+      "Accounts Payable & Multi-Currency · LedgerX",
+      "Manage vendor obligations, currency exchange rates, foreign payables, and realized FX gain/loss entries under US GAAP.",
     ),
   component: PayablesPage,
 });
 
 function PayablesPage() {
-  const { activeCompany, bills, accounts, inventory, projects, createBill, payBill, userPersona } =
-    useAccounting();
+  const modal = useModal();
+  const {
+    activeCompany,
+    bills,
+    accounts,
+    projects,
+    inventory,
+    createBill,
+    payBill,
+    userPersona,
+  } = useAccounting();
 
-  // Form State
-  const [vendorName, setVendorName] = useState("Baja Components S.A.");
-  const [billNumber, setBillNumber] = useState("BAJA-9940");
-  const [date, setDate] = useState("2026-12-20");
-  const [dueDate, setDueDate] = useState("2027-01-20");
-  const [currency, setCurrency] = useState("MXN");
-  const [fxRate, setFxRate] = useState("17.50");
-  const [foreignAmount, setForeignAmount] = useState("87500");
-  const [accountCode, setAccountCode] = useState("1300");
-  const [projectId, setProjectId] = useState("proj-101");
-  const [isInventory, setIsInventory] = useState(true);
+  // Screen View Mode
+  const [view, setView] = useState<"list" | "create">("list");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState<string>("ALL");
+
+  // Bill creation form state
+  const [vendorName, setVendorName] = useState("Grainger Industrial Supply");
+  const [billNumber, setBillNumber] = useState("INV-GR-8819");
+  const [date, setDate] = useState("2026-12-18");
+  const [dueDate, setDueDate] = useState("2027-01-17");
+  const [currency, setCurrency] = useState("USD");
+  const [fxRateInput, setFxRateInput] = useState("1.0");
+  const [foreignAmount, setForeignAmount] = useState("3400.00");
+  const [accountCode, setAccountCode] = useState("6100");
+  const [isInventory, setIsInventory] = useState(false);
   const [skuPurchased, setSkuPurchased] = useState("HR-1001");
-  const [qtyPurchased, setQtyPurchased] = useState(25);
-  const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [qtyPurchased, setQtyPurchased] = useState(50);
+  const [projectId, setProjectId] = useState("");
 
   // Pay Modal State
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
-  const [settlementRate, setSettlementRate] = useState("");
-  const [payDate, setPayDate] = useState("2026-12-22");
+  const [settlementRate, setSettlementRate] = useState<string>("1.0");
+  const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]!);
 
-  const effectiveRate = Number(fxRate) || 1.0;
+  // Computations
   const numForeign = Number(foreignAmount) || 0;
-  const calculatedUsd = Math.round((numForeign / effectiveRate) * 100) / 100;
+  const effectiveRate = currency === "USD" ? 1.0 : Number(fxRateInput) || 1.0;
+  const calculatedUsd = currency === "USD" ? numForeign : numForeign * effectiveRate;
 
   const totalOpenAp = bills.filter((b) => b.status === "Open").reduce((s, b) => s + b.usdAmount, 0);
   const totalPaidAp = bills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
 
-  const handleCreateBill = (e: React.FormEvent) => {
+  const handleCurrencyChange = (curr: string) => {
+    setCurrency(curr);
+    if (curr === "USD") setFxRateInput("1.0");
+    else if (curr === "EUR") setFxRateInput("1.08");
+    else if (curr === "GBP") setFxRateInput("1.27");
+    else if (curr === "MXN") setFxRateInput("0.054");
+  };
+
+  const handleCreateBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
 
     if (!vendorName.trim()) {
-      setFeedback({ msg: "Please enter vendor name.", type: "error" });
+      await modal.showAlert({
+        title: "Campo Obrigatório",
+        message: "Por favor informe o Nome ou Razão Social do Fornecedor.",
+        tone: "warning",
+      });
       return;
     }
 
     const result = createBill({
-      vendorName,
-      billNumber,
+      vendorName: vendorName.trim(),
+      billNumber: billNumber.trim(),
       date,
       dueDate,
       currency,
@@ -65,7 +92,7 @@ function PayablesPage() {
       items: [
         {
           id: `bi-${Date.now()}`,
-          description: `Bill ${billNumber} — ${vendorName}`,
+          description: `Fatura ${billNumber} — ${vendorName}`,
           accountCode,
           isInventory: accountCode === "1300" && isInventory,
           sku: accountCode === "1300" ? skuPurchased : undefined,
@@ -78,10 +105,20 @@ function PayablesPage() {
     });
 
     if (result.success) {
-      setFeedback({ msg: `Vendor Bill ${result.billId} posted to AP!`, type: "success" });
+      const bId = result.billId;
       setBillNumber("");
+      setView("list");
+      await modal.showAlert({
+        title: "Fatura de Fornecedor Registrada",
+        message: `Fatura ${bId} registrada com sucesso no Contas a Pagar (AP)!\n\nLançamentos no Razão Geral:\n• Crédito em Contas a Pagar (2000): ${usd(calculatedUsd)}\n• Débito na conta ${accountCode}: ${usd(calculatedUsd)}`,
+        tone: "success",
+      });
     } else {
-      setFeedback({ msg: result.error || "Failed to create bill.", type: "error" });
+      await modal.showAlert({
+        title: "Erro ao Registrar Título",
+        message: result.error || "Não foi possível registrar o título a pagar.",
+        tone: "error",
+      });
     }
   };
 
@@ -90,16 +127,30 @@ function PayablesPage() {
     setSettlementRate(String(bill.fxRate));
   };
 
-  const handleConfirmPay = (e: React.FormEvent) => {
+  const handleConfirmPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payingBillId) return;
 
     const rate = Number(settlementRate) || undefined;
     const res = payBill(payingBillId, payDate, rate);
     if (res.success) {
+      const currentBill = bills.find((b) => b.id === payingBillId);
       setPayingBillId(null);
+      await modal.showAlert({
+        title: "Quitação de Título Efetuada",
+        message: `Título ${currentBill?.billNumber || payingBillId} liquidado com sucesso!\n\nDébito em Contas a Pagar (2000) e crédito em Caixa/Banco (1000).${
+          currentBill && currentBill.currency !== "USD"
+            ? " A variação cambial realizada (Realized FX Gain/Loss) foi calculada e postada automaticamente."
+            : ""
+        }`,
+        tone: "success",
+      });
     } else {
-      alert(res.error);
+      await modal.showAlert({
+        title: "Erro na Quitação",
+        message: res.error || "Não foi possível liquidar o título.",
+        tone: "error",
+      });
     }
   };
 
@@ -135,410 +186,464 @@ function PayablesPage() {
 
   const selectedPayingBill = bills.find((b) => b.id === payingBillId);
 
+  const filteredBills = bills.filter((b) => {
+    const matchesSearch =
+      b.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.vendorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.billNumber.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCurr = currencyFilter === "ALL" || b.currency === currencyFilter;
+    return matchesSearch && matchesCurr;
+  });
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
-        <PageTitle
-          title="Bills & Accounts Payable (AP)"
-          description={`Vendor obligations, multi-currency invoices, and realized FX gain/loss for ${activeCompany.name}`}
-        />
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
-        >
-          Export Payables (CSV)
-        </button>
-      </div>
+      {view === "list" ? (
+        /* ================= TELA DE LISTAGEM ================= */
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+            <PageTitle
+              title="Bills & Accounts Payable (AP)"
+              description={`Vendor obligations, multi-currency invoices, and realized FX gain/loss for ${activeCompany.name}`}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs transition-colors cursor-pointer"
+              >
+                Export Payables (CSV)
+              </button>
+              {userPersona.canCreateJournals && (
+                <button
+                  type="button"
+                  onClick={() => setView("create")}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="size-4" />
+                  Novo Título a Pagar
+                </button>
+              )}
+            </div>
+          </div>
 
-      {/* KPI Row */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Kpi
-          label="Total Open Obligations (AP)"
-          value={usd(totalOpenAp)}
-          hint="Account 2000 · Due to vendors"
-          tone="neutral"
-        />
-        <Kpi
-          label="Disbursed & Settled MTD"
-          value={usd(totalPaidAp)}
-          hint="Cleared from Cash"
-          tone="up"
-        />
-        <Kpi
-          label="Foreign Currency Bills"
-          value={bills.filter((b) => b.currency !== "USD").length.toString()}
-          hint="MXN, GBP, EUR exposure"
-          tone="neutral"
-        />
-      </section>
+          {/* KPI Row */}
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Kpi
+              label="Total Open Obligations (AP)"
+              value={usd(totalOpenAp)}
+              hint="Account 2000 · Due to vendors"
+              tone={totalOpenAp > 0 ? "neutral" : "up"}
+            />
+            <Kpi
+              label="Disbursements Cleared MTD"
+              value={usd(totalPaidAp)}
+              hint="Cash disbursements paid"
+              tone="neutral"
+            />
+            <Kpi
+              label="Foreign Currency Bills"
+              value={bills.filter((b) => b.currency !== "USD").length.toString()}
+              hint="MXN, GBP, EUR multi-currency exposure"
+              tone="neutral"
+            />
+          </section>
 
-      {/* Main Grid: Bills Table & Create Form */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Bills Register */}
-        <div className="lg:col-span-7 space-y-3">
+          {/* Search & Currency Filter */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative min-w-[240px] max-w-sm flex-1">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por fornecedor ou número do título..."
+                className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              {["ALL", "USD", "EUR", "GBP", "MXN"].map((curr) => (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => setCurrencyFilter(curr)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                    currencyFilter === curr
+                      ? "bg-brand text-white"
+                      : "bg-surface text-ink2 hover:bg-muted ring-1 ring-line"
+                  }`}
+                >
+                  {curr === "ALL" ? "Todas as Moedas" : curr}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Vendor Bills Register Full Width */}
           <Panel
             title="Vendor Bills Register"
-            subtitle={`${bills.length} bills recorded in subledger`}
+            subtitle={`${filteredBills.length} de ${bills.length} títulos no sub-razão de fornecedores`}
           >
             <div className="overflow-x-auto">
               <Table>
                 <thead>
                   <tr className="border-b border-line/60">
-                    <Th>Bill / Ref</Th>
-                    <Th>Vendor</Th>
+                    <Th>Bill ID</Th>
+                    <Th>Ref Number</Th>
+                    <Th>Vendor Legal Name</Th>
                     <Th>Currency / Orig</Th>
+                    <Th>Issue Date</Th>
                     <Th>Due Date</Th>
                     <Th align="right">USD Base</Th>
-                    <Th align="right">Status</Th>
+                    <Th align="center">Status</Th>
                     <Th align="center">Action</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {bills.map((b) => (
-                    <tr
-                      key={b.id}
-                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
-                    >
-                      <Td className="font-mono text-[11.5px] font-semibold">
-                        {b.id}
-                        <span className="block text-[10px] text-ink3">{b.billNumber}</span>
-                      </Td>
-                      <Td className="text-ink2 font-medium">
-                        <p className="truncate max-w-[170px]">{b.vendorName}</p>
-                      </Td>
-                      <Td className="font-mono text-[11.5px]">
-                        {b.currency} {b.foreignAmount.toLocaleString()}
-                        {b.currency !== "USD" && (
-                          <span className="block text-[10px] text-ink3">Rate: {b.fxRate}</span>
-                        )}
-                      </Td>
-                      <Td className="text-ink3 text-[11.5px]">{formatDate(b.dueDate)}</Td>
-                      <Td align="right" className="font-mono font-medium text-[12px]">
-                        {usd(b.usdAmount)}
-                        {b.realizedFxDiff !== undefined && (
-                          <span
-                            className={`block text-[10px] font-sans ${
-                              b.realizedFxDiff >= 0
-                                ? "text-up font-semibold"
-                                : "text-down font-semibold"
-                            }`}
-                          >
-                            FX: {acct(b.realizedFxDiff)}
-                          </span>
-                        )}
-                      </Td>
-                      <Td align="right">
-                        <Badge tone={b.status === "Paid" ? "up" : "brand"}>{b.status}</Badge>
-                      </Td>
-                      <Td align="center">
-                        {b.status === "Open" && !userPersona.allowedReportsOnly && (
-                          <button
-                            type="button"
-                            onClick={() => openPayModal(b)}
-                            className="rounded bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 ring-1 ring-brand/20 transition-colors"
-                          >
-                            Pay Bill
-                          </button>
-                        )}
+                  {filteredBills.length === 0 ? (
+                    <tr>
+                      <Td colSpan={9} className="py-8 text-center text-[12px] text-ink3">
+                        Nenhum título encontrado para o filtro selecionado.
                       </Td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredBills.map((b) => (
+                      <tr
+                        key={b.id}
+                        className="border-b border-line/40 last:border-0 hover:bg-black/[0.01] transition-colors"
+                      >
+                        <Td className="font-mono text-[11.5px] font-semibold text-brand">{b.id}</Td>
+                        <Td className="font-mono text-[11px] text-ink3">{b.billNumber}</Td>
+                        <Td className="text-ink font-medium text-[12px]">{b.vendorName}</Td>
+                        <Td className="font-mono text-[11.5px]">
+                          {b.currency} {b.foreignAmount.toLocaleString()}
+                          {b.currency !== "USD" && (
+                            <span className="block text-[10px] text-ink3">Rate: {b.fxRate}</span>
+                          )}
+                        </Td>
+                        <Td className="text-ink3 text-[11.5px]">{formatDate(b.date)}</Td>
+                        <Td className="text-ink3 text-[11.5px]">{formatDate(b.dueDate)}</Td>
+                        <Td align="right" className="font-mono font-semibold text-[12px]">
+                          {usd(b.usdAmount)}
+                          {b.realizedFxDiff !== undefined && (
+                            <span
+                              className={`block text-[10px] font-sans ${
+                                b.realizedFxDiff >= 0
+                                  ? "text-up font-semibold"
+                                  : "text-down font-semibold"
+                              }`}
+                            >
+                              FX: {acct(b.realizedFxDiff)}
+                            </span>
+                          )}
+                        </Td>
+                        <Td align="center">
+                          <Badge tone={b.status === "Paid" ? "up" : "down"}>{b.status}</Badge>
+                        </Td>
+                        <Td align="center">
+                          {b.status !== "Paid" && !userPersona.allowedReportsOnly && (
+                            <button
+                              type="button"
+                              onClick={() => openPayModal(b)}
+                              className="rounded bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 ring-1 ring-brand/25 transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Pagar Fatura
+                            </button>
+                          )}
+                        </Td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </Table>
             </div>
+            <div className="p-4 border-t border-line/50">
+              <Note tone="brand">
+                US GAAP ASC 830 (Foreign Currency Matters): Títulos em moeda estrangeira são registrados
+                pela taxa spot do dia da emissão. Ao liquidar o título, qualquer variação na taxa spot
+                gera Ganho ou Perda Cambial Realizada (Realized FX Gain/Loss - conta 6300).
+              </Note>
+            </div>
           </Panel>
         </div>
-
-        {/* Enter Bill Form */}
-        <div className="lg:col-span-5">
-          {!userPersona.canCreateJournals ? (
-            <Panel title="Client Portal Notice">
-              <div className="p-6 text-center text-ink3 text-[12.5px]">
-                <p>
-                  Client portal users can view vendor payables but cannot enter new trade bills.
-                </p>
-              </div>
-            </Panel>
-          ) : (
-            <Panel
-              title="Enter Vendor Bill"
-              subtitle="Debits Expense or Inventory and credits Accounts Payable (2000)"
-            >
-              <form onSubmit={handleCreateBill} className="p-4 space-y-3">
-                {feedback && (
-                  <div
-                    className={`rounded-md p-2.5 text-[12px] ring-1 ${
-                      feedback.type === "success"
-                        ? "bg-up/[0.08] text-up ring-up/20"
-                        : "bg-down/[0.08] text-down ring-down/20"
-                    }`}
-                  >
-                    {feedback.msg}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Vendor Name
-                    </label>
-                    <input
-                      type="text"
-                      value={vendorName}
-                      onChange={(e) => setVendorName(e.target.value)}
-                      placeholder="e.g. Baja Components"
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Invoice / Bill #
-                    </label>
-                    <input
-                      type="text"
-                      value={billNumber}
-                      onChange={(e) => setBillNumber(e.target.value)}
-                      placeholder="Ref # on bill"
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Currency
-                    </label>
-                    <select
-                      value={currency}
-                      onChange={(e) => {
-                        const cur = e.target.value;
-                        setCurrency(cur);
-                        if (cur === "USD") setFxRate("1.0");
-                        if (cur === "MXN") setFxRate("17.50");
-                        if (cur === "GBP") setFxRate("0.79");
-                        if (cur === "EUR") setFxRate("0.92");
-                        if (cur === "CAD") setFxRate("1.36");
-                      }}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    >
-                      <option value="USD">USD ($)</option>
-                      <option value="MXN">MXN ($)</option>
-                      <option value="GBP">GBP (£)</option>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="CAD">CAD ($)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      FX Rate
-                    </label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={fxRate}
-                      disabled={currency === "USD"}
-                      onChange={(e) => setFxRate(e.target.value)}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2 py-1.5 text-right font-mono text-[12px] ring-1 ring-line outline-none focus:ring-brand disabled:opacity-40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Foreign Amount
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={foreignAmount}
-                      onChange={(e) => setForeignAmount(e.target.value)}
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2 py-1.5 text-right font-mono text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Bill Date
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      required
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-                    />
-                  </div>
-                </div>
-
-                {/* Account & Inventory Classification */}
-                <div className="space-y-2 pt-2 border-t border-line/60">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Expense / Asset Debit Account
-                    </label>
-                    <select
-                      value={accountCode}
-                      onChange={(e) => setAccountCode(e.target.value)}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
-                    >
-                      {accounts
-                        .filter(
-                          (a) =>
-                            a.type === "Asset" ||
-                            a.type === "Operating Expense" ||
-                            a.type === "COGS",
-                        )
-                        .map((a) => (
-                          <option key={a.code} value={a.code}>
-                            {a.code} · {a.name} ({a.type})
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {accountCode === "1300" && (
-                    <div className="rounded-lg bg-ink/[0.02] p-2.5 ring-1 ring-line/50 space-y-2">
-                      <p className="text-[11px] font-semibold text-brand">
-                        Inventory Purchase Lot Inflow
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[10px] text-ink3">Target Catalog SKU</span>
-                          <select
-                            value={skuPurchased}
-                            onChange={(e) => setSkuPurchased(e.target.value)}
-                            className="w-full rounded bg-white px-2 py-1 text-[11.5px] ring-1 ring-line"
-                          >
-                            {inventory
-                              .filter((i) => i.type === "Product")
-                              .map((it) => (
-                                <option key={it.sku} value={it.sku}>
-                                  {it.sku} · {it.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-ink3">Units Added</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={qtyPurchased}
-                            onChange={(e) => setQtyPurchased(Number(e.target.value))}
-                            className="w-full rounded bg-white px-2 py-1 text-right font-mono text-[11.5px] ring-1 ring-line"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                      Project Allocation (Opt.)
-                    </label>
-                    <select
-                      value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
-                    >
-                      <option value="">None (General Overhead)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.code} — {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Conversion USD Base Preview */}
-                <div className="rounded-lg bg-ink/[0.03] p-2.5 ring-1 ring-line/60 flex items-center justify-between text-[12.5px] font-mono">
-                  <span className="text-ink3 font-sans">Recorded Base (USD):</span>
-                  <span className="font-bold text-ink">{usd(calculatedUsd)}</span>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full rounded-md bg-brand py-2 text-[12.5px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
-                >
-                  Enter & Post Vendor Bill
-                </button>
-              </form>
-            </Panel>
-          )}
-        </div>
-      </div>
-
-      {/* Foreign Currency Settlement Modal */}
-      {payingBillId && selectedPayingBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl ring-1 ring-line space-y-4">
-            <div className="flex items-center justify-between border-b border-line/60 pb-2">
-              <h3 className="text-[14px] font-semibold text-ink">
-                Settle Bill · {selectedPayingBill.id}
-              </h3>
+      ) : (
+        /* ================= TELA DE CADASTRO ================= */
+        <div className="space-y-4 max-w-4xl mx-auto">
+          {/* Top Bar with Back Button */}
+          <div className="flex items-center justify-between border-b border-line/60 pb-3">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setPayingBillId(null)}
-                className="text-ink3 hover:text-ink font-bold text-sm"
+                onClick={() => setView("list")}
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer shadow-2xs"
               >
-                ✕
+                <ArrowLeft className="size-3.5" />
+                Voltar para Contas a Pagar
               </button>
-            </div>
-
-            <div className="rounded-lg bg-ink/[0.03] p-3 text-[12px] space-y-1">
-              <div className="flex justify-between">
-                <span className="text-ink3">Vendor:</span>
-                <span className="font-semibold">{selectedPayingBill.vendorName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink3">Foreign Bill Amount:</span>
-                <span className="font-mono">
-                  {selectedPayingBill.currency} {selectedPayingBill.foreignAmount.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink3">Original Booked USD:</span>
-                <span className="font-mono">{usd(selectedPayingBill.usdAmount)}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleConfirmPay} className="space-y-3">
               <div>
+                <h1 className="text-[16px] font-semibold text-ink">Registrar Fatura de Fornecedor</h1>
+                <p className="text-[12px] text-ink3">
+                  Cadastro de obrigações com fornecedores e apropriação contábil no Razão Geral (AP)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Panel
+            title="Dados da Fatura do Fornecedor (Vendor Bill)"
+            subtitle="Preencha os dados do documento fiscal recebido e classifique a despesa ou custo"
+          >
+            <form onSubmit={handleCreateBill} className="p-6 space-y-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Nome / Razão Social do Fornecedor (Vendor Legal Name) *
+                  </label>
+                  <input
+                    type="text"
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                    placeholder="Ex: Grainger Industrial Supply, AWS Cloud..."
+                    required
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Número do Documento / Ref (Bill / Invoice #) *
+                  </label>
+                  <input
+                    type="text"
+                    value={billNumber}
+                    onChange={(e) => setBillNumber(e.target.value)}
+                    placeholder="Ex: INV-2026-9901"
+                    required
+                    className="w-full rounded-md bg-canvas px-3 py-2 font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Moeda da Fatura
+                  </label>
+                  <select
+                    value={currency}
+                    onChange={(e) => handleCurrencyChange(e.target.value)}
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono font-semibold"
+                  >
+                    <option value="USD">USD ($ - Base)</option>
+                    <option value="EUR">EUR (€ - Euro)</option>
+                    <option value="GBP">GBP (£ - Libra)</option>
+                    <option value="MXN">MXN ($ - Peso Mexicano)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Cotação Spot Cambial (FX Rate)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    disabled={currency === "USD"}
+                    value={fxRateInput}
+                    onChange={(e) => setFxRateInput(e.target.value)}
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Valor Original ({currency}) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={foreignAmount}
+                    onChange={(e) => setForeignAmount(e.target.value)}
+                    required
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Equivalente em USD
+                  </label>
+                  <div className="w-full rounded-md bg-ink/[0.04] px-3 py-2 text-right font-mono font-semibold text-[13px] border border-line text-brand">
+                    {usd(calculatedUsd)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Data da Fatura *
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Data de Vencimento *
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    required
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Alocação de Projeto
+                  </label>
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                  >
+                    <option value="">Despesa Geral (G&A)</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Expense Account Classification */}
+              <div className="rounded-lg bg-surface p-4 border border-line space-y-3">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                  Payment Date
+                  Classificação Contábil da Despesa / Ativo
+                </label>
+                <select
+                  value={accountCode}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setAccountCode(val);
+                    if (val === "1300") setIsInventory(true);
+                    else setIsInventory(false);
+                  }}
+                  className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono"
+                >
+                  <optgroup label="Despesas Operacionais (OpEx)">
+                    {accounts
+                      .filter((a) => a.type === "Operating Expense" || a.type === "Other Expense")
+                      .map((a) => (
+                        <option key={a.code} value={a.code}>
+                          {a.code} · {a.name} ({a.type})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Estoque & Custos (Assets / COGS)">
+                    <option value="1300">1300 · Merchandise Inventory (Entrada de Estoque)</option>
+                    <option value="5000">5000 · Cost of Goods Sold (Custo Direto)</option>
+                  </optgroup>
+                </select>
+
+                {accountCode === "1300" && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-line/60">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Vincular ao SKU de Estoque
+                      </label>
+                      <select
+                        value={skuPurchased}
+                        onChange={(e) => setSkuPurchased(e.target.value)}
+                        className="w-full rounded-md bg-canvas px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand"
+                      >
+                        {inventory
+                          .filter((i) => i.type === "Product")
+                          .map((i) => (
+                            <option key={i.sku} value={i.sku}>
+                              {i.sku} · {i.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                        Quantidade Adquirida
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={qtyPurchased}
+                        onChange={(e) => setQtyPurchased(Number(e.target.value) || 1)}
+                        className="w-full rounded-md bg-canvas px-2.5 py-1.5 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-line/60">
+                <button
+                  type="button"
+                  onClick={() => setView("list")}
+                  className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-md bg-brand px-6 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
+                >
+                  Salvar e Postar no Razão (AP)
+                </button>
+              </div>
+            </form>
+          </Panel>
+        </div>
+      )}
+
+      {/* Settlement / Pay Modal Dialog */}
+      {payingBillId && selectedPayingBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-2xl space-y-4">
+            <div>
+              <h2 className="text-[16px] font-semibold text-ink">
+                Liquidar Título: {selectedPayingBill.billNumber}
+              </h2>
+              <p className="text-[12px] text-ink3">
+                Fornecedor: {selectedPayingBill.vendorName} · Valor Original: {selectedPayingBill.currency}{" "}
+                {selectedPayingBill.foreignAmount.toLocaleString()}
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmPay} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                  Data do Pagamento
                 </label>
                 <input
                   type="date"
                   value={payDate}
                   onChange={(e) => setPayDate(e.target.value)}
                   required
-                  className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line"
+                  className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand"
                 />
               </div>
 
               {selectedPayingBill.currency !== "USD" && (
                 <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                    Bank Settlement Exchange Rate ({selectedPayingBill.currency} per USD)
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
+                    Cotação Spot na Data de Liquidação (Settlement FX Rate)
                   </label>
                   <input
                     type="number"
@@ -546,28 +651,27 @@ function PayablesPage() {
                     value={settlementRate}
                     onChange={(e) => setSettlementRate(e.target.value)}
                     required
-                    className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-right font-mono text-[12px] ring-1 ring-line focus:ring-brand"
+                    className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand"
                   />
-                  <p className="mt-1 text-[11px] text-ink3">
-                    If this rate differs from the bill rate ({selectedPayingBill.fxRate}), the
-                    system will post a Realized FX Gain or Loss to Account 6300.
-                  </p>
+                  <span className="block mt-1 text-[11px] text-ink3">
+                    Taxa original de emissão: {selectedPayingBill.fxRate}. A diferença apura ganho/perda cambial.
+                  </span>
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-line/60">
                 <button
                   type="button"
                   onClick={() => setPayingBillId(null)}
-                  className="rounded-md px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-panel"
+                  className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
                 >
-                  Cancel
+                  Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-brand px-4 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-95"
+                  className="rounded-md bg-brand px-5 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
                 >
-                  Confirm Disbursement
+                  Confirmar Quitação
                 </button>
               </div>
             </form>

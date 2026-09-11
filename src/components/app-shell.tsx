@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useAccounting, USER_PERSONAS, type UserRole } from "@/lib/accounting-store";
 import { Badge } from "@/components/ui-kit";
+import { useModal } from "@/components/modal-provider";
 
 interface NavGroup {
   label: string;
@@ -97,27 +98,49 @@ export function AppShell({ children }: { children: ReactNode }) {
     })
     .filter((g) => g.items.length > 0);
 
-  const handlePeriodLockClick = () => {
+  const modal = useModal();
+
+  const handlePeriodLockClick = async () => {
     if (!userPersona.canClosePeriod) {
-      alert(
-        "Access Denied: Only Platform or Accounting Administrators can lock or unlock accounting periods.",
-      );
+      await modal.showAlert({
+        title: "Acesso Negado",
+        message: "Apenas administradores da plataforma ou contadores responsáveis podem bloquear ou desbloquear períodos contábeis.",
+        tone: "error",
+      });
       return;
     }
     if (!activeCompany.isPeriodClosed) {
-      const confirmLock = window.confirm(
-        `Are you sure you want to LOCK period ${activeCompany.activePeriod}? Once locked, non-admin postings are blocked and adjustments require mandatory audit override reasons.`,
-      );
+      const confirmLock = await modal.showConfirm({
+        title: `Bloquear Período Contábil (${activeCompany.activePeriod})`,
+        message: `Tem certeza que deseja BLOQUEAR o período ${activeCompany.activePeriod}?\n\nApós o bloqueio, novos lançamentos por usuários operacionais serão impedidos e ajustes contábeis exigirão justificativa obrigatória de auditoria.`,
+        tone: "warning",
+        confirmText: "Sim, Bloquear Período",
+        cancelText: "Cancelar",
+      });
       if (confirmLock) {
-        togglePeriodLock("Normal month-end closing procedures completed.");
+        togglePeriodLock("Procedimento normal de fechamento mensal concluído.");
+        await modal.showAlert({
+          title: "Período Bloqueado",
+          message: `O período contábil ${activeCompany.activePeriod} foi bloqueado com sucesso.`,
+          tone: "success",
+        });
       }
     } else {
-      const reason = window.prompt(
-        `Provide an authorized reason to UNLOCK period ${activeCompany.activePeriod}:`,
-        "CPA post-closing audit adjustment needed.",
-      );
+      const reason = await modal.showPrompt({
+        title: `Desbloquear Período Contábil (${activeCompany.activePeriod})`,
+        message: `Informe a justificativa formal de auditoria para reabertura do período ${activeCompany.activePeriod}:`,
+        defaultValue: "Ajuste contábil pós-fechamento solicitado pelo CPA.",
+        placeholder: "Motivo do desbloqueio...",
+        confirmText: "Desbloquear Período",
+        cancelText: "Cancelar",
+      });
       if (reason) {
         togglePeriodLock(reason);
+        await modal.showAlert({
+          title: "Período Reaberto",
+          message: `O período contábil ${activeCompany.activePeriod} foi reaberto com sucesso.\nMotivo registrado no log de auditoria: "${reason}"`,
+          tone: "success",
+        });
       }
     }
   };
