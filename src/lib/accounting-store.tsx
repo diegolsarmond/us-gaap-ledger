@@ -371,6 +371,73 @@ export interface AuditLogEntry {
   overrideReason?: string | undefined;
 }
 
+export interface CurrencyParam {
+  code: string;
+  name: string;
+  symbol: string;
+  exchangeRateToUsd: number;
+  isBaseCurrency: boolean;
+  quotationType: "Fixed" | "Float" | "Central Bank";
+  status: "Active" | "Inactive";
+  lastUpdated: string;
+}
+
+export interface TaxJurisdictionParam {
+  id: string;
+  code: string;
+  state: string;
+  name: string;
+  rate: number;
+  taxType: "State Sales Tax" | "Local Surcharge" | "Combined";
+  glAccountCode: string;
+  filingFrequency: "Monthly" | "Quarterly" | "Annual";
+  status: "Active" | "Inactive";
+}
+
+export interface PaymentTermParam {
+  id: string;
+  code: string;
+  name: string;
+  days: number;
+  earlyDiscountPercentage?: number;
+  discountDays?: number;
+  isDefaultCustomer: boolean;
+  isDefaultVendor: boolean;
+  status: "Active" | "Inactive";
+}
+
+export interface CostCenterParam {
+  id: string;
+  code: string;
+  name: string;
+  manager: string;
+  annualBudget: number;
+  description: string;
+  status: "Active" | "Inactive";
+}
+
+export interface ExpenseCategoryParam {
+  id: string;
+  code: string;
+  name: string;
+  glAccountCode: string;
+  taxDeductibility: "100% Deductible" | "50% Meals & Ent." | "Non-Deductible";
+  description: string;
+  status: "Active" | "Inactive";
+}
+
+export interface FiscalPeriodParam {
+  id: string;
+  periodCode: string;
+  fiscalYear: string;
+  startDate: string;
+  endDate: string;
+  status: "Open" | "Soft-Close" | "Locked";
+  closedBy?: string;
+  closingDate?: string;
+  notes?: string;
+}
+
 export const INITIAL_COMPANIES: ClientCompany[] = [
   {
     id: "harbor-ridge",
@@ -959,6 +1026,298 @@ function createInitialCompanyData(companyId: string) {
     },
   ];
 
+  const currencies: CurrencyParam[] = [
+    {
+      code: "USD",
+      name: "US Dollar (Moeda Funcional)",
+      symbol: "$",
+      exchangeRateToUsd: 1.0,
+      isBaseCurrency: true,
+      quotationType: "Fixed",
+      status: "Active",
+      lastUpdated: "2026-12-01",
+    },
+    {
+      code: "EUR",
+      name: "Euro",
+      symbol: "€",
+      exchangeRateToUsd: 1.0825,
+      isBaseCurrency: false,
+      quotationType: "Float",
+      status: "Active",
+      lastUpdated: "2026-12-14",
+    },
+    {
+      code: "GBP",
+      name: "British Pound Sterling",
+      symbol: "£",
+      exchangeRateToUsd: 1.2658,
+      isBaseCurrency: false,
+      quotationType: "Float",
+      status: "Active",
+      lastUpdated: "2026-12-14",
+    },
+    {
+      code: "CAD",
+      name: "Canadian Dollar",
+      symbol: "CA$",
+      exchangeRateToUsd: 0.7348,
+      isBaseCurrency: false,
+      quotationType: "Float",
+      status: "Active",
+      lastUpdated: "2026-12-10",
+    },
+    {
+      code: "MXN",
+      name: "Mexican Peso",
+      symbol: "Mex$",
+      exchangeRateToUsd: 0.0582,
+      isBaseCurrency: false,
+      quotationType: "Float",
+      status: "Active",
+      lastUpdated: "2026-12-12",
+    },
+    {
+      code: "BRL",
+      name: "Brazilian Real (Real Brasileiro)",
+      symbol: "R$",
+      exchangeRateToUsd: 0.1785,
+      isBaseCurrency: false,
+      quotationType: "Central Bank",
+      status: "Active",
+      lastUpdated: "2026-12-11",
+    },
+    {
+      code: "JPY",
+      name: "Japanese Yen",
+      symbol: "¥",
+      exchangeRateToUsd: 0.00665,
+      isBaseCurrency: false,
+      quotationType: "Float",
+      status: "Inactive",
+      lastUpdated: "2026-11-30",
+    },
+  ];
+
+  const taxJurisdictions: TaxJurisdictionParam[] = [
+    {
+      id: "tax-fl",
+      code: "FL-STATE",
+      state: "FL",
+      name: "Florida Department of Revenue",
+      rate: 6.0,
+      taxType: "State Sales Tax",
+      glAccountCode: "2200",
+      filingFrequency: "Monthly",
+      status: "Active",
+    },
+    {
+      id: "tax-tx",
+      code: "TX-STATE",
+      state: "TX",
+      name: "Texas Comptroller of Public Accounts",
+      rate: 6.25,
+      taxType: "State Sales Tax",
+      glAccountCode: "2200",
+      filingFrequency: "Monthly",
+      status: "Active",
+    },
+    {
+      id: "tax-ca",
+      code: "CA-STATE",
+      state: "CA",
+      name: "California CDTFA",
+      rate: 7.25,
+      taxType: "State Sales Tax",
+      glAccountCode: "2200",
+      filingFrequency: "Quarterly",
+      status: "Active",
+    },
+    {
+      id: "tax-ny",
+      code: "NY-STATE",
+      state: "NY",
+      name: "New York State DTF",
+      rate: 4.0,
+      taxType: "State Sales Tax",
+      glAccountCode: "2200",
+      filingFrequency: "Quarterly",
+      status: "Active",
+    },
+    {
+      id: "tax-wa",
+      code: "WA-STATE",
+      state: "WA",
+      name: "Washington Department of Revenue",
+      rate: 6.5,
+      taxType: "State Sales Tax",
+      glAccountCode: "2200",
+      filingFrequency: "Monthly",
+      status: "Active",
+    },
+  ];
+
+  const paymentTerms: PaymentTermParam[] = [
+    {
+      id: "term-due",
+      code: "DUE_RECEIPT",
+      name: "Due on Receipt (À Vista)",
+      days: 0,
+      isDefaultCustomer: false,
+      isDefaultVendor: false,
+      status: "Active",
+    },
+    {
+      id: "term-net15",
+      code: "NET_15",
+      name: "Net 15 Days",
+      days: 15,
+      isDefaultCustomer: false,
+      isDefaultVendor: false,
+      status: "Active",
+    },
+    {
+      id: "term-net30",
+      code: "NET_30",
+      name: "Net 30 Days (Padrão)",
+      days: 30,
+      isDefaultCustomer: true,
+      isDefaultVendor: true,
+      status: "Active",
+    },
+    {
+      id: "term-net60",
+      code: "NET_60",
+      name: "Net 60 Days",
+      days: 60,
+      isDefaultCustomer: false,
+      isDefaultVendor: false,
+      status: "Active",
+    },
+    {
+      id: "term-2-10-30",
+      code: "2_10_NET_30",
+      name: "2/10 Net 30 (2% Desc. em até 10 dias)",
+      days: 30,
+      earlyDiscountPercentage: 2.0,
+      discountDays: 10,
+      isDefaultCustomer: false,
+      isDefaultVendor: false,
+      status: "Active",
+    },
+  ];
+
+  const costCenters: CostCenterParam[] = [
+    {
+      id: "cc-100",
+      code: "CC-100",
+      name: "Operações & Logística",
+      manager: "Dave Higgins",
+      annualBudget: round(350000),
+      description: "Operações diárias, frota, movimentação de pátio e armazenagem",
+      status: "Active",
+    },
+    {
+      id: "cc-200",
+      code: "CC-200",
+      name: "Comercial & Vendas",
+      manager: "Elena Rostova",
+      annualBudget: round(180000),
+      description: "Equipe comercial, comissões, marketing e pós-venda",
+      status: "Active",
+    },
+    {
+      id: "cc-300",
+      code: "CC-300",
+      name: "P&D e Engenharia Técnica",
+      manager: "Dr. Aris Thorne",
+      annualBudget: round(220000),
+      description: "Pesquisa técnica, certificações marítimas e controle de qualidade",
+      status: "Active",
+    },
+    {
+      id: "cc-400",
+      code: "CC-400",
+      name: "Administrativo & TI",
+      manager: "Carlos A.",
+      annualBudget: round(140000),
+      description: "Sistemas em nuvem, gestão contábil, facilities e governança",
+      status: "Active",
+    },
+  ];
+
+  const expenseCategories: ExpenseCategoryParam[] = [
+    {
+      id: "exp-cat-1",
+      code: "EXP-CLOUD",
+      name: "SaaS & Infraestrutura Cloud",
+      glAccountCode: "6200",
+      taxDeductibility: "100% Deductible",
+      description: "Assinaturas de software, servidores AWS/Azure e segurança cibernética",
+      status: "Active",
+    },
+    {
+      id: "exp-cat-2",
+      code: "EXP-LEGAL",
+      name: "Honorários Jurídicos & Auditoria",
+      glAccountCode: "6200",
+      taxDeductibility: "100% Deductible",
+      description: "Consultoria legal especializada, CPA fees e registros regulatórios",
+      status: "Active",
+    },
+    {
+      id: "exp-cat-3",
+      code: "EXP-MKT",
+      name: "Marketing & Aquisição (Ads)",
+      glAccountCode: "6100",
+      taxDeductibility: "100% Deductible",
+      description: "Campanhas digitais, anúncios B2B e participação em convenções",
+      status: "Active",
+    },
+    {
+      id: "exp-cat-4",
+      code: "EXP-TRAVEL",
+      name: "Viagens & Refeições de Negócios",
+      glAccountCode: "6200",
+      taxDeductibility: "50% Meals & Ent.",
+      description: "Passagens aéreas, estadias e refeições comerciais com clientes",
+      status: "Active",
+    },
+    {
+      id: "exp-cat-5",
+      code: "EXP-FREIGHT",
+      name: "Frete & Logística de Insumos",
+      glAccountCode: "5000",
+      taxDeductibility: "100% Deductible",
+      description: "Despesas diretas de transporte marítimo e desembaraço aduaneiro",
+      status: "Active",
+    },
+    {
+      id: "exp-cat-6",
+      code: "EXP-FACILITY",
+      name: "Aluguel & Manutenção Predial",
+      glAccountCode: "6200",
+      taxDeductibility: "100% Deductible",
+      description: "Locação de galpão e docas portuárias, contas de utilidades públicas",
+      status: "Active",
+    },
+  ];
+
+  const fiscalPeriods: FiscalPeriodParam[] = [
+    { id: "fp-01", periodCode: "2026-01", fiscalYear: "FY2026", startDate: "2026-01-01", endDate: "2026-01-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-02-10", notes: "Fechamento mensal aprovado e auditado" },
+    { id: "fp-02", periodCode: "2026-02", fiscalYear: "FY2026", startDate: "2026-02-01", endDate: "2026-02-28", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-03-10", notes: "Fechamento mensal aprovado" },
+    { id: "fp-03", periodCode: "2026-03", fiscalYear: "FY2026", startDate: "2026-03-01", endDate: "2026-03-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-04-12", notes: "Q1 fechado e reconciliado" },
+    { id: "fp-04", periodCode: "2026-04", fiscalYear: "FY2026", startDate: "2026-04-01", endDate: "2026-04-30", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-05-10" },
+    { id: "fp-05", periodCode: "2026-05", fiscalYear: "FY2026", startDate: "2026-05-01", endDate: "2026-05-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-06-08" },
+    { id: "fp-06", periodCode: "2026-06", fiscalYear: "FY2026", startDate: "2026-06-01", endDate: "2026-06-30", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-07-11", notes: "Q2 fechado" },
+    { id: "fp-07", periodCode: "2026-07", fiscalYear: "FY2026", startDate: "2026-07-01", endDate: "2026-07-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-08-10" },
+    { id: "fp-08", periodCode: "2026-08", fiscalYear: "FY2026", startDate: "2026-08-01", endDate: "2026-08-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-09-09" },
+    { id: "fp-09", periodCode: "2026-09", fiscalYear: "FY2026", startDate: "2026-09-01", endDate: "2026-09-30", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-10-10", notes: "Q3 fechado" },
+    { id: "fp-10", periodCode: "2026-10", fiscalYear: "FY2026", startDate: "2026-10-01", endDate: "2026-10-31", status: "Locked", closedBy: "Sarah Jenkins, CPA", closingDate: "2026-11-09" },
+    { id: "fp-11", periodCode: "2026-11", fiscalYear: "FY2026", startDate: "2026-11-01", endDate: "2026-11-30", status: "Soft-Close", notes: "Período preliminar sob conferência contábil" },
+    { id: "fp-12", periodCode: "2026-12", fiscalYear: "FY2026", startDate: "2026-12-01", endDate: "2026-12-31", status: "Open", notes: "Período fiscal corrente em aberto" },
+  ];
+
   return {
     accounts: STANDARD_CHART_OF_ACCOUNTS,
     journals: initialJournals,
@@ -970,6 +1329,12 @@ function createInitialCompanyData(companyId: string) {
     stagingRows,
     taxes,
     auditLogs,
+    currencies,
+    taxJurisdictions,
+    paymentTerms,
+    costCenters,
+    expenseCategories,
+    fiscalPeriods,
   };
 }
 
@@ -1057,6 +1422,39 @@ export interface AccountingContextType {
 
   auditLogs: AuditLogEntry[];
 
+  // Parametrização do Sistema
+  currencies: CurrencyParam[];
+  addCurrency: (curr: CurrencyParam) => void;
+  updateCurrency: (code: string, data: Partial<CurrencyParam>) => void;
+  deleteCurrency: (code: string) => void;
+
+  taxJurisdictions: TaxJurisdictionParam[];
+  addTaxJurisdiction: (tax: Omit<TaxJurisdictionParam, "id">) => void;
+  updateTaxJurisdiction: (id: string, data: Partial<TaxJurisdictionParam>) => void;
+  deleteTaxJurisdiction: (id: string) => void;
+
+  paymentTerms: PaymentTermParam[];
+  addPaymentTerm: (term: Omit<PaymentTermParam, "id">) => void;
+  updatePaymentTerm: (id: string, data: Partial<PaymentTermParam>) => void;
+  deletePaymentTerm: (id: string) => void;
+
+  costCenters: CostCenterParam[];
+  addCostCenter: (cc: Omit<CostCenterParam, "id">) => void;
+  updateCostCenter: (id: string, data: Partial<CostCenterParam>) => void;
+  deleteCostCenter: (id: string) => void;
+
+  expenseCategories: ExpenseCategoryParam[];
+  addExpenseCategory: (cat: Omit<ExpenseCategoryParam, "id">) => void;
+  updateExpenseCategory: (id: string, data: Partial<ExpenseCategoryParam>) => void;
+  deleteExpenseCategory: (id: string) => void;
+
+  fiscalPeriods: FiscalPeriodParam[];
+  addFiscalPeriod: (period: Omit<FiscalPeriodParam, "id">) => void;
+  updateFiscalPeriod: (id: string, data: Partial<FiscalPeriodParam>) => void;
+  deleteFiscalPeriod: (id: string) => void;
+
+  resetParametersToDefault: () => void;
+
   accountBalances: Record<string, { debit: number; credit: number; net: number }>;
   isLedgerBalanced: boolean;
   totalDebitSum: number;
@@ -1099,7 +1497,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}data`);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        INITIAL_COMPANIES.forEach((c) => {
+          const def = createInitialCompanyData(c.id);
+          if (parsed[c.id]) {
+            parsed[c.id].currencies = parsed[c.id].currencies || def.currencies;
+            parsed[c.id].taxJurisdictions = parsed[c.id].taxJurisdictions || def.taxJurisdictions;
+            parsed[c.id].paymentTerms = parsed[c.id].paymentTerms || def.paymentTerms;
+            parsed[c.id].costCenters = parsed[c.id].costCenters || def.costCenters;
+            parsed[c.id].expenseCategories = parsed[c.id].expenseCategories || def.expenseCategories;
+            parsed[c.id].fiscalPeriods = parsed[c.id].fiscalPeriods || def.fiscalPeriods;
+          }
+        });
+        return parsed;
       } catch (e) {
         console.error("Failed to parse saved state", e);
       }
@@ -1960,6 +2370,205 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     );
   };
 
+  // --- CRUD de Parâmetros ---
+
+  // Moedas (Currencies)
+  const addCurrency = (curr: CurrencyParam) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      currencies: [...(prev.currencies || []).filter((c) => c.code !== curr.code), curr],
+    }));
+    addAuditLog("CREATE_CURRENCY", "CurrencyParam", curr.code, `Adicionada moeda ${curr.code} (${curr.name}) com taxa de ${curr.exchangeRateToUsd}.`);
+  };
+
+  const updateCurrency = (code: string, data: Partial<CurrencyParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      currencies: (prev.currencies || []).map((c) =>
+        c.code === code ? { ...c, ...data, lastUpdated: new Date().toISOString().split("T")[0]! } : c,
+      ),
+    }));
+    addAuditLog("UPDATE_CURRENCY", "CurrencyParam", code, `Atualizados parâmetros da moeda ${code}.`);
+  };
+
+  const deleteCurrency = (code: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      currencies: (prev.currencies || []).filter((c) => c.code !== code),
+    }));
+    addAuditLog("DELETE_CURRENCY", "CurrencyParam", code, `Removida moeda ${code} do catálogo de taxas.`);
+  };
+
+  // Jurisdições Fiscais (Tax Jurisdictions)
+  const addTaxJurisdiction = (tax: Omit<TaxJurisdictionParam, "id">) => {
+    const newTax: TaxJurisdictionParam = {
+      ...tax,
+      id: `tax-jur-${Date.now()}`,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      taxJurisdictions: [...(prev.taxJurisdictions || []), newTax],
+    }));
+    addAuditLog("CREATE_TAX_JURISDICTION", "TaxJurisdictionParam", newTax.code, `Cadastrada jurisdição fiscal ${newTax.name} (${newTax.rate}%).`);
+  };
+
+  const updateTaxJurisdiction = (id: string, data: Partial<TaxJurisdictionParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      taxJurisdictions: (prev.taxJurisdictions || []).map((t) =>
+        t.id === id ? { ...t, ...data } : t,
+      ),
+    }));
+    addAuditLog("UPDATE_TAX_JURISDICTION", "TaxJurisdictionParam", id, `Atualizada jurisdição fiscal ${id}.`);
+  };
+
+  const deleteTaxJurisdiction = (id: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      taxJurisdictions: (prev.taxJurisdictions || []).filter((t) => t.id !== id),
+    }));
+    addAuditLog("DELETE_TAX_JURISDICTION", "TaxJurisdictionParam", id, `Removida jurisdição fiscal ${id}.`);
+  };
+
+  // Prazos e Condições Comerciais (Payment Terms)
+  const addPaymentTerm = (term: Omit<PaymentTermParam, "id">) => {
+    const newTerm: PaymentTermParam = {
+      ...term,
+      id: `term-${Date.now()}`,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      paymentTerms: [...(prev.paymentTerms || []), newTerm],
+    }));
+    addAuditLog("CREATE_PAYMENT_TERM", "PaymentTermParam", newTerm.code, `Cadastrada condição comercial ${newTerm.name} (${newTerm.days} dias).`);
+  };
+
+  const updatePaymentTerm = (id: string, data: Partial<PaymentTermParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      paymentTerms: (prev.paymentTerms || []).map((p) =>
+        p.id === id ? { ...p, ...data } : p,
+      ),
+    }));
+    addAuditLog("UPDATE_PAYMENT_TERM", "PaymentTermParam", id, `Atualizada condição de pagamento ${id}.`);
+  };
+
+  const deletePaymentTerm = (id: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      paymentTerms: (prev.paymentTerms || []).filter((p) => p.id !== id),
+    }));
+    addAuditLog("DELETE_PAYMENT_TERM", "PaymentTermParam", id, `Removida condição comercial ${id}.`);
+  };
+
+  // Centros de Custo (Cost Centers)
+  const addCostCenter = (cc: Omit<CostCenterParam, "id">) => {
+    const newCC: CostCenterParam = {
+      ...cc,
+      id: `cc-${Date.now()}`,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      costCenters: [...(prev.costCenters || []), newCC],
+    }));
+    addAuditLog("CREATE_COST_CENTER", "CostCenterParam", newCC.code, `Cadastrado centro de custo ${newCC.code} - ${newCC.name}.`);
+  };
+
+  const updateCostCenter = (id: string, data: Partial<CostCenterParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      costCenters: (prev.costCenters || []).map((c) =>
+        c.id === id ? { ...c, ...data } : c,
+      ),
+    }));
+    addAuditLog("UPDATE_COST_CENTER", "CostCenterParam", id, `Atualizado centro de custo ${id}.`);
+  };
+
+  const deleteCostCenter = (id: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      costCenters: (prev.costCenters || []).filter((c) => c.id !== id),
+    }));
+    addAuditLog("DELETE_COST_CENTER", "CostCenterParam", id, `Removido centro de custo ${id}.`);
+  };
+
+  // Categorias de Despesas (Expense Categories)
+  const addExpenseCategory = (cat: Omit<ExpenseCategoryParam, "id">) => {
+    const newCat: ExpenseCategoryParam = {
+      ...cat,
+      id: `exp-cat-${Date.now()}`,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      expenseCategories: [...(prev.expenseCategories || []), newCat],
+    }));
+    addAuditLog("CREATE_EXPENSE_CAT", "ExpenseCategoryParam", newCat.code, `Cadastrada categoria de despesa ${newCat.name} (Conta ${newCat.glAccountCode}).`);
+  };
+
+  const updateExpenseCategory = (id: string, data: Partial<ExpenseCategoryParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      expenseCategories: (prev.expenseCategories || []).map((e) =>
+        e.id === id ? { ...e, ...data } : e,
+      ),
+    }));
+    addAuditLog("UPDATE_EXPENSE_CAT", "ExpenseCategoryParam", id, `Atualizada categoria de despesa ${id}.`);
+  };
+
+  const deleteExpenseCategory = (id: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      expenseCategories: (prev.expenseCategories || []).filter((e) => e.id !== id),
+    }));
+    addAuditLog("DELETE_EXPENSE_CAT", "ExpenseCategoryParam", id, `Removida categoria de despesa ${id}.`);
+  };
+
+  // Períodos Fiscais (Fiscal Periods)
+  const addFiscalPeriod = (period: Omit<FiscalPeriodParam, "id">) => {
+    const newPeriod: FiscalPeriodParam = {
+      ...period,
+      id: `fp-${Date.now()}`,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      fiscalPeriods: [...(prev.fiscalPeriods || []), newPeriod],
+    }));
+    addAuditLog("CREATE_FISCAL_PERIOD", "FiscalPeriodParam", newPeriod.periodCode, `Adicionado período fiscal ${newPeriod.periodCode} (${newPeriod.status}).`);
+  };
+
+  const updateFiscalPeriod = (id: string, data: Partial<FiscalPeriodParam>) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      fiscalPeriods: (prev.fiscalPeriods || []).map((p) =>
+        p.id === id ? { ...p, ...data } : p,
+      ),
+    }));
+    addAuditLog("UPDATE_FISCAL_PERIOD", "FiscalPeriodParam", id, `Atualizado status do período fiscal ${id}.`);
+  };
+
+  const deleteFiscalPeriod = (id: string) => {
+    updateCompanyData((prev) => ({
+      ...prev,
+      fiscalPeriods: (prev.fiscalPeriods || []).filter((p) => p.id !== id),
+    }));
+    addAuditLog("DELETE_FISCAL_PERIOD", "FiscalPeriodParam", id, `Removido período fiscal ${id}.`);
+  };
+
+  // Reset para padrões da empresa ativa
+  const resetParametersToDefault = () => {
+    const def = createInitialCompanyData(activeCompany.id);
+    updateCompanyData((prev) => ({
+      ...prev,
+      currencies: def.currencies,
+      taxJurisdictions: def.taxJurisdictions,
+      paymentTerms: def.paymentTerms,
+      costCenters: def.costCenters,
+      expenseCategories: def.expenseCategories,
+      fiscalPeriods: def.fiscalPeriods,
+    }));
+    addAuditLog("RESET_PARAMETERS", "CompanyParameters", activeCompany.id, `Restaurados parâmetros padrão para a empresa ${activeCompany.name}.`);
+  };
+
   const { accountBalances, totalDebitSum, totalCreditSum, isLedgerBalanced } = useMemo(() => {
     const balances: Record<string, { debit: number; credit: number; net: number }> = {};
 
@@ -2053,6 +2662,31 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         taxes: currentData.taxes,
         recordTaxRemittance,
         auditLogs: currentData.auditLogs,
+        currencies: currentData.currencies || [],
+        addCurrency,
+        updateCurrency,
+        deleteCurrency,
+        taxJurisdictions: currentData.taxJurisdictions || [],
+        addTaxJurisdiction,
+        updateTaxJurisdiction,
+        deleteTaxJurisdiction,
+        paymentTerms: currentData.paymentTerms || [],
+        addPaymentTerm,
+        updatePaymentTerm,
+        deletePaymentTerm,
+        costCenters: currentData.costCenters || [],
+        addCostCenter,
+        updateCostCenter,
+        deleteCostCenter,
+        expenseCategories: currentData.expenseCategories || [],
+        addExpenseCategory,
+        updateExpenseCategory,
+        deleteExpenseCategory,
+        fiscalPeriods: currentData.fiscalPeriods || [],
+        addFiscalPeriod,
+        updateFiscalPeriod,
+        deleteFiscalPeriod,
+        resetParametersToDefault,
         accountBalances,
         isLedgerBalanced,
         totalDebitSum,

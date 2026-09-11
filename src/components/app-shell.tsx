@@ -3,9 +3,11 @@ import { useState, type ReactNode } from "react";
 import { useAccounting, USER_PERSONAS, type UserRole } from "@/lib/accounting-store";
 import { Badge } from "@/components/ui-kit";
 import { useModal } from "@/components/modal-provider";
+import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
 
 interface NavGroup {
   label: string;
+  isCollapsible?: boolean;
   items: { to: string; label: string; minRole?: UserRole }[];
 }
 
@@ -46,9 +48,30 @@ const navGroups: NavGroup[] = [
       { to: "/access", label: "Roles & Tenants" },
     ],
   },
+  {
+    label: "Parâmetros do Sistema",
+    isCollapsible: true,
+    items: [
+      { to: "/parameters", label: "Visão Geral dos Módulos" },
+      { to: "/parameters/currencies", label: "Moedas & Câmbio" },
+      { to: "/parameters/tax-jurisdictions", label: "Jurisdições Fiscais" },
+      { to: "/parameters/payment-terms", label: "Prazos de Pagamento" },
+      { to: "/parameters/cost-centers", label: "Centros de Custo" },
+      { to: "/parameters/expense-categories", label: "Categorias de Despesas" },
+      { to: "/parameters/fiscal-periods", label: "Períodos Fiscais" },
+    ],
+  },
 ];
 
 function crumbFor(path: string) {
+  if (path === "/parameters") return "Parâmetros · Visão Geral";
+  if (path === "/parameters/currencies") return "Parâmetros · Moedas & Câmbio";
+  if (path === "/parameters/tax-jurisdictions") return "Parâmetros · Jurisdições Fiscais";
+  if (path === "/parameters/payment-terms") return "Parâmetros · Prazos de Pagamento";
+  if (path === "/parameters/cost-centers") return "Parâmetros · Centros de Custo";
+  if (path === "/parameters/expense-categories") return "Parâmetros · Categorias de Despesas";
+  if (path === "/parameters/fiscal-periods") return "Parâmetros · Períodos Fiscais";
+
   for (const g of navGroups) {
     const found = g.items.find((i) => i.to === path);
     if (found) return found.label;
@@ -91,6 +114,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             ...group,
             items: group.items.filter((i) => i.to === "/statements"),
           };
+        }
+        if (group.label === "Parâmetros do Sistema") {
+          // Blocked on Client Portal
+          return { ...group, items: [] };
         }
         return { ...group, items: [] };
       }
@@ -145,6 +172,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   };
 
+  const [paramsMenuOpen, setParamsMenuOpen] = useState(true);
+
   return (
     <div className="flex min-h-screen w-full bg-canvas text-ink">
       {/* Left Sidebar */}
@@ -164,34 +193,94 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain">
-          {filteredNavGroups.map((g) => (
-            <div key={g.label} className="mb-2">
-              <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink3">
-                {g.label}
-              </p>
-              {g.items.map((i) => (
-                <Link
-                  key={i.to}
-                  to={i.to}
-                  activeOptions={{ exact: i.to === "/" }}
-                  className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-ink2 transition-colors hover:text-ink"
-                  activeProps={{
-                    className:
-                      "mt-0.5 flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-[12.5px] font-semibold text-ink ring-1 ring-line shadow-2xs",
-                  }}
-                >
-                  {({ isActive }) => (
-                    <>
-                      <span
-                        className={`size-1.5 rounded-full ${isActive ? "bg-brand" : "bg-line"}`}
-                      />
-                      {i.label}
-                    </>
+          {filteredNavGroups.map((g) => {
+            const isCollapsible = g.isCollapsible;
+            const isCurrentSection = g.items.some((i) => path === i.to || (i.to !== "/parameters" && path.startsWith(i.to)));
+
+            if (isCollapsible) {
+              return (
+                <div key={g.label} className="mb-2.5 rounded-lg border border-line/50 bg-ink/[0.015] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setParamsMenuOpen((v) => !v)}
+                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[11.5px] font-semibold uppercase tracking-[0.1em] text-ink2 transition-colors hover:bg-ink/[0.04] hover:text-ink"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <SlidersHorizontal className="size-3.5 text-brand" />
+                      {g.label}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="rounded bg-brand/10 px-1 py-0.2 font-mono text-[9px] font-medium text-brand">
+                        CRUDs
+                      </span>
+                      {paramsMenuOpen ? (
+                        <ChevronDown className="size-3 text-ink3" />
+                      ) : (
+                        <ChevronRight className="size-3 text-ink3" />
+                      )}
+                    </span>
+                  </button>
+
+                  {paramsMenuOpen && (
+                    <div className="mt-1 space-y-0.5 pl-1.5 border-l-2 border-brand/20 ml-2 py-0.5">
+                      {g.items.map((i) => (
+                        <Link
+                          key={i.to}
+                          to={i.to}
+                          activeOptions={{ exact: i.to === "/parameters" }}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-ink2 transition-colors hover:bg-ink/[0.03] hover:text-ink"
+                          activeProps={{
+                            className:
+                              "flex items-center gap-2 rounded-md bg-white px-2 py-1.5 text-[12px] font-semibold text-brand ring-1 ring-line shadow-2xs",
+                          }}
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <span
+                                className={`size-1.5 rounded-full transition-colors ${
+                                  isActive ? "bg-brand ring-2 ring-brand/20" : "bg-line"
+                                }`}
+                              />
+                              <span className="truncate">{i.label}</span>
+                            </>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
                   )}
-                </Link>
-              ))}
-            </div>
-          ))}
+                </div>
+              );
+            }
+
+            return (
+              <div key={g.label} className="mb-2">
+                <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink3">
+                  {g.label}
+                </p>
+                {g.items.map((i) => (
+                  <Link
+                    key={i.to}
+                    to={i.to}
+                    activeOptions={{ exact: i.to === "/" }}
+                    className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-ink2 transition-colors hover:text-ink"
+                    activeProps={{
+                      className:
+                        "mt-0.5 flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-[12.5px] font-semibold text-ink ring-1 ring-line shadow-2xs",
+                    }}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span
+                          className={`size-1.5 rounded-full ${isActive ? "bg-brand" : "bg-line"}`}
+                        />
+                        {i.label}
+                      </>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Period Lock & Ledger Balance Status Widget */}
