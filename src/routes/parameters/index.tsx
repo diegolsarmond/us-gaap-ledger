@@ -261,7 +261,7 @@ function ParametersIndexPage() {
       {/* Compliance & US GAAP Notice */}
       <Panel
         title="Governança de Parâmetros e Conformidade US GAAP"
-        badge={<Badge tone="brand">Regras de Auditoria</Badge>}
+        aside={<Badge tone="brand">Regras de Auditoria</Badge>}
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 pt-2">
           <div className="flex items-start gap-3 rounded-lg bg-canvas p-3 ring-1 ring-line/60">

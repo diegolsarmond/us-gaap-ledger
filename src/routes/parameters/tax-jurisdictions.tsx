@@ -292,7 +292,7 @@ function TaxJurisdictionsPage() {
       {/* Table Panel */}
       <Panel
         title={`Tabela de Jurisdições Fiscais (${filteredTaxes.length})`}
-        badge={<Badge tone="brand">Sales Tax Nexus</Badge>}
+        aside={<Badge tone="brand">Sales Tax Nexus</Badge>}
       >
         <Table>
           <thead>

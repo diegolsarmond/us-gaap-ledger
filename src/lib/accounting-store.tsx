@@ -399,8 +399,8 @@ export interface PaymentTermParam {
   code: string;
   name: string;
   days: number;
-  earlyDiscountPercentage?: number;
-  discountDays?: number;
+  earlyDiscountPercentage?: number | undefined;
+  discountDays?: number | undefined;
   isDefaultCustomer: boolean;
   isDefaultVendor: boolean;
   status: "Active" | "Inactive";
@@ -433,9 +433,9 @@ export interface FiscalPeriodParam {
   startDate: string;
   endDate: string;
   status: "Open" | "Soft-Close" | "Locked";
-  closedBy?: string;
-  closingDate?: string;
-  notes?: string;
+  closedBy?: string | undefined;
+  closingDate?: string | undefined;
+  notes?: string | undefined;
 }
 
 export const INITIAL_COMPANIES: ClientCompany[] = [

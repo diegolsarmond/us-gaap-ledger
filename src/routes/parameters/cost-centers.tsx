@@ -276,7 +276,7 @@ function CostCentersPage() {
       {/* Table Panel */}
       <Panel
         title={`Centros de Custo Cadastrados (${filteredCostCenters.length})`}
-        badge={<Badge tone="brand">Departmental Units</Badge>}
+        aside={<Badge tone="brand">Departmental Units</Badge>}
       >
         <Table>
           <thead>

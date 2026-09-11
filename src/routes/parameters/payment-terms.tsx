@@ -288,7 +288,7 @@ function PaymentTermsPage() {
       {/* Table Panel */}
       <Panel
         title={`Prazos Comerciais (${filteredTerms.length})`}
-        badge={<Badge tone="brand">Credit Policy</Badge>}
+        aside={<Badge tone="brand">Credit Policy</Badge>}
       >
         <Table>
           <thead>

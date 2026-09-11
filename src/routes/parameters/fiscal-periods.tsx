@@ -351,7 +351,7 @@ function FiscalPeriodsPage() {
       {/* Table Panel */}
       <Panel
         title={`Calendário de Períodos Fiscais (${filteredPeriods.length})`}
-        badge={<Badge tone="brand">US GAAP Hard Close</Badge>}
+        aside={<Badge tone="brand">US GAAP Hard Close</Badge>}
       >
         <Table>
           <thead>

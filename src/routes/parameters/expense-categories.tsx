@@ -274,7 +274,7 @@ function ExpenseCategoriesPage() {
       {/* Table Panel */}
       <Panel
         title={`Categorias Cadastradas (${filteredCategories.length})`}
-        badge={<Badge tone="brand">GL Mapping</Badge>}
+        aside={<Badge tone="brand">GL Mapping</Badge>}
       >
         <Table>
           <thead>

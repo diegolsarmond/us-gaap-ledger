@@ -325,7 +325,7 @@ function CurrenciesPage() {
       {/* Table Panel */}
       <Panel
         title={`Catálogo de Moedas (${filteredCurrencies.length})`}
-        badge={<Badge tone="brand">US GAAP ASC 830</Badge>}
+        aside={<Badge tone="brand">US GAAP ASC 830</Badge>}
       >
         <Table>
           <thead>
