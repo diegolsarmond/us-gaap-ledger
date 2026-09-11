@@ -83,7 +83,7 @@ function ParametersIndexPage() {
   const modules = [
     {
       id: "currencies",
-      title: "Moedas & Taxas de Câmbio",
+      title: "Currencies & FX Rates",
       subtitle: "US GAAP ASC 830 · Multi-Currency & FX Rates",
       description:
         "Cadastro de moedas estrangeiras suportadas (EUR, GBP, CAD, MXN, BRL), taxas de paridade diária frente ao USD (moeda funcional) e tipo de cotação.",
@@ -91,11 +91,11 @@ function ParametersIndexPage() {
       icon: Coins,
       countLabel: `${activeCurrenciesCount} moedas ativas`,
       badgeTone: "brand" as const,
-      tag: "Câmbio & Finanças",
+      tag: "FX & Treasury",
     },
     {
       id: "taxes",
-      title: "Jurisdições Fiscais & Sales Tax",
+      title: "Tax Jurisdictions & Sales Tax",
       subtitle: "State Department of Revenue · Nexus & Rates",
       description:
         "Alíquotas de imposto sobre vendas por estado americano (FL, TX, CA, NY, WA), frequência de recolhimento oficial e vínculo com a conta de passivo 2200.",
@@ -103,11 +103,11 @@ function ParametersIndexPage() {
       icon: Scale,
       countLabel: `${activeTaxesCount} jurisdições ativas`,
       badgeTone: "brand" as const,
-      tag: "Fiscal & Impostos",
+      tag: "Tax & Compliance",
     },
     {
       id: "terms",
-      title: "Condições & Prazos Comerciais",
+      title: "Payment & Credit Terms",
       subtitle: "Credit Terms · Net 15, Net 30, Net 60, Early Discounts",
       description:
         "Definição de regras de vencimento para faturamento de clientes (AR) e faturas de compras a pagar (AP), com cálculo automático de descontos pontualidade.",
@@ -115,11 +115,11 @@ function ParametersIndexPage() {
       icon: Clock,
       countLabel: `${activeTermsCount} prazos comerciais`,
       badgeTone: "neutral" as const,
-      tag: "Comercial & Cobrança",
+      tag: "AR / AP Terms",
     },
     {
       id: "cost-centers",
-      title: "Centros de Custo & Unidades",
+      title: "Cost Centers & Units",
       subtitle: "Departmental Accounting & Budget Control",
       description:
         "Segmentação analítica de custos e receitas por departamento (Operações, Vendas, P&D, TI), gestor responsável e limites orçamentários anuais.",
@@ -127,11 +127,11 @@ function ParametersIndexPage() {
       icon: Building2,
       countLabel: `${activeCostCentersCount} centros cadastrados`,
       badgeTone: "brand" as const,
-      tag: "Controladoria & Gestão",
+      tag: "Cost Accounting",
     },
     {
       id: "expense-cats",
-      title: "Categorias de Despesa & De-Para",
+      title: "Expense Categories & Mapping",
       subtitle: "Operational Taxonomy & GL Account Mapping",
       description:
         "Mapeamento de despesas operacionais amigáveis (SaaS, Legal, Viagens, Marketing) diretamente para as contas US GAAP com dedutibilidade fiscal.",
@@ -143,7 +143,7 @@ function ParametersIndexPage() {
     },
     {
       id: "periods",
-      title: "Períodos & Calendário Fiscal",
+      title: "Fiscal Periods & Accounting Calendar",
       subtitle: "Hard & Soft Period Close Governance",
       description:
         "Controle mensal de exercícios fiscais, calendário contábil de competência, datas de corte e travas de fechamento contra adulterações retroativas.",
@@ -151,7 +151,7 @@ function ParametersIndexPage() {
       icon: CalendarDays,
       countLabel: `${openPeriodsCount} período em aberto`,
       badgeTone: "brand" as const,
-      tag: "Governança & SOX",
+      tag: "SOX & Governance",
     },
   ];
 

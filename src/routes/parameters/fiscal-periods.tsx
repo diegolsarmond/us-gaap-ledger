@@ -258,7 +258,7 @@ function FiscalPeriodsPage() {
               to="/parameters"
               className="flex items-center gap-1 text-[12px] font-semibold text-brand hover:underline"
             >
-              <ArrowLeft className="size-3.5" /> Voltar aos Parâmetros
+              <ArrowLeft className="size-3.5" /> Back to Parameters
             </Link>
           </div>
           <PageTitle

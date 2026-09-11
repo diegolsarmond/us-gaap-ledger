@@ -49,28 +49,28 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Parâmetros do Sistema",
+    label: "System Parameters",
     isCollapsible: true,
     items: [
-      { to: "/parameters", label: "Visão Geral dos Módulos" },
-      { to: "/parameters/currencies", label: "Moedas & Câmbio" },
-      { to: "/parameters/tax-jurisdictions", label: "Jurisdições Fiscais" },
-      { to: "/parameters/payment-terms", label: "Prazos de Pagamento" },
-      { to: "/parameters/cost-centers", label: "Centros de Custo" },
-      { to: "/parameters/expense-categories", label: "Categorias de Despesas" },
-      { to: "/parameters/fiscal-periods", label: "Períodos Fiscais" },
+      { to: "/parameters", label: "Modules Overview" },
+      { to: "/parameters/currencies", label: "Currencies & FX Rates" },
+      { to: "/parameters/tax-jurisdictions", label: "Tax Jurisdictions" },
+      { to: "/parameters/payment-terms", label: "Payment Terms" },
+      { to: "/parameters/cost-centers", label: "Cost Centers" },
+      { to: "/parameters/expense-categories", label: "Expense Categories" },
+      { to: "/parameters/fiscal-periods", label: "Fiscal Periods" },
     ],
   },
 ];
 
 function crumbFor(path: string) {
-  if (path === "/parameters") return "Parâmetros · Visão Geral";
-  if (path === "/parameters/currencies") return "Parâmetros · Moedas & Câmbio";
-  if (path === "/parameters/tax-jurisdictions") return "Parâmetros · Jurisdições Fiscais";
-  if (path === "/parameters/payment-terms") return "Parâmetros · Prazos de Pagamento";
-  if (path === "/parameters/cost-centers") return "Parâmetros · Centros de Custo";
-  if (path === "/parameters/expense-categories") return "Parâmetros · Categorias de Despesas";
-  if (path === "/parameters/fiscal-periods") return "Parâmetros · Períodos Fiscais";
+  if (path === "/parameters") return "Parameters · Modules Overview";
+  if (path === "/parameters/currencies") return "Parameters · Currencies & FX Rates";
+  if (path === "/parameters/tax-jurisdictions") return "Parameters · Tax Jurisdictions";
+  if (path === "/parameters/payment-terms") return "Parameters · Payment Terms";
+  if (path === "/parameters/cost-centers") return "Parameters · Cost Centers";
+  if (path === "/parameters/expense-categories") return "Parameters · Expense Categories";
+  if (path === "/parameters/fiscal-periods") return "Parameters · Fiscal Periods";
 
   for (const g of navGroups) {
     const found = g.items.find((i) => i.to === path);
@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             items: group.items.filter((i) => i.to === "/statements"),
           };
         }
-        if (group.label === "Parâmetros do Sistema") {
+        if (group.label === "System Parameters") {
           // Blocked on Client Portal
           return { ...group, items: [] };
         }
