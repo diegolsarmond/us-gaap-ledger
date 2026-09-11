@@ -1,46 +1,42 @@
 # Guia de Deploy no Easypanel (Produção)
 
-Este projeto utiliza **TanStack Start + Nitro** compilado para um servidor standalone Node.js.
+Este projeto foi configurado para rodar em produção no **Easypanel** com suporte nativo a **Dual-Port (3000 e 80)**, garantindo que o serviço responda independentemente de qual porta o Easypanel roteie.
 
 ---
 
-## 1. Configuração Correta no Easypanel
+## 1. O que foi corrigido para resolver "Service is not reachable"
 
-Ao criar ou editar o serviço no Easypanel:
+1. **Suporte Dual-Port Automático (Portas 80 e 3000)**:
+   - O Easypanel por padrão aponta domínios para a porta **80**. Aplicações Node.js geralmente usam **3000**.
+   - O contêiner agora possui um roteador interno (`socat`) que atende **simultaneamente** na porta `80` e na porta `3000`.
+   - **Resultado**: Mesmo que a porta no Easypanel esteja como `80` ou como `3000`, a aplicação responderá com sucesso (Status 200).
 
-1. **Service Type**: **App**
-2. **Build Method**: **Dockerfile** (caminho `./Dockerfile`)
-3. **Porta do Contêiner (CRÍTICO)**:
-   - Vá na aba **Domains** (ou **Ports**):
-   - Altere a porta de destino de `80` para **`3000`**.
-   - Protocolo: `http`.
-   - Se a porta permanecer em `80`, o Easypanel não conseguirá se comunicar com a aplicação e exibirá o erro:
-     > *"Service is not reachable. Make sure the service is running and healthy."*
+2. **Remoção de bloqueios de permissão (`EACCES`)**:
+   - Rodando com permissões completas no contêiner para que o bind da porta 80 funcione sem erros de privilégio no Linux.
 
-4. **Health Check no Easypanel**:
-   - Se houver a seção **Health Check** habilitada no painel do Easypanel:
-     - **Path**: `/`
-     - **Port**: `3000`
-     - **Initial Delay**: `15` segundos
+3. **Integridade de dependências no runtime**:
+   - Dependências rastreadas pelo Nitro (ex: `tslib`) são validadas e garantidas durante o build da imagem, evitando falhas silenciosas de importação em runtime.
+
+4. **Compatibilidade de quebras de linha Windows/Linux**:
+   - Conversão automática de CRLF para LF no script de inicialização para evitar erros de execução em servidores Linux.
 
 ---
 
-## 2. Diagnóstico de Problemas Comuns
+## 2. Como Fazer o Deploy no Easypanel
 
-### Erro: "Service is not reachable. Make sure the service is running and healthy."
-
-Este erro ocorre por dois motivos principais:
-
-1. **Porta incompatível**:
-   - O Easypanel assume porta `80` por padrão em novos serviços. O Node.js/Nitro está escutando na porta **`3000`**.
-   - **Solução**: No Easypanel, vá em **Domains** > clique no seu domínio > ajuste a porta para **3000** e salve.
-
-2. **Status Unhealthy**:
-   - Removido o healthcheck nativo do Busybox no Dockerfile (o `wget` minimalista do Alpine causava falso-negativo e marcava o contêiner como *unhealthy*). O novo `Dockerfile` inicia o serviço limpo e saudável.
-
-3. **Verificar os Logs**:
-   - Vá na aba **Logs** do serviço no Easypanel. Você deve ver a mensagem:
-     ```
-     ➜ Listening on: http://localhost:3000/ (all interfaces)
-     ```
-   - Se a linha acima aparecer, a aplicação está rodando 100% e pronta para receber requisições.
+1. Suba as alterações para o Git (`git push`).
+2. No painel do **Easypanel**, acesse o seu **App**.
+3. Na aba **Domains**:
+   - Pode deixar a porta como **`3000`** ou **`80`** (ambas funcionam).
+4. Clique em **Redeploy** (ou **Deploy**).
+5. Na aba **Logs**, você verá:
+   ```text
+   ==================================================
+    Starting US GAAP Ledger Server
+    Target Port: 3000
+    Host: 0.0.0.0
+   ==================================================
+    Enabling dual-port listener: Port 80 forward to Port 3000...
+   ➜ Listening on: http://localhost:3000/ (all interfaces)
+   ```
+6. O serviço estará acessível e saudável!

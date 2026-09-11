@@ -31,7 +31,9 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Garante bind em todas as interfaces de rede e porta 3000 (respeitando env vars externas)
+# Instala socat para suporte automático a tráfego na porta 80 e 3000 no Easypanel
+RUN apk add --no-cache socat
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV NITRO_HOST=0.0.0.0
@@ -41,14 +43,16 @@ ENV NITRO_PORT=3000
 # Copia os artefatos compilados
 COPY --from=builder /app/.output ./.output
 
-# Garante permissões adequadas
-RUN chown -R node:node /app
+# Garante a integridade das dependências rastreadas pelo Nitro no runtime
+RUN if [ -f .output/server/package.json ]; then cd .output/server && npm install --omit=dev; fi
 
-# Executa com usuário seguro não-root
-USER node
+# Copia o script de inicialização dual-port
+COPY entrypoint.sh ./entrypoint.sh
+RUN sed -i 's/\r$//' ./entrypoint.sh && chmod +x ./entrypoint.sh
 
-# Porta padrão de exposição
+# Expõe ambas as portas para compatibilidade com qualquer roteamento no Easypanel
 EXPOSE 3000
+EXPOSE 80
 
-# Inicializa o servidor web standalone
-CMD ["node", ".output/server/index.mjs"]
+# Inicializa via script entrypoint
+ENTRYPOINT ["/bin/sh", "./entrypoint.sh"]
