@@ -180,11 +180,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line/80 frost-bar md:flex">
         {/* Logo & Title */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/70 px-4">
-          <div className="grid size-7 place-items-center rounded-md bg-ink font-mono text-[11px] font-semibold text-white">
-            LX
-          </div>
+          <img
+            src="/logo-interna.png"
+            alt="Quantum Tecnologia"
+            className="size-7 rounded-md object-contain shrink-0"
+          />
           <div className="leading-tight">
-            <p className="text-[13px] font-semibold tracking-tight">LedgerX Platform</p>
+            <p className="text-[13px] font-semibold tracking-tight">Quantum Tecnologia</p>
             <p className="text-[10px] uppercase tracking-[0.14em] text-ink3">
               US GAAP Multi-Tenant
             </p>
@@ -237,9 +239,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                           {({ isActive }) => (
                             <>
                               <span
-                                className={`size-1.5 rounded-full transition-colors ${
-                                  isActive ? "bg-brand ring-2 ring-brand/20" : "bg-line"
-                                }`}
+                                className={`size-1.5 rounded-full transition-colors ${isActive ? "bg-brand ring-2 ring-brand/20" : "bg-line"
+                                  }`}
                               />
                               <span className="truncate">{i.label}</span>
                             </>
@@ -372,9 +373,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                           setCurrentRole(rKey);
                           setRoleDropdownOpen(false);
                         }}
-                        className={`w-full rounded-md px-2 py-1.5 text-left text-[11.5px] transition-colors hover:bg-panel flex flex-col ${
-                          isSelected ? "bg-brand/10 text-brand font-medium" : "text-ink2"
-                        }`}
+                        className={`w-full rounded-md px-2 py-1.5 text-left text-[11.5px] transition-colors hover:bg-panel flex flex-col ${isSelected ? "bg-brand/10 text-brand font-medium" : "text-ink2"
+                          }`}
                       >
                         <span className="font-semibold">{p.name}</span>
                         <span className="text-[10px] text-ink3">{p.title}</span>
@@ -420,11 +420,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                         setActiveCompanyId(c.id);
                         setCompanyDropdownOpen(false);
                       }}
-                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] transition-colors hover:bg-panel ${
-                        c.id === activeCompany.id
-                          ? "font-semibold text-brand bg-brand/5"
-                          : "text-ink2"
-                      }`}
+                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] transition-colors hover:bg-panel ${c.id === activeCompany.id
+                        ? "font-semibold text-brand bg-brand/5"
+                        : "text-ink2"
+                        }`}
                     >
                       <span className="grid size-6 place-items-center rounded bg-panel font-mono text-[10px] ring-1 ring-line font-medium">
                         {c.initials}
