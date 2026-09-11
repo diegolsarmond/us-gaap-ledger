@@ -9,7 +9,7 @@ export const Route = createFileRoute("/projects")({
   head: () =>
     pageHead(
       "Projects & Profitability · LedgerX",
-      "Job costing, project profitability, gross margin, and budget versus actual variance tracking."
+      "Job costing, project profitability, gross margin, and budget versus actual variance tracking.",
     ),
   component: ProjectsPage,
 });
@@ -33,12 +33,16 @@ function ProjectsPage() {
     // Invoices tagged to this project
     const projectInvoices = invoices.filter((i) => i.projectId === p.id);
     const revenue = projectInvoices.reduce((s, i) => s + i.subtotal, 0);
-    const cashCollected = projectInvoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0);
+    const cashCollected = projectInvoices
+      .filter((i) => i.status === "Paid")
+      .reduce((s, i) => s + i.total, 0);
 
     // Bills tagged to this project
     const projectBills = bills.filter((b) => b.projectId === p.id);
     const actualCosts = projectBills.reduce((s, b) => s + b.usdAmount, 0);
-    const cashDisbursed = projectBills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
+    const cashDisbursed = projectBills
+      .filter((b) => b.status === "Paid")
+      .reduce((s, b) => s + b.usdAmount, 0);
 
     const grossMargin = revenue - actualCosts;
     const marginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0;
@@ -64,7 +68,8 @@ function ProjectsPage() {
   const totalRecognizedRevenue = projectMetrics.reduce((s, p) => s + p.revenue, 0);
   const totalActualCosts = projectMetrics.reduce((s, p) => s + p.actualCosts, 0);
   const totalGrossMargin = totalRecognizedRevenue - totalActualCosts;
-  const overallMarginPct = totalRecognizedRevenue > 0 ? (totalGrossMargin / totalRecognizedRevenue) * 100 : 0;
+  const overallMarginPct =
+    totalRecognizedRevenue > 0 ? (totalGrossMargin / totalRecognizedRevenue) * 100 : 0;
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +194,10 @@ function ProjectsPage() {
                 </thead>
                 <tbody>
                   {projectMetrics.map((p) => (
-                    <tr key={p.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <tr
+                      key={p.id}
+                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                    >
                       <Td className="font-medium text-ink">
                         <p className="font-mono text-[11.5px] text-brand font-semibold">{p.code}</p>
                         <p className="text-[12px] truncate max-w-[180px]">{p.name}</p>
@@ -213,15 +221,29 @@ function ProjectsPage() {
                         </span>
                       </Td>
                       <Td align="right" className="font-mono text-[11.5px]">
-                        <span className={p.budgetUtilizationPct > 90 ? "text-down font-semibold" : "text-ink2"}>
+                        <span
+                          className={
+                            p.budgetUtilizationPct > 90 ? "text-down font-semibold" : "text-ink2"
+                          }
+                        >
                           {pct(p.budgetUtilizationPct)}
                         </span>
                         <span className="block text-[10px] text-ink3">
-                          {p.budgetVariance >= 0 ? `${usd(p.budgetVariance)} left` : `Over by ${usd(Math.abs(p.budgetVariance))}`}
+                          {p.budgetVariance >= 0
+                            ? `${usd(p.budgetVariance)} left`
+                            : `Over by ${usd(Math.abs(p.budgetVariance))}`}
                         </span>
                       </Td>
                       <Td align="right">
-                        <Badge tone={p.status === "Completed" ? "up" : p.status === "Active" ? "brand" : "neutral"}>
+                        <Badge
+                          tone={
+                            p.status === "Completed"
+                              ? "up"
+                              : p.status === "Active"
+                                ? "brand"
+                                : "neutral"
+                          }
+                        >
                           {p.status}
                         </Badge>
                       </Td>
@@ -232,7 +254,9 @@ function ProjectsPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP Milestone & Cost-to-Cost Recognition: Transactions tagged with a Project code automatically aggregate into real-time job costing and margin schedules without manual spreadsheet reconciliations.
+                US GAAP Milestone & Cost-to-Cost Recognition: Transactions tagged with a Project
+                code automatically aggregate into real-time job costing and margin schedules without
+                manual spreadsheet reconciliations.
               </Note>
             </div>
           </Panel>
@@ -263,7 +287,9 @@ function ProjectsPage() {
                     </label>
                     <select
                       value={status}
-                      onChange={(e) => setStatus(e.target.value as any)}
+                      onChange={(e) =>
+                        setStatus(e.target.value as "Active" | "Completed" | "On Hold")
+                      }
                       className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                     >
                       <option value="Active">Active</option>

@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 
-export type UserRole =
-  | "platform_admin"
-  | "accounting_admin"
-  | "accounting_staff"
-  | "client_portal";
+export type UserRole = "platform_admin" | "accounting_admin" | "accounting_staff" | "client_portal";
 
 export interface UserPersona {
   role: UserRole;
@@ -74,24 +70,132 @@ export interface Account {
 }
 
 export const STANDARD_CHART_OF_ACCOUNTS: Account[] = [
-  { code: "1000", name: "Cash — Operating (Chase)", type: "Asset", balanceType: "Debit", description: "Primary operating checking account" },
-  { code: "1050", name: "Cash — Money Market Reserve", type: "Asset", balanceType: "Debit", description: "Interest-bearing liquidity reserve" },
-  { code: "1100", name: "Accounts Receivable (Trade)", type: "Asset", balanceType: "Debit", description: "Customer trade credit receivables" },
-  { code: "1200", name: "Allowance for Doubtful Accounts", type: "Asset", balanceType: "Credit", description: "Contra-asset reserve under CECL" },
-  { code: "1300", name: "Merchandise Inventory", type: "Asset", balanceType: "Debit", description: "Goods on hand valued at lower of cost or NRV" },
-  { code: "1400", name: "Prepaid Expenses & Deposits", type: "Asset", balanceType: "Debit", description: "Prepaid insurance and facility leases" },
-  { code: "2000", name: "Accounts Payable (Trade)", type: "Liability", balanceType: "Credit", description: "Short-term obligations to trade vendors" },
-  { code: "2100", name: "Credit Card Payable (Amex)", type: "Liability", balanceType: "Credit", description: "Corporate purchasing card balance" },
-  { code: "2200", name: "Sales Tax Payable", type: "Liability", balanceType: "Credit", description: "State and local sales taxes collected" },
-  { code: "2300", name: "Accrued Payroll & Benefits", type: "Liability", balanceType: "Credit", description: "Earned but unpaid wages" },
-  { code: "3000", name: "Owner's Equity / Paid-in Capital", type: "Equity", balanceType: "Credit", description: "Capital contributions from members/shareholders" },
-  { code: "3100", name: "Retained Earnings", type: "Equity", balanceType: "Credit", description: "Accumulated net earnings from prior fiscal years" },
-  { code: "4000", name: "Service & Consulting Revenue", type: "Revenue", balanceType: "Credit", description: "Fees earned for professional services" },
-  { code: "4100", name: "Product Sales Revenue", type: "Revenue", balanceType: "Credit", description: "Gross proceeds from merchandise sales" },
-  { code: "5000", name: "Cost of Goods Sold (COGS)", type: "COGS", balanceType: "Debit", description: "Direct product cost recognized upon sale" },
-  { code: "6100", name: "Selling & Marketing Expense", type: "Operating Expense", balanceType: "Debit", description: "Customer acquisition and promotion costs" },
-  { code: "6200", name: "General & Administrative Expense", type: "Operating Expense", balanceType: "Debit", description: "Rent, utilities, legal, and software overhead" },
-  { code: "6300", name: "Foreign Exchange Gain / Loss (Realized)", type: "Other Expense", balanceType: "Debit", description: "Realized currency variances on settlement" },
+  {
+    code: "1000",
+    name: "Cash — Operating (Chase)",
+    type: "Asset",
+    balanceType: "Debit",
+    description: "Primary operating checking account",
+  },
+  {
+    code: "1050",
+    name: "Cash — Money Market Reserve",
+    type: "Asset",
+    balanceType: "Debit",
+    description: "Interest-bearing liquidity reserve",
+  },
+  {
+    code: "1100",
+    name: "Accounts Receivable (Trade)",
+    type: "Asset",
+    balanceType: "Debit",
+    description: "Customer trade credit receivables",
+  },
+  {
+    code: "1200",
+    name: "Allowance for Doubtful Accounts",
+    type: "Asset",
+    balanceType: "Credit",
+    description: "Contra-asset reserve under CECL",
+  },
+  {
+    code: "1300",
+    name: "Merchandise Inventory",
+    type: "Asset",
+    balanceType: "Debit",
+    description: "Goods on hand valued at lower of cost or NRV",
+  },
+  {
+    code: "1400",
+    name: "Prepaid Expenses & Deposits",
+    type: "Asset",
+    balanceType: "Debit",
+    description: "Prepaid insurance and facility leases",
+  },
+  {
+    code: "2000",
+    name: "Accounts Payable (Trade)",
+    type: "Liability",
+    balanceType: "Credit",
+    description: "Short-term obligations to trade vendors",
+  },
+  {
+    code: "2100",
+    name: "Credit Card Payable (Amex)",
+    type: "Liability",
+    balanceType: "Credit",
+    description: "Corporate purchasing card balance",
+  },
+  {
+    code: "2200",
+    name: "Sales Tax Payable",
+    type: "Liability",
+    balanceType: "Credit",
+    description: "State and local sales taxes collected",
+  },
+  {
+    code: "2300",
+    name: "Accrued Payroll & Benefits",
+    type: "Liability",
+    balanceType: "Credit",
+    description: "Earned but unpaid wages",
+  },
+  {
+    code: "3000",
+    name: "Owner's Equity / Paid-in Capital",
+    type: "Equity",
+    balanceType: "Credit",
+    description: "Capital contributions from members/shareholders",
+  },
+  {
+    code: "3100",
+    name: "Retained Earnings",
+    type: "Equity",
+    balanceType: "Credit",
+    description: "Accumulated net earnings from prior fiscal years",
+  },
+  {
+    code: "4000",
+    name: "Service & Consulting Revenue",
+    type: "Revenue",
+    balanceType: "Credit",
+    description: "Fees earned for professional services",
+  },
+  {
+    code: "4100",
+    name: "Product Sales Revenue",
+    type: "Revenue",
+    balanceType: "Credit",
+    description: "Gross proceeds from merchandise sales",
+  },
+  {
+    code: "5000",
+    name: "Cost of Goods Sold (COGS)",
+    type: "COGS",
+    balanceType: "Debit",
+    description: "Direct product cost recognized upon sale",
+  },
+  {
+    code: "6100",
+    name: "Selling & Marketing Expense",
+    type: "Operating Expense",
+    balanceType: "Debit",
+    description: "Customer acquisition and promotion costs",
+  },
+  {
+    code: "6200",
+    name: "General & Administrative Expense",
+    type: "Operating Expense",
+    balanceType: "Debit",
+    description: "Rent, utilities, legal, and software overhead",
+  },
+  {
+    code: "6300",
+    name: "Foreign Exchange Gain / Loss (Realized)",
+    type: "Other Expense",
+    balanceType: "Debit",
+    description: "Realized currency variances on settlement",
+  },
 ];
 
 export interface JournalLine {
@@ -107,7 +211,14 @@ export interface JournalEntry {
   id: string;
   date: string;
   memo: string;
-  sourceType: "Invoice" | "Bill" | "Payment" | "Manual" | "OpeningBalance" | "InventoryAdjustment" | "BankStaging";
+  sourceType:
+    | "Invoice"
+    | "Bill"
+    | "Payment"
+    | "Manual"
+    | "OpeningBalance"
+    | "InventoryAdjustment"
+    | "BankStaging";
   sourceId?: string | undefined;
   currency: string;
   fxRate: number;
@@ -415,8 +526,24 @@ function createInitialCompanyData(companyId: string) {
       kind: "Service",
       projectId: "proj-101",
       items: [
-        { id: "i1", description: "USCG Compliance Drydock Survey (2 units)", sku: "SRV-INSPECT", isProduct: false, qty: 2, unitPrice: round(2400), taxable: true },
-        { id: "i2", description: "Naval Architectural Engineering (40 hrs)", sku: "SRV-CONSULT", isProduct: false, qty: 40, unitPrice: round(185), taxable: true },
+        {
+          id: "i1",
+          description: "USCG Compliance Drydock Survey (2 units)",
+          sku: "SRV-INSPECT",
+          isProduct: false,
+          qty: 2,
+          unitPrice: round(2400),
+          taxable: true,
+        },
+        {
+          id: "i2",
+          description: "Naval Architectural Engineering (40 hrs)",
+          sku: "SRV-CONSULT",
+          isProduct: false,
+          qty: 40,
+          unitPrice: round(185),
+          taxable: true,
+        },
       ],
       subtotal: round(12200),
       taxRate: 7.0,
@@ -435,7 +562,15 @@ function createInitialCompanyData(companyId: string) {
       kind: "Product",
       projectId: "proj-102",
       items: [
-        { id: "i3", description: "Composite Structural Deck Panel (100 units)", sku: "HR-1044", isProduct: true, qty: 100, unitPrice: round(245), taxable: false },
+        {
+          id: "i3",
+          description: "Composite Structural Deck Panel (100 units)",
+          sku: "HR-1044",
+          isProduct: true,
+          qty: 100,
+          unitPrice: round(245),
+          taxable: false,
+        },
       ],
       subtotal: round(24500),
       taxRate: 0.0,
@@ -451,8 +586,24 @@ function createInitialCompanyData(companyId: string) {
       dueDate: "2026-12-05",
       kind: "Product",
       items: [
-        { id: "i4", description: "Marine Hardware Stainless Kit (35 units)", sku: "HR-1001", isProduct: true, qty: 35, unitPrice: round(124), taxable: true },
-        { id: "i5", description: "316 Marine Fastener Set (50 units)", sku: "HR-2010", isProduct: true, qty: 50, unitPrice: round(18.5), taxable: true },
+        {
+          id: "i4",
+          description: "Marine Hardware Stainless Kit (35 units)",
+          sku: "HR-1001",
+          isProduct: true,
+          qty: 35,
+          unitPrice: round(124),
+          taxable: true,
+        },
+        {
+          id: "i5",
+          description: "316 Marine Fastener Set (50 units)",
+          sku: "HR-2010",
+          isProduct: true,
+          qty: 50,
+          unitPrice: round(18.5),
+          taxable: true,
+        },
       ],
       subtotal: round(5265),
       taxRate: 6.5,
@@ -475,7 +626,16 @@ function createInitialCompanyData(companyId: string) {
       foreignAmount: round(147000),
       usdAmount: round(8400),
       items: [
-        { id: "b1", description: "Extruded alloy transom brackets", accountCode: "1300", isInventory: true, sku: "HR-1001", qty: 50, amount: round(8400), projectId: "proj-101" },
+        {
+          id: "b1",
+          description: "Extruded alloy transom brackets",
+          accountCode: "1300",
+          isInventory: true,
+          sku: "HR-1001",
+          qty: 50,
+          amount: round(8400),
+          projectId: "proj-101",
+        },
       ],
       status: "Paid",
       paymentDate: "2026-12-17",
@@ -493,7 +653,14 @@ function createInitialCompanyData(companyId: string) {
       foreignAmount: round(5120),
       usdAmount: round(5120),
       items: [
-        { id: "b2", description: "Freight & container transport from Miami port", accountCode: "5000", isInventory: false, amount: round(5120), projectId: "proj-101" },
+        {
+          id: "b2",
+          description: "Freight & container transport from Miami port",
+          accountCode: "5000",
+          isInventory: false,
+          amount: round(5120),
+          projectId: "proj-101",
+        },
       ],
       status: "Open",
     },
@@ -508,7 +675,13 @@ function createInitialCompanyData(companyId: string) {
       foreignAmount: round(3800),
       usdAmount: round(3800),
       items: [
-        { id: "b3", description: "Coast Guard compliance legal counsel", accountCode: "6200", isInventory: false, amount: round(3800) },
+        {
+          id: "b3",
+          description: "Coast Guard compliance legal counsel",
+          accountCode: "6200",
+          isInventory: false,
+          amount: round(3800),
+        },
       ],
       status: "Paid",
       paymentDate: "2026-12-14",
@@ -524,7 +697,13 @@ function createInitialCompanyData(companyId: string) {
       foreignAmount: round(3950),
       usdAmount: round(5000),
       items: [
-        { id: "b4", description: "Specialty marine navigation components", accountCode: "1300", isInventory: true, amount: round(5000) },
+        {
+          id: "b4",
+          description: "Specialty marine navigation components",
+          accountCode: "1300",
+          isInventory: true,
+          amount: round(5000),
+        },
       ],
       status: "Open",
     },
@@ -755,7 +934,8 @@ function createInitialCompanyData(companyId: string) {
       action: "ISSUE_INVOICE",
       targetType: "Invoice",
       targetId: "INV-1049",
-      details: "Issued Tax-Exempt Product Invoice to Meridian Labs. Relieved 100 units of HR-1044 from Inventory to COGS.",
+      details:
+        "Issued Tax-Exempt Product Invoice to Meridian Labs. Relieved 100 units of HR-1044 from Inventory to COGS.",
     },
     {
       id: "log-4",
@@ -823,7 +1003,10 @@ export interface AccountingContextType {
     }[];
     overrideReason?: string | undefined;
   }) => { success: boolean; error?: string | undefined; entryId?: string | undefined };
-  reverseJournalEntry: (id: string, reason: string) => { success: boolean; error?: string | undefined };
+  reverseJournalEntry: (
+    id: string,
+    reason: string,
+  ) => { success: boolean; error?: string | undefined };
 
   togglePeriodLock: (reason?: string | undefined) => void;
 
@@ -833,19 +1016,38 @@ export interface AccountingContextType {
   setCostMethod: (method: "FIFO" | "WeightedAverage") => void;
 
   invoices: Invoice[];
-  createInvoice: (inv: Omit<Invoice, "id" | "status">) => { success: boolean; error?: string | undefined; invoiceId?: string | undefined };
-  recordInvoicePayment: (invoiceId: string, paymentDate: string) => { success: boolean; error?: string | undefined };
+  createInvoice: (inv: Omit<Invoice, "id" | "status">) => {
+    success: boolean;
+    error?: string | undefined;
+    invoiceId?: string | undefined;
+  };
+  recordInvoicePayment: (
+    invoiceId: string,
+    paymentDate: string,
+  ) => { success: boolean; error?: string | undefined };
 
   bills: Bill[];
-  createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => { success: boolean; error?: string | undefined; billId?: string | undefined };
-  payBill: (billId: string, paymentDate: string, settlementFxRate?: number | undefined) => { success: boolean; error?: string | undefined };
+  createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => {
+    success: boolean;
+    error?: string | undefined;
+    billId?: string | undefined;
+  };
+  payBill: (
+    billId: string,
+    paymentDate: string,
+    settlementFxRate?: number | undefined,
+  ) => { success: boolean; error?: string | undefined };
 
   projects: Project[];
   createProject: (p: Omit<Project, "id">) => void;
 
   statements: BankStatementFile[];
   stagingRows: StagingRow[];
-  uploadMockStatement: (file: { name: string; type: "CSV" | "OFX" | "PDF"; accountCode: string }) => void;
+  uploadMockStatement: (file: {
+    name: string;
+    type: "CSV" | "OFX" | "PDF";
+    accountCode: string;
+  }) => void;
   classifyStagingRow: (rowId: string, targetAccountCode: string) => void;
 
   taxes: TaxRecord[];
@@ -932,10 +1134,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  const addAuditLog = (action: string, targetType: string, targetId: string, details: string, overrideReason?: string | undefined) => {
+  const addAuditLog = (
+    action: string,
+    targetType: string,
+    targetId: string,
+    details: string,
+    overrideReason?: string | undefined,
+  ) => {
     const newLog: AuditLogEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      timestamp: new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "medium" }) + " EST",
+      timestamp:
+        new Date().toLocaleString("en-US", {
+          timeZone: "America/New_York",
+          dateStyle: "short",
+          timeStyle: "medium",
+        }) + " EST",
       actor: userPersona.name,
       role: userPersona.title,
       action,
@@ -961,7 +1174,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     overrideReason,
   }) => {
     if (!userPersona.canCreateJournals) {
-      return { success: false, error: "Access denied: Client portal users cannot post journal entries." };
+      return {
+        success: false,
+        error: "Access denied: Client portal users cannot post journal entries.",
+      };
     }
 
     if (activeCompany.isPeriodClosed) {
@@ -979,8 +1195,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    const totalDebit = Math.round(lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) * 100) / 100;
-    const totalCredit = Math.round(lines.reduce((s, l) => s + (Number(l.credit) || 0), 0) * 100) / 100;
+    const totalDebit =
+      Math.round(lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) * 100) / 100;
+    const totalCredit =
+      Math.round(lines.reduce((s, l) => s + (Number(l.credit) || 0), 0) * 100) / 100;
 
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
       return {
@@ -1017,7 +1235,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       journals: [newEntry, ...prev.journals],
     }));
 
-    addAuditLog("POST_JOURNAL_ENTRY", "JournalEntry", entryId, `Posted balanced entry: ${memo} (Total: $${totalDebit.toFixed(2)})`, overrideReason);
+    addAuditLog(
+      "POST_JOURNAL_ENTRY",
+      "JournalEntry",
+      entryId,
+      `Posted balanced entry: ${memo} (Total: $${totalDebit.toFixed(2)})`,
+      overrideReason,
+    );
 
     return { success: true, entryId };
   };
@@ -1028,7 +1252,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     const target = currentData.journals.find((j) => j.id === id);
     if (!target) return { success: false, error: "Journal entry not found." };
-    if (target.status === "Reversed") return { success: false, error: "Entry has already been reversed." };
+    if (target.status === "Reversed")
+      return { success: false, error: "Entry has already been reversed." };
 
     const revId = `REV-${target.id}`;
     const reversedLines: JournalLine[] = target.lines.map((l, idx) => ({
@@ -1056,10 +1281,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     updateCompanyData((prev) => ({
       ...prev,
-      journals: prev.journals.map((j) => (j.id === id ? { ...j, status: "Reversed" as const } : j)).concat(revEntry),
+      journals: prev.journals
+        .map((j) => (j.id === id ? { ...j, status: "Reversed" as const } : j))
+        .concat(revEntry),
     }));
 
-    addAuditLog("REVERSE_JOURNAL_ENTRY", "JournalEntry", target.id, `Reversed entry with counter-entry ${revId}. Reason: ${reason}`);
+    addAuditLog(
+      "REVERSE_JOURNAL_ENTRY",
+      "JournalEntry",
+      target.id,
+      `Reversed entry with counter-entry ${revId}. Reason: ${reason}`,
+    );
 
     return { success: true };
   };
@@ -1071,14 +1303,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     const newStatus = !activeCompany.isPeriodClosed;
     setCompanies((prev) =>
-      prev.map((c) => (c.id === activeCompany.id ? { ...c, isPeriodClosed: newStatus } : c))
+      prev.map((c) => (c.id === activeCompany.id ? { ...c, isPeriodClosed: newStatus } : c)),
     );
     addAuditLog(
       newStatus ? "LOCK_PERIOD" : "UNLOCK_PERIOD",
       "AccountingPeriod",
       activeCompany.activePeriod,
       `Accounting period ${activeCompany.activePeriod} was marked as ${newStatus ? "CLOSED & LOCKED" : "OPEN"}.`,
-      reason
+      reason,
     );
   };
 
@@ -1131,7 +1363,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     });
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
+    const jeLines: {
+      accountCode: string;
+      debit: number;
+      credit: number;
+      memo?: string | undefined;
+      projectId?: string | undefined;
+    }[] = [];
 
     jeLines.push({
       accountCode: "1100",
@@ -1199,7 +1437,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "CREATE_INVOICE",
       "Invoice",
       invId,
-      `Issued ${newInvoice.kind} Invoice to ${newInvoice.customerName}. Subtotal: $${newInvoice.subtotal.toFixed(2)}, Tax: $${newInvoice.taxAmount.toFixed(2)}, Total: $${newInvoice.total.toFixed(2)}.`
+      `Issued ${newInvoice.kind} Invoice to ${newInvoice.customerName}. Subtotal: $${newInvoice.subtotal.toFixed(2)}, Tax: $${newInvoice.taxAmount.toFixed(2)}, Total: $${newInvoice.total.toFixed(2)}.`,
     );
 
     return { success: true, invoiceId: invId };
@@ -1211,7 +1449,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (inv.status === "Paid") return { success: false, error: "Invoice is already paid." };
 
     const jeLines = [
-      { accountCode: "1000", debit: inv.total, credit: 0, memo: `Cash receipt from ${inv.customerName} for ${inv.id}` },
+      {
+        accountCode: "1000",
+        debit: inv.total,
+        credit: 0,
+        memo: `Cash receipt from ${inv.customerName} for ${inv.id}`,
+      },
       { accountCode: "1100", debit: 0, credit: inv.total, memo: `Clear AR for ${inv.id}` },
     ];
 
@@ -1227,10 +1470,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     updateCompanyData((prev) => ({
       ...prev,
-      invoices: prev.invoices.map((i) => (i.id === invoiceId ? { ...i, status: "Paid" as const, paymentDate } : i)),
+      invoices: prev.invoices.map((i) =>
+        i.id === invoiceId ? { ...i, status: "Paid" as const, paymentDate } : i,
+      ),
     }));
 
-    addAuditLog("RECORD_PAYMENT", "Invoice", inv.id, `Recorded full payment of $${inv.total.toFixed(2)} clearing Accounts Receivable.`);
+    addAuditLog(
+      "RECORD_PAYMENT",
+      "Invoice",
+      inv.id,
+      `Recorded full payment of $${inv.total.toFixed(2)} clearing Accounts Receivable.`,
+    );
 
     return { success: true };
   };
@@ -1248,7 +1498,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status: "Open",
     };
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
+    const jeLines: {
+      accountCode: string;
+      debit: number;
+      credit: number;
+      memo?: string | undefined;
+      projectId?: string | undefined;
+    }[] = [];
 
     newBill.items.forEach((item) => {
       jeLines.push({
@@ -1292,7 +1548,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             ...it,
             qtyOnHand: newQty,
             unitCost: activeCompany.costMethod === "WeightedAverage" ? newAvgCost : it.unitCost,
-            costLots: [...it.costLots, { id: `lot-${Date.now()}`, qty: invItem.qty!, unitCost, date: newBill.date }],
+            costLots: [
+              ...it.costLots,
+              { id: `lot-${Date.now()}`, qty: invItem.qty!, unitCost, date: newBill.date },
+            ],
           };
         }
         return it;
@@ -1305,7 +1564,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       inventory: nextInv,
     }));
 
-    addAuditLog("CREATE_BILL", "Bill", billId, `Entered vendor bill from ${newBill.vendorName}. USD Base: $${usdAmount.toFixed(2)}.`);
+    addAuditLog(
+      "CREATE_BILL",
+      "Bill",
+      billId,
+      `Entered vendor bill from ${newBill.vendorName}. USD Base: $${usdAmount.toFixed(2)}.`,
+    );
 
     return { success: true, billId };
   };
@@ -1316,11 +1580,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (bill.status === "Paid") return { success: false, error: "Bill is already paid." };
 
     const effectiveSettlementRate = settlementFxRate || bill.fxRate;
-    const actualCashPaidUsd = Math.round((bill.foreignAmount / effectiveSettlementRate) * 100) / 100;
+    const actualCashPaidUsd =
+      Math.round((bill.foreignAmount / effectiveSettlementRate) * 100) / 100;
     const originalApUsd = bill.usdAmount;
     const diff = Math.round((originalApUsd - actualCashPaidUsd) * 100) / 100;
 
-    const jeLines: { accountCode: string; debit: number; credit: number; memo?: string | undefined; projectId?: string | undefined }[] = [];
+    const jeLines: {
+      accountCode: string;
+      debit: number;
+      credit: number;
+      memo?: string | undefined;
+      projectId?: string | undefined;
+    }[] = [];
 
     jeLines.push({
       accountCode: "2000",
@@ -1377,7 +1648,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               paidFxRate: effectiveSettlementRate,
               realizedFxDiff: diff,
             }
-          : b
+          : b,
       ),
     }));
 
@@ -1385,7 +1656,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "PAY_BILL",
       "Bill",
       bill.id,
-      `Paid bill to ${bill.vendorName}. Cash Out: $${actualCashPaidUsd.toFixed(2)}, Realized FX Variance: $${diff.toFixed(2)}.`
+      `Paid bill to ${bill.vendorName}. Cash Out: $${actualCashPaidUsd.toFixed(2)}, Realized FX Variance: $${diff.toFixed(2)}.`,
     );
 
     return { success: true };
@@ -1400,7 +1671,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...prev,
       projects: [newProj, ...prev.projects],
     }));
-    addAuditLog("CREATE_PROJECT", "Project", newProj.code, `Created project "${newProj.name}" with budget $${newProj.budget.toLocaleString()}.`);
+    addAuditLog(
+      "CREATE_PROJECT",
+      "Project",
+      newProj.code,
+      `Created project "${newProj.name}" with budget $${newProj.budget.toLocaleString()}.`,
+    );
   };
 
   const adjustStock = (itemId: string, qtyDelta: number, unitCost: number, memo: string) => {
@@ -1440,14 +1716,27 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               ...i,
               qtyOnHand: Math.max(0, i.qtyOnHand + qtyDelta),
               costLots: isIncrease
-                ? [...i.costLots, { id: `lot-${Date.now()}`, qty: qtyDelta, unitCost, date: new Date().toISOString().split("T")[0]! }]
+                ? [
+                    ...i.costLots,
+                    {
+                      id: `lot-${Date.now()}`,
+                      qty: qtyDelta,
+                      unitCost,
+                      date: new Date().toISOString().split("T")[0]!,
+                    },
+                  ]
                 : i.costLots,
             }
-          : i
+          : i,
       ),
     }));
 
-    addAuditLog("ADJUST_STOCK", "InventoryItem", item.sku, `Adjusted stock by ${qtyDelta > 0 ? "+" : ""}${qtyDelta} units. Memo: ${memo}`);
+    addAuditLog(
+      "ADJUST_STOCK",
+      "InventoryItem",
+      item.sku,
+      `Adjusted stock by ${qtyDelta > 0 ? "+" : ""}${qtyDelta} units. Memo: ${memo}`,
+    );
   };
 
   const addInventoryItem = (itemData: Omit<InventoryItem, "id" | "costLots">) => {
@@ -1456,24 +1745,49 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id: `item-${Date.now()}`,
       costLots:
         itemData.qtyOnHand > 0
-          ? [{ id: `lot-init-${Date.now()}`, qty: itemData.qtyOnHand, unitCost: itemData.unitCost, date: new Date().toISOString().split("T")[0]! }]
+          ? [
+              {
+                id: `lot-init-${Date.now()}`,
+                qty: itemData.qtyOnHand,
+                unitCost: itemData.unitCost,
+                date: new Date().toISOString().split("T")[0]!,
+              },
+            ]
           : [],
     };
     updateCompanyData((prev) => ({
       ...prev,
       inventory: [...prev.inventory, newItem],
     }));
-    addAuditLog("CREATE_ITEM", "InventoryItem", newItem.sku, `Added item ${newItem.sku} (${newItem.name}) to catalog.`);
+    addAuditLog(
+      "CREATE_ITEM",
+      "InventoryItem",
+      newItem.sku,
+      `Added item ${newItem.sku} (${newItem.name}) to catalog.`,
+    );
   };
 
   const setCostMethod = (method: "FIFO" | "WeightedAverage") => {
     setCompanies((prev) =>
-      prev.map((c) => (c.id === activeCompany.id ? { ...c, costMethod: method } : c))
+      prev.map((c) => (c.id === activeCompany.id ? { ...c, costMethod: method } : c)),
     );
-    addAuditLog("UPDATE_COST_METHOD", "ClientCompany", activeCompany.id, `Valuation method updated to ${method}.`);
+    addAuditLog(
+      "UPDATE_COST_METHOD",
+      "ClientCompany",
+      activeCompany.id,
+      `Valuation method updated to ${method}.`,
+    );
   };
 
-  const uploadMockStatement = ({ name, type, accountCode }: { name: string; type: "CSV" | "OFX" | "PDF"; accountCode: string }) => {
+  const uploadMockStatement = ({
+    name,
+    type,
+    accountCode,
+  }: {
+    name: string;
+    type: "CSV" | "OFX" | "PDF";
+    accountCode: string;
+  }) => {
     const fileId = `st-${Date.now()}`;
     const newFile: BankStatementFile = {
       id: fileId,
@@ -1481,15 +1795,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       accountCode,
       fileType: type,
       rowsCount: 14,
-      uploadedAt: new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) + " EST",
+      uploadedAt:
+        new Date().toLocaleString("en-US", {
+          timeZone: "America/New_York",
+          dateStyle: "short",
+          timeStyle: "short",
+        }) + " EST",
       uploadedBy: userPersona.name,
       status: "Pending Review",
     };
 
     const newStaging: StagingRow[] = [
-      { id: `sr-${Date.now()}-1`, fileId, date: "2026-12-20", description: "AMZN MKTP US*HD882", amount: -284.5, suggestedAccount: "6200", status: "Pending" },
-      { id: `sr-${Date.now()}-2`, fileId, date: "2026-12-21", description: "CUSTOMER WIRE INWARD", amount: 8400.0, suggestedAccount: "1100", status: "Pending" },
-      { id: `sr-${Date.now()}-3`, fileId, date: "2026-12-22", description: "FLORIDA POWER & LIGHT", amount: -612.4, suggestedAccount: "6200", status: "Pending" },
+      {
+        id: `sr-${Date.now()}-1`,
+        fileId,
+        date: "2026-12-20",
+        description: "AMZN MKTP US*HD882",
+        amount: -284.5,
+        suggestedAccount: "6200",
+        status: "Pending",
+      },
+      {
+        id: `sr-${Date.now()}-2`,
+        fileId,
+        date: "2026-12-21",
+        description: "CUSTOMER WIRE INWARD",
+        amount: 8400.0,
+        suggestedAccount: "1100",
+        status: "Pending",
+      },
+      {
+        id: `sr-${Date.now()}-3`,
+        fileId,
+        date: "2026-12-22",
+        description: "FLORIDA POWER & LIGHT",
+        amount: -612.4,
+        suggestedAccount: "6200",
+        status: "Pending",
+      },
     ];
 
     updateCompanyData((prev) => ({
@@ -1498,7 +1841,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       stagingRows: [...newStaging, ...prev.stagingRows],
     }));
 
-    addAuditLog("UPLOAD_STATEMENT", "BankStatementFile", fileId, `Uploaded ${type} statement file: ${name} to account ${accountCode}.`);
+    addAuditLog(
+      "UPLOAD_STATEMENT",
+      "BankStatementFile",
+      fileId,
+      `Uploaded ${type} statement file: ${name} to account ${accountCode}.`,
+    );
   };
 
   const classifyStagingRow = (rowId: string, targetAccountCode: string) => {
@@ -1532,11 +1880,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     updateCompanyData((prev) => ({
       ...prev,
       stagingRows: prev.stagingRows.map((r) =>
-        r.id === rowId ? { ...r, status: "Classified" as const, classifiedAccount: targetAccountCode } : r
+        r.id === rowId
+          ? { ...r, status: "Classified" as const, classifiedAccount: targetAccountCode }
+          : r,
       ),
     }));
 
-    addAuditLog("CLASSIFY_STAGING", "StagingRow", rowId, `Classified staged bank transaction to Account ${targetAccountCode}.`);
+    addAuditLog(
+      "CLASSIFY_STAGING",
+      "StagingRow",
+      rowId,
+      `Classified staged bank transaction to Account ${targetAccountCode}.`,
+    );
   };
 
   const recordTaxRemittance = (taxId: string, receiptName: string) => {
@@ -1544,8 +1899,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!tax) return;
 
     const jeLines = [
-      { accountCode: "2200", debit: tax.dueAmount, credit: 0, memo: `Tax remittance: ${tax.jurisdiction}` },
-      { accountCode: "1000", debit: 0, credit: tax.dueAmount, memo: `Payment of ${tax.period} sales tax` },
+      {
+        accountCode: "2200",
+        debit: tax.dueAmount,
+        credit: 0,
+        memo: `Tax remittance: ${tax.jurisdiction}`,
+      },
+      {
+        accountCode: "1000",
+        debit: 0,
+        credit: tax.dueAmount,
+        memo: `Payment of ${tax.period} sales tax`,
+      },
     ];
 
     postJournalEntry({
@@ -1565,11 +1930,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               receiptFileName: receiptName,
               paidAt: new Date().toISOString().split("T")[0]!,
             }
-          : t
+          : t,
       ),
     }));
 
-    addAuditLog("REMIT_TAX", "TaxRecord", taxId, `Remitted sales tax payment of $${tax.dueAmount.toFixed(2)} with receipt attachment ${receiptName}.`);
+    addAuditLog(
+      "REMIT_TAX",
+      "TaxRecord",
+      taxId,
+      `Remitted sales tax payment of $${tax.dueAmount.toFixed(2)} with receipt attachment ${receiptName}.`,
+    );
   };
 
   const addAccount = (acct: Account) => {
@@ -1577,7 +1947,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...prev,
       accounts: [...prev.accounts, acct],
     }));
-    addAuditLog("CREATE_ACCOUNT", "Account", acct.code, `Added account ${acct.code} — ${acct.name} (${acct.type}).`);
+    addAuditLog(
+      "CREATE_ACCOUNT",
+      "Account",
+      acct.code,
+      `Added account ${acct.code} — ${acct.name} (${acct.type}).`,
+    );
   };
 
   const { accountBalances, totalDebitSum, totalCreditSum, isLedgerBalanced } = useMemo(() => {

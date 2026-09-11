@@ -9,20 +9,14 @@ export const Route = createFileRoute("/taxes")({
   head: () =>
     pageHead(
       "Sales Tax Collection & Filing · LedgerX",
-      "State and county sales tax collection summary, taxable versus exempt proceeds, and payment receipt archives."
+      "State and county sales tax collection summary, taxable versus exempt proceeds, and payment receipt archives.",
     ),
   component: TaxesPage,
 });
 
 function TaxesPage() {
-  const {
-    activeCompany,
-    taxes,
-    invoices,
-    accountBalances,
-    recordTaxRemittance,
-    userPersona,
-  } = useAccounting();
+  const { activeCompany, taxes, invoices, accountBalances, recordTaxRemittance, userPersona } =
+    useAccounting();
 
   // Manual Tax Calculator
   const [calcBase, setCalcBase] = useState("50000");
@@ -37,9 +31,7 @@ function TaxesPage() {
     .filter((i) => !i.taxExempt)
     .reduce((s, i) => s + i.subtotal, 0);
 
-  const totalExemptSales = invoices
-    .filter((i) => i.taxExempt)
-    .reduce((s, i) => s + i.subtotal, 0);
+  const totalExemptSales = invoices.filter((i) => i.taxExempt).reduce((s, i) => s + i.subtotal, 0);
 
   const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
   const salesTaxPayableBalance = accountBalances["2200"]?.net || 0;
@@ -47,7 +39,7 @@ function TaxesPage() {
   const handleRemitPayment = (taxId: string) => {
     const fileName = window.prompt(
       "Enter payment confirmation file name or receipt number:",
-      `Receipt_FL_DOR_Confirmation_${Date.now()}.pdf`
+      `Receipt_FL_DOR_Confirmation_${Date.now()}.pdf`,
     );
     if (!fileName) return;
 
@@ -56,7 +48,15 @@ function TaxesPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Jurisdiction", "Filing Period", "Taxable Base ($)", "Statutory Rate", "Due / Remitted ($)", "Status", "Receipt Attachment"];
+    const headers = [
+      "Jurisdiction",
+      "Filing Period",
+      "Taxable Base ($)",
+      "Statutory Rate",
+      "Due / Remitted ($)",
+      "Status",
+      "Receipt Attachment",
+    ];
     const rows = taxes.map((t) => [
       t.jurisdiction,
       t.period,
@@ -138,12 +138,17 @@ function TaxesPage() {
                 </thead>
                 <tbody>
                   {taxes.map((t) => (
-                    <tr key={t.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <tr
+                      key={t.id}
+                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                    >
                       <Td className="font-medium text-ink text-[12px] max-w-[200px] truncate">
                         {t.jurisdiction}
                       </Td>
                       <Td className="font-mono text-ink3 text-[11.5px]">{t.period}</Td>
-                      <Td align="right" className="font-mono text-[12px]">{usd(t.taxableBase)}</Td>
+                      <Td align="right" className="font-mono text-[12px]">
+                        {usd(t.taxableBase)}
+                      </Td>
                       <Td className="text-ink2 text-[11px]">{t.rate}</Td>
                       <Td align="right" className="font-mono font-medium text-[12px]">
                         {usd(t.dueAmount)}
@@ -178,7 +183,9 @@ function TaxesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US Tax Rule: Payments are executed manually on the Florida DOR or IRS e-Services portal. LedgerX registers the payable clearance and stores the official PDF confirmation receipt. No direct government transmissions are performed in the MVP.
+                US Tax Rule: Payments are executed manually on the Florida DOR or IRS e-Services
+                portal. LedgerX registers the payable clearance and stores the official PDF
+                confirmation receipt. No direct government transmissions are performed in the MVP.
               </Note>
             </div>
           </Panel>
@@ -239,7 +246,8 @@ function TaxesPage() {
               </div>
 
               <div className="text-[11px] text-ink3 leading-relaxed">
-                Sales tax is configured manually per invoice according to the customer delivery address state and municipal jurisdiction.
+                Sales tax is configured manually per invoice according to the customer delivery
+                address state and municipal jurisdiction.
               </div>
             </div>
           </Panel>

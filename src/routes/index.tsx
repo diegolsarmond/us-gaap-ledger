@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({
   head: () =>
     pageHead(
       "Financial Operations Dashboard · LedgerX",
-      "Real-time US GAAP financial ledger dashboard with double-entry audit trails and multi-currency tracking."
+      "Real-time US GAAP financial ledger dashboard with double-entry audit trails and multi-currency tracking.",
     ),
   component: Dashboard,
 });
@@ -35,7 +35,9 @@ function Dashboard() {
   const netMarginPct = totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0;
 
   const recentJournals = journals.slice(0, 6);
-  const openInvoicesCount = invoices.filter((i) => i.status === "Open" || i.status === "Overdue").length;
+  const openInvoicesCount = invoices.filter(
+    (i) => i.status === "Open" || i.status === "Overdue",
+  ).length;
   const openBillsCount = bills.filter((b) => b.status === "Open").length;
 
   return (
@@ -79,8 +81,13 @@ function Dashboard() {
         <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex items-center justify-between">
           <div className="flex items-center gap-2 text-[12.5px]">
             <span className="size-2 rounded-full bg-down animate-pulse" />
-            <span className="font-semibold">Fiscal Period {activeCompany.activePeriod} is Locked:</span>
-            <span>Routine entries blocked. Only authorized CPA/Admin overrides with documented audit justifications are accepted.</span>
+            <span className="font-semibold">
+              Fiscal Period {activeCompany.activePeriod} is Locked:
+            </span>
+            <span>
+              Routine entries blocked. Only authorized CPA/Admin overrides with documented audit
+              justifications are accepted.
+            </span>
           </div>
           <Badge tone="down">LOCKED</Badge>
         </div>
@@ -142,7 +149,10 @@ function Dashboard() {
               {recentJournals.map((j) => {
                 const totalDebits = j.lines.reduce((s, l) => s + l.debit, 0);
                 return (
-                  <tr key={j.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                  <tr
+                    key={j.id}
+                    className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                  >
                     <Td className="font-mono text-[11.5px] font-semibold">{j.id}</Td>
                     <Td className="text-ink3 text-[11.5px]">{formatDate(j.date)}</Td>
                     <Td className="text-ink2 font-medium max-w-[240px] truncate">{j.memo}</Td>
@@ -163,7 +173,9 @@ function Dashboard() {
             </tbody>
           </Table>
           <div className="p-3 border-t border-line/50 flex items-center justify-between text-[11.5px]">
-            <span className="text-ink3">Every operational invoice, bill, and payment writes directly to this ledger.</span>
+            <span className="text-ink3">
+              Every operational invoice, bill, and payment writes directly to this ledger.
+            </span>
             <Link to="/journals" className="text-brand font-medium hover:underline">
               View Full General Ledger →
             </Link>
@@ -182,7 +194,8 @@ function Dashboard() {
         >
           <div className="p-4 space-y-3">
             <p className="text-[12px] text-ink2">
-              Bills settled in foreign currencies (MXN, GBP, EUR) compute exchange gain or loss upon bank wire settlement.
+              Bills settled in foreign currencies (MXN, GBP, EUR) compute exchange gain or loss upon
+              bank wire settlement.
             </p>
 
             <div className="rounded-lg bg-ink/[0.03] p-3 ring-1 ring-line/60 space-y-2">
@@ -196,7 +209,9 @@ function Dashboard() {
               </div>
               <div className="flex items-center justify-between text-[12.5px] font-semibold border-t border-line/60 pt-2">
                 <span>Net Realized FX Variance</span>
-                <span className={totalFXVariance >= 0 ? "text-up font-mono" : "text-down font-mono"}>
+                <span
+                  className={totalFXVariance >= 0 ? "text-up font-mono" : "text-down font-mono"}
+                >
                   {acct(totalFXVariance)}
                 </span>
               </div>
@@ -208,13 +223,19 @@ function Dashboard() {
               </p>
               <div className="space-y-1.5 text-[11.5px]">
                 {projects.slice(0, 2).map((p) => (
-                  <div key={p.id} className="flex items-center justify-between border-b border-line/40 pb-1">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between border-b border-line/40 pb-1"
+                  >
                     <span className="text-ink2 truncate max-w-[170px]">{p.name}</span>
                     <span className="font-medium text-ink">{usd(p.budget)}</span>
                   </div>
                 ))}
               </div>
-              <Link to="/projects" className="mt-2 block text-right text-[11px] font-medium text-brand hover:underline">
+              <Link
+                to="/projects"
+                className="mt-2 block text-right text-[11px] font-medium text-brand hover:underline"
+              >
                 View Project Profitability →
               </Link>
             </div>
@@ -253,7 +274,9 @@ function Dashboard() {
                     {usd(i.total)}
                   </Td>
                   <Td align="right">
-                    <Badge tone={i.status === "Paid" ? "up" : i.status === "Overdue" ? "down" : "brand"}>
+                    <Badge
+                      tone={i.status === "Paid" ? "up" : i.status === "Overdue" ? "down" : "brand"}
+                    >
                       {i.status}
                     </Badge>
                   </Td>

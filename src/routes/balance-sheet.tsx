@@ -9,7 +9,7 @@ export const Route = createFileRoute("/balance-sheet")({
   head: () =>
     pageHead(
       "Classified Balance Sheet · LedgerX",
-      "US GAAP Statement of Financial Position verifying Assets equal Liabilities plus Stockholders' Equity."
+      "US GAAP Statement of Financial Position verifying Assets equal Liabilities plus Stockholders' Equity.",
     ),
   component: BalanceSheetPage,
 });
@@ -54,7 +54,12 @@ function BalanceSheetPage() {
   const isBalanced = diff < 0.05;
 
   const handleExportCsv = () => {
-    const headers = ["Financial Statement Section", "Account Code", "Line Description", "Amount ($)"];
+    const headers = [
+      "Financial Statement Section",
+      "Account Code",
+      "Line Description",
+      "Amount ($)",
+    ];
     const rows: (string | number)[][] = [
       ["Current Assets", "1000/1050", "Cash & Cash Equivalents", totalCash],
       ["Current Assets", "1100", "Accounts Receivable, net", netAr],
@@ -70,7 +75,12 @@ function BalanceSheetPage() {
       ["Stockholders' Equity", "3100", "Retained Earnings (Beginning)", retainedEarnings],
       ["Stockholders' Equity", "P&L", "Current Period Net Income", currentNetIncome],
       ["Total Equity", "", "TOTAL EQUITY", totalEquity],
-      ["Total Liabilities & Equity", "", "TOTAL LIABILITIES & STOCKHOLDERS' EQUITY", totalLiabilitiesAndEquity],
+      [
+        "Total Liabilities & Equity",
+        "",
+        "TOTAL LIABILITIES & STOCKHOLDERS' EQUITY",
+        totalLiabilitiesAndEquity,
+      ],
     ];
 
     exportToCsv(`${activeCompany.id}_balance_sheet`, headers, rows);
@@ -141,7 +151,9 @@ function BalanceSheetPage() {
         subtitle={`${activeCompany.name} · Prepared on Accrual Basis under US GAAP`}
         aside={
           <Badge tone={isBalanced ? "up" : "down"}>
-            {isBalanced ? "Assets = Liabilities + Equity (Balanced)" : `Out of balance by ${usd(diff)}`}
+            {isBalanced
+              ? "Assets = Liabilities + Equity (Balanced)"
+              : `Out of balance by ${usd(diff)}`}
           </Badge>
         }
       >
@@ -170,7 +182,9 @@ function BalanceSheetPage() {
                   </Td>
                 </tr>
                 <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">Merchandise inventory (valued at {activeCompany.costMethod})</Td>
+                  <Td className="pl-8 text-ink2">
+                    Merchandise inventory (valued at {activeCompany.costMethod})
+                  </Td>
                   <Td align="right" className="font-mono text-[12px]">
                     {usd(inventoryAsset)}
                   </Td>
@@ -241,7 +255,9 @@ function BalanceSheetPage() {
 
                 {/* EQUITY SECTION */}
                 <tr className="border-b border-line/40 pt-3">
-                  <Td className="pl-4 font-semibold text-ink pt-3">Stockholders' / Member Equity</Td>
+                  <Td className="pl-4 font-semibold text-ink pt-3">
+                    Stockholders' / Member Equity
+                  </Td>
                   <Td />
                 </tr>
                 <tr className="border-b border-line/30 hover:bg-black/[0.01]">
@@ -284,7 +300,8 @@ function BalanceSheetPage() {
             <Note tone="brand">
               Fundamental US GAAP Balance Equation: Total Assets ($
               {totalAssets.toLocaleString()}) must equal Total Liabilities & Stockholders' Equity ($
-              {totalLiabilitiesAndEquity.toLocaleString()}). Net income from operations seamlessly carries over into ending equity without spreadsheet reconciliation.
+              {totalLiabilitiesAndEquity.toLocaleString()}). Net income from operations seamlessly
+              carries over into ending equity without spreadsheet reconciliation.
             </Note>
           </div>
         </div>

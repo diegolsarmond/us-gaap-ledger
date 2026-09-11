@@ -9,7 +9,7 @@ export const Route = createFileRoute("/statements")({
   head: () =>
     pageHead(
       "Bank Statements & Staging Feed · LedgerX",
-      "Upload bank and credit card statements in CSV, OFX, and PDF formats with accountant staging and classification workflows."
+      "Upload bank and credit card statements in CSV, OFX, and PDF formats with accountant staging and classification workflows.",
     ),
   component: StatementsPage,
 });
@@ -29,11 +29,15 @@ function StatementsPage() {
   const [selectedAccount, setSelectedAccount] = useState<string>("1000");
   const [fileType, setFileType] = useState<"CSV" | "OFX" | "PDF">("OFX");
   const [customFileName, setCustomFileName] = useState("");
-  const [classifiedTargetAccount, setClassifiedTargetAccount] = useState<Record<string, string>>({});
+  const [classifiedTargetAccount, setClassifiedTargetAccount] = useState<Record<string, string>>(
+    {},
+  );
 
   const handleSimulateUpload = (e: React.FormEvent) => {
     e.preventDefault();
-    const name = customFileName.trim() || `chase-operating-${new Date().toISOString().split("T")[0]}.${fileType.toLowerCase()}`;
+    const name =
+      customFileName.trim() ||
+      `chase-operating-${new Date().toISOString().split("T")[0]}.${fileType.toLowerCase()}`;
     uploadMockStatement({
       name,
       type: fileType,
@@ -85,7 +89,10 @@ function StatementsPage() {
                 </thead>
                 <tbody>
                   {statements.map((s) => (
-                    <tr key={s.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <tr
+                      key={s.id}
+                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                    >
                       <Td className="font-mono text-[11.5px] font-semibold text-ink">
                         {s.fileName}
                       </Td>
@@ -108,7 +115,8 @@ function StatementsPage() {
               </Table>
             </div>
             <div className="p-3 border-t border-line/50 text-[11.5px] text-ink3">
-              Source PDF/CSV files are preserved to satisfy IRS statutory substantiation and audit trails.
+              Source PDF/CSV files are preserved to satisfy IRS statutory substantiation and audit
+              trails.
             </div>
           </Panel>
         </div>
@@ -142,7 +150,7 @@ function StatementsPage() {
                   </label>
                   <select
                     value={fileType}
-                    onChange={(e) => setFileType(e.target.value as any)}
+                    onChange={(e) => setFileType(e.target.value as "CSV" | "OFX" | "PDF")}
                     className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                   >
                     <option value="OFX">OFX / QFX (Open Financial)</option>
@@ -165,8 +173,12 @@ function StatementsPage() {
               </div>
 
               <div className="grid place-items-center rounded-lg border border-dashed border-line bg-ink/[0.01] p-5 text-center">
-                <p className="text-[12px] font-medium text-ink">Drag statement file here or click to simulate</p>
-                <p className="text-[11px] text-ink3 mt-0.5">Supports OFX, CSV, and PDF bank exports up to 25MB</p>
+                <p className="text-[12px] font-medium text-ink">
+                  Drag statement file here or click to simulate
+                </p>
+                <p className="text-[11px] text-ink3 mt-0.5">
+                  Supports OFX, CSV, and PDF bank exports up to 25MB
+                </p>
               </div>
 
               <button
@@ -177,7 +189,8 @@ function StatementsPage() {
               </button>
 
               <Note tone="brand">
-                In the MVP boundary, bank statement uploads can be performed by Client Portal users or Staff. Raw rows are staged for internal classification.
+                In the MVP boundary, bank statement uploads can be performed by Client Portal users
+                or Staff. Raw rows are staged for internal classification.
               </Note>
             </form>
           </Panel>
@@ -190,7 +203,8 @@ function StatementsPage() {
         subtitle="Match imported statement rows to Chart of Accounts to generate General Ledger entries"
         aside={
           <span className="text-[11.5px] text-ink3">
-            {stagingRows.filter((r) => r.status === "Classified").length} of {stagingRows.length} classified
+            {stagingRows.filter((r) => r.status === "Classified").length} of {stagingRows.length}{" "}
+            classified
           </span>
         }
       >
@@ -210,12 +224,18 @@ function StatementsPage() {
               {stagingRows.map((row) => {
                 const currentSelection = classifiedTargetAccount[row.id] || row.suggestedAccount;
                 return (
-                  <tr key={row.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                  <tr
+                    key={row.id}
+                    className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                  >
                     <Td className="text-ink3 text-[11.5px] font-mono">{formatDate(row.date)}</Td>
                     <Td className="font-medium text-ink text-[12px] max-w-[260px] truncate">
                       {row.description}
                     </Td>
-                    <Td align="right" className={`font-mono text-[12px] font-semibold ${row.amount < 0 ? "text-down" : "text-up"}`}>
+                    <Td
+                      align="right"
+                      className={`font-mono text-[12px] font-semibold ${row.amount < 0 ? "text-down" : "text-up"}`}
+                    >
                       {usd(row.amount)}
                     </Td>
                     <Td>

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/trial-balance")({
   head: () =>
     pageHead(
       "Adjusted Trial Balance · LedgerX",
-      "US GAAP Trial Balance summarizing cumulative debit and credit ledger balances to prove double-entry mathematical equality."
+      "US GAAP Trial Balance summarizing cumulative debit and credit ledger balances to prove double-entry mathematical equality.",
     ),
   component: TrialBalancePage,
 });
@@ -38,15 +38,15 @@ function TrialBalancePage() {
   });
 
   const handleExportCsv = () => {
-    const headers = ["Account Code", "Account Name", "Account Type", "Total Debits ($)", "Total Credits ($)", "Net Balance ($)"];
-    const rows = trialRows.map((r) => [
-      r.code,
-      r.name,
-      r.type,
-      r.debit,
-      r.credit,
-      r.net,
-    ]);
+    const headers = [
+      "Account Code",
+      "Account Name",
+      "Account Type",
+      "Total Debits ($)",
+      "Total Credits ($)",
+      "Net Balance ($)",
+    ];
+    const rows = trialRows.map((r) => [r.code, r.name, r.type, r.debit, r.credit, r.net]);
     exportToCsv(`${activeCompany.id}_trial_balance`, headers, rows);
   };
 
@@ -121,7 +121,10 @@ function TrialBalancePage() {
             </thead>
             <tbody>
               {trialRows.map((row) => (
-                <tr key={row.code} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                <tr
+                  key={row.code}
+                  className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                >
                   <Td className="font-mono text-[12px] font-semibold text-ink">{row.code}</Td>
                   <Td className="text-ink2 font-medium text-[12px]">{row.name}</Td>
                   <Td className="text-ink3 text-[11px]">{row.type}</Td>
@@ -151,7 +154,8 @@ function TrialBalancePage() {
 
           <div className="mt-4 border-t border-line/50 pt-3">
             <Note tone="brand">
-              Under US GAAP, the Trial Balance proves the fundamental mechanical integrity of double-entry posting: every debit is equal and opposite to its credited line.
+              Under US GAAP, the Trial Balance proves the fundamental mechanical integrity of
+              double-entry posting: every debit is equal and opposite to its credited line.
             </Note>
           </div>
         </div>

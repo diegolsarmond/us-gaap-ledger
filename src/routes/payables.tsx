@@ -9,22 +9,14 @@ export const Route = createFileRoute("/payables")({
   head: () =>
     pageHead(
       "Bills & Accounts Payable · LedgerX",
-      "Multi-currency vendor bills with automated realized foreign exchange gain and loss calculations."
+      "Multi-currency vendor bills with automated realized foreign exchange gain and loss calculations.",
     ),
   component: PayablesPage,
 });
 
 function PayablesPage() {
-  const {
-    activeCompany,
-    bills,
-    accounts,
-    inventory,
-    projects,
-    createBill,
-    payBill,
-    userPersona,
-  } = useAccounting();
+  const { activeCompany, bills, accounts, inventory, projects, createBill, payBill, userPersona } =
+    useAccounting();
 
   // Form State
   const [vendorName, setVendorName] = useState("Baja Components S.A.");
@@ -112,7 +104,19 @@ function PayablesPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Bill ID", "Vendor", "Ref Number", "Date", "Due Date", "Currency", "Foreign Amount", "FX Rate", "USD Base", "Status", "Realized FX Diff"];
+    const headers = [
+      "Bill ID",
+      "Vendor",
+      "Ref Number",
+      "Date",
+      "Due Date",
+      "Currency",
+      "Foreign Amount",
+      "FX Rate",
+      "USD Base",
+      "Status",
+      "Realized FX Diff",
+    ];
     const rows = bills.map((b) => [
       b.id,
       b.vendorName,
@@ -193,7 +197,10 @@ function PayablesPage() {
                 </thead>
                 <tbody>
                   {bills.map((b) => (
-                    <tr key={b.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <tr
+                      key={b.id}
+                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                    >
                       <Td className="font-mono text-[11.5px] font-semibold">
                         {b.id}
                         <span className="block text-[10px] text-ink3">{b.billNumber}</span>
@@ -213,7 +220,9 @@ function PayablesPage() {
                         {b.realizedFxDiff !== undefined && (
                           <span
                             className={`block text-[10px] font-sans ${
-                              b.realizedFxDiff >= 0 ? "text-up font-semibold" : "text-down font-semibold"
+                              b.realizedFxDiff >= 0
+                                ? "text-up font-semibold"
+                                : "text-down font-semibold"
                             }`}
                           >
                             FX: {acct(b.realizedFxDiff)}
@@ -247,7 +256,9 @@ function PayablesPage() {
           {!userPersona.canCreateJournals ? (
             <Panel title="Client Portal Notice">
               <div className="p-6 text-center text-ink3 text-[12.5px]">
-                <p>Client portal users can view vendor payables but cannot enter new trade bills.</p>
+                <p>
+                  Client portal users can view vendor payables but cannot enter new trade bills.
+                </p>
               </div>
             </Panel>
           ) : (
@@ -389,7 +400,12 @@ function PayablesPage() {
                       className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                     >
                       {accounts
-                        .filter((a) => a.type === "Asset" || a.type === "Operating Expense" || a.type === "COGS")
+                        .filter(
+                          (a) =>
+                            a.type === "Asset" ||
+                            a.type === "Operating Expense" ||
+                            a.type === "COGS",
+                        )
                         .map((a) => (
                           <option key={a.code} value={a.code}>
                             {a.code} · {a.name} ({a.type})
@@ -533,7 +549,8 @@ function PayablesPage() {
                     className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-right font-mono text-[12px] ring-1 ring-line focus:ring-brand"
                   />
                   <p className="mt-1 text-[11px] text-ink3">
-                    If this rate differs from the bill rate ({selectedPayingBill.fxRate}), the system will post a Realized FX Gain or Loss to Account 6300.
+                    If this rate differs from the bill rate ({selectedPayingBill.fxRate}), the
+                    system will post a Realized FX Gain or Loss to Account 6300.
                   </p>
                 </div>
               )}

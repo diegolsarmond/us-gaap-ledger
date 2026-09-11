@@ -9,7 +9,7 @@ export const Route = createFileRoute("/journals")({
   head: () =>
     pageHead(
       "General Ledger Journals · LedgerX",
-      "Immutable double-entry journal postings with strict debit-credit equality and period locking controls."
+      "Immutable double-entry journal postings with strict debit-credit equality and period locking controls.",
     ),
   component: JournalsPage,
 });
@@ -40,7 +40,10 @@ function JournalsPage() {
   ]);
   const [overrideReason, setOverrideReason] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [formFeedback, setFormFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [formFeedback, setFormFeedback] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const totalDebits = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
   const totalCredits = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
@@ -59,7 +62,7 @@ function JournalsPage() {
   const handleUpdateLine = (
     idx: number,
     field: "accountCode" | "debit" | "credit" | "memo",
-    val: string
+    val: string,
   ) => {
     const next = [...lines];
     next[idx]![field] = val;
@@ -71,7 +74,10 @@ function JournalsPage() {
     setFormFeedback(null);
 
     if (!memo.trim()) {
-      setFormFeedback({ msg: "Please enter a description/memo for the journal entry.", type: "error" });
+      setFormFeedback({
+        msg: "Please enter a description/memo for the journal entry.",
+        type: "error",
+      });
       return;
     }
 
@@ -115,7 +121,7 @@ function JournalsPage() {
   const handleReverse = (entry: JournalEntry) => {
     const reason = window.prompt(
       `Enter an audit reason to reverse entry ${entry.id} (${entry.memo}):`,
-      "Correcting classification error per accountant review."
+      "Correcting classification error per accountant review.",
     );
     if (!reason) return;
     const res = reverseJournalEntry(entry.id, reason);
@@ -125,7 +131,18 @@ function JournalsPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Entry ID", "Date", "Memo", "Source Type", "Account", "Account Name", "Debit", "Credit", "Project", "Status"];
+    const headers = [
+      "Entry ID",
+      "Date",
+      "Memo",
+      "Source Type",
+      "Account",
+      "Account Name",
+      "Debit",
+      "Credit",
+      "Project",
+      "Status",
+    ];
     const rows: (string | number)[][] = [];
 
     journals.forEach((j) => {
@@ -174,7 +191,9 @@ function JournalsPage() {
           <span className="font-semibold">
             Warning: Accounting Period {activeCompany.activePeriod} is Closed.
           </span>
-          <span>New manual postings require Administrator role & audited reason justification.</span>
+          <span>
+            New manual postings require Administrator role & audited reason justification.
+          </span>
         </div>
       )}
 
@@ -308,7 +327,10 @@ function JournalsPage() {
           {!userPersona.canCreateJournals ? (
             <Panel title="Access Restricted">
               <div className="p-6 text-center text-ink3 text-[12.5px]">
-                <p>Your current persona ({userPersona.name}) does not have permission to post journal entries.</p>
+                <p>
+                  Your current persona ({userPersona.name}) does not have permission to post journal
+                  entries.
+                </p>
                 <p className="mt-1">Switch to an internal Accounting role in the header to post.</p>
               </div>
             </Panel>
@@ -491,7 +513,8 @@ function JournalsPage() {
                 </button>
 
                 <Note tone="neutral">
-                  Posted journal entries are immutable. To correct errors, use the reverse entry button.
+                  Posted journal entries are immutable. To correct errors, use the reverse entry
+                  button.
                 </Note>
               </form>
             </Panel>

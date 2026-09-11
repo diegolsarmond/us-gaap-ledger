@@ -9,7 +9,7 @@ export const Route = createFileRoute("/accounts")({
   head: () =>
     pageHead(
       "Chart of Accounts · LedgerX",
-      "US GAAP standardized Chart of Accounts covering Assets, Liabilities, Equity, Revenue, COGS, and Expenses."
+      "US GAAP standardized Chart of Accounts covering Assets, Liabilities, Equity, Revenue, COGS, and Expenses.",
     ),
   component: AccountsPage,
 });
@@ -49,7 +49,14 @@ function AccountsPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Account Code", "Account Name", "Category / Type", "Normal Balance", "Description", "Current Net Balance ($)"];
+    const headers = [
+      "Account Code",
+      "Account Name",
+      "Category / Type",
+      "Normal Balance",
+      "Description",
+      "Current Net Balance ($)",
+    ];
     const rows = accounts.map((a) => [
       a.code,
       a.name,
@@ -101,7 +108,10 @@ function AccountsPage() {
                   {accounts.map((a) => {
                     const bal = accountBalances[a.code]?.net || 0;
                     return (
-                      <tr key={a.code} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                      <tr
+                        key={a.code}
+                        className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                      >
                         <Td className="font-mono text-[12px] font-bold text-ink">{a.code}</Td>
                         <Td className="text-ink2 font-medium text-[12px]">
                           {a.name}
@@ -117,10 +127,10 @@ function AccountsPage() {
                               a.type === "Asset"
                                 ? "up"
                                 : a.type === "Liability"
-                                ? "down"
-                                : a.type === "Revenue"
-                                ? "brand"
-                                : "neutral"
+                                  ? "down"
+                                  : a.type === "Revenue"
+                                    ? "brand"
+                                    : "neutral"
                             }
                           >
                             {a.type}
@@ -138,7 +148,8 @@ function AccountsPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP Classification Structure: 1000s Assets, 2000s Liabilities, 3000s Equity, 4000s Revenue, 5000s COGS, 6000s Operating Expenses, 6300 Realized FX Variance.
+                US GAAP Classification Structure: 1000s Assets, 2000s Liabilities, 3000s Equity,
+                4000s Revenue, 5000s COGS, 6000s Operating Expenses, 6300 Realized FX Variance.
               </Note>
             </div>
           </Panel>
@@ -149,7 +160,10 @@ function AccountsPage() {
           {!userPersona.canCreateJournals ? (
             <Panel title="Client Portal Notice">
               <div className="p-6 text-center text-ink3 text-[12px]">
-                <p>Client portal users can inspect the Chart of Accounts but cannot modify accounting structure.</p>
+                <p>
+                  Client portal users can inspect the Chart of Accounts but cannot modify accounting
+                  structure.
+                </p>
               </div>
             </Panel>
           ) : (
@@ -175,7 +189,7 @@ function AccountsPage() {
                     </label>
                     <select
                       value={newBalanceType}
-                      onChange={(e) => setNewBalanceType(e.target.value as any)}
+                      onChange={(e) => setNewBalanceType(e.target.value as "Debit" | "Credit")}
                       className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                     >
                       <option value="Debit">Debit (Dr)</option>

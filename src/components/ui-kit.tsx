@@ -144,8 +144,8 @@ export function Note({
     tone === "up"
       ? "bg-up/[0.06] text-up ring-up/15"
       : tone === "brand"
-      ? "bg-brand/[0.06] text-brand ring-brand/15"
-      : "bg-ink/[0.04] text-ink2 ring-line/80";
+        ? "bg-brand/[0.06] text-brand ring-brand/15"
+        : "bg-ink/[0.04] text-ink2 ring-line/80";
   return (
     <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] ring-1 ${cls}`}>
       <span

@@ -9,7 +9,7 @@ export const Route = createFileRoute("/dre")({
   head: () =>
     pageHead(
       "Income Statement (P&L) · LedgerX",
-      "US GAAP Statement of Operations detailing revenues, cost of goods sold, gross margin, operating expenses, and realized FX gain/loss."
+      "US GAAP Statement of Operations detailing revenues, cost of goods sold, gross margin, operating expenses, and realized FX gain/loss.",
     ),
   component: IncomeStatementPage,
 });
@@ -129,11 +129,7 @@ function IncomeStatementPage() {
       <Panel
         title={`Statement of Operations · Period Ended ${activeCompany.activePeriod}`}
         subtitle={`${activeCompany.name} · Functional Currency USD · ${activeCompany.basis} Basis`}
-        aside={
-          <Badge tone={netIncome >= 0 ? "up" : "down"}>
-            Net Margin: {pct(netMarginPct)}
-          </Badge>
-        }
+        aside={<Badge tone={netIncome >= 0 ? "up" : "down"}>Net Margin: {pct(netMarginPct)}</Badge>}
       >
         <div className="p-4">
           <Table>
@@ -155,21 +151,39 @@ function IncomeStatementPage() {
               </tr>
               <tr className="border-b border-line/30 hover:bg-black/[0.01]">
                 <Td className="pl-8 text-ink2">4000 · Service & Consulting Revenue</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(serviceRevenue)}</Td>
-                <Td align="right" className="font-mono text-[12px] text-ink3">—</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(serviceRevenue)}</Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(serviceRevenue)}
+                </Td>
+                <Td align="right" className="font-mono text-[12px] text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(serviceRevenue)}
+                </Td>
               </tr>
               <tr className="border-b border-line/30 hover:bg-black/[0.01]">
                 <Td className="pl-8 text-ink2">4100 · Product Sales Revenue</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(productRevenue)}</Td>
-                <Td align="right" className="font-mono text-[12px] text-ink3">—</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(productRevenue)}</Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(productRevenue)}
+                </Td>
+                <Td align="right" className="font-mono text-[12px] text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(productRevenue)}
+                </Td>
               </tr>
               <tr className="border-b border-line/50 bg-ink/[0.02] font-semibold">
                 <Td className="pl-6 text-ink">Total Operating Revenues</Td>
-                <Td align="right" className="font-mono">{usd(totalRevenue)}</Td>
-                <Td align="right" className="text-ink3">—</Td>
-                <Td align="right" className="font-mono font-bold">{usd(totalRevenue)}</Td>
+                <Td align="right" className="font-mono">
+                  {usd(totalRevenue)}
+                </Td>
+                <Td align="right" className="text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono font-bold">
+                  {usd(totalRevenue)}
+                </Td>
               </tr>
 
               {/* COGS */}
@@ -180,10 +194,18 @@ function IncomeStatementPage() {
                 <Td />
               </tr>
               <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                <Td className="pl-8 text-ink2">5000 · Direct Merchandise Costs ({activeCompany.costMethod})</Td>
-                <Td align="right" className="text-ink3">—</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(cogs)}</Td>
-                <Td align="right" className="font-mono text-[12px] text-down">({usd(cogs)})</Td>
+                <Td className="pl-8 text-ink2">
+                  5000 · Direct Merchandise Costs ({activeCompany.costMethod})
+                </Td>
+                <Td align="right" className="text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(cogs)}
+                </Td>
+                <Td align="right" className="font-mono text-[12px] text-down">
+                  ({usd(cogs)})
+                </Td>
               </tr>
               <tr className="border-b-2 border-line bg-ink/[0.03] font-bold">
                 <Td className="pl-6 text-ink uppercase">Gross Profit</Td>
@@ -203,21 +225,41 @@ function IncomeStatementPage() {
               </tr>
               <tr className="border-b border-line/30 hover:bg-black/[0.01]">
                 <Td className="pl-8 text-ink2">6100 · Selling & Marketing</Td>
-                <Td align="right" className="text-ink3">—</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(sellingExpense)}</Td>
-                <Td align="right" className="font-mono text-[12px]">({usd(sellingExpense)})</Td>
+                <Td align="right" className="text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(sellingExpense)}
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  ({usd(sellingExpense)})
+                </Td>
               </tr>
               <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                <Td className="pl-8 text-ink2">6200 · General & Administrative (Rent, Legal, Software)</Td>
-                <Td align="right" className="text-ink3">—</Td>
-                <Td align="right" className="font-mono text-[12px]">{usd(adminExpense)}</Td>
-                <Td align="right" className="font-mono text-[12px]">({usd(adminExpense)})</Td>
+                <Td className="pl-8 text-ink2">
+                  6200 · General & Administrative (Rent, Legal, Software)
+                </Td>
+                <Td align="right" className="text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  {usd(adminExpense)}
+                </Td>
+                <Td align="right" className="font-mono text-[12px]">
+                  ({usd(adminExpense)})
+                </Td>
               </tr>
               <tr className="border-b border-line/50 bg-ink/[0.02] font-semibold">
                 <Td className="pl-6 text-ink">Total Operating Expenses</Td>
-                <Td align="right" className="text-ink3">—</Td>
-                <Td align="right" className="font-mono">{usd(totalOpEx)}</Td>
-                <Td align="right" className="font-mono font-bold text-down">({usd(totalOpEx)})</Td>
+                <Td align="right" className="text-ink3">
+                  —
+                </Td>
+                <Td align="right" className="font-mono">
+                  {usd(totalOpEx)}
+                </Td>
+                <Td align="right" className="font-mono font-bold text-down">
+                  ({usd(totalOpEx)})
+                </Td>
               </tr>
 
               {/* OPERATING INCOME */}
@@ -225,7 +267,9 @@ function IncomeStatementPage() {
                 <Td className="pl-6 text-ink">Operating Income (EBIT)</Td>
                 <Td />
                 <Td />
-                <Td align="right" className="font-mono font-bold">{usd(operatingIncome)}</Td>
+                <Td align="right" className="font-mono font-bold">
+                  {usd(operatingIncome)}
+                </Td>
               </tr>
 
               {/* OTHER INCOME / EXPENSE */}
@@ -243,7 +287,10 @@ function IncomeStatementPage() {
                 <Td align="right" className="font-mono text-[12px]">
                   {totalFXVariance < 0 ? usd(Math.abs(totalFXVariance)) : "—"}
                 </Td>
-                <Td align="right" className={`font-mono text-[12px] font-semibold ${totalFXVariance >= 0 ? "text-up" : "text-down"}`}>
+                <Td
+                  align="right"
+                  className={`font-mono text-[12px] font-semibold ${totalFXVariance >= 0 ? "text-up" : "text-down"}`}
+                >
                   {acct(totalFXVariance)}
                 </Td>
               </tr>
@@ -253,7 +300,10 @@ function IncomeStatementPage() {
                 <Td className="pl-4 text-ink uppercase">Net Operating Income</Td>
                 <Td />
                 <Td />
-                <Td align="right" className={`font-mono text-[14px] ${netIncome >= 0 ? "text-up" : "text-down"}`}>
+                <Td
+                  align="right"
+                  className={`font-mono text-[14px] ${netIncome >= 0 ? "text-up" : "text-down"}`}
+                >
                   {usd(netIncome)}
                 </Td>
               </tr>
@@ -262,7 +312,8 @@ function IncomeStatementPage() {
 
           <div className="mt-4 border-t border-line/50 pt-3">
             <Note tone="brand">
-              Statement generated directly from General Ledger journal lines. Sales taxes collected are excluded from revenue and held in Account 2200 (Sales Tax Payable) until remitted.
+              Statement generated directly from General Ledger journal lines. Sales taxes collected
+              are excluded from revenue and held in Account 2200 (Sales Tax Payable) until remitted.
             </Note>
           </div>
         </div>

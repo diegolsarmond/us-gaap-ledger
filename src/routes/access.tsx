@@ -7,7 +7,7 @@ export const Route = createFileRoute("/access")({
   head: () =>
     pageHead(
       "Roles, Permissions & Tenant Isolation · LedgerX",
-      "Role-Based Access Control matrix and strict multi-company tenant data isolation rules under US GAAP standards."
+      "Role-Based Access Control matrix and strict multi-company tenant data isolation rules under US GAAP standards.",
     ),
   component: AccessPage,
 });
@@ -23,7 +23,8 @@ const ROLE_PERMISSIONS_MATRIX = [
     canPostJournals: true,
     canViewAllReports: true,
     canUploadFiles: true,
-    description: "Firm owner with unrestricted cross-client tenant creation, template management, and master administrative control.",
+    description:
+      "Firm owner with unrestricted cross-client tenant creation, template management, and master administrative control.",
   },
   {
     roleName: "Accounting Administrator",
@@ -35,7 +36,8 @@ const ROLE_PERMISSIONS_MATRIX = [
     canPostJournals: true,
     canViewAllReports: true,
     canUploadFiles: true,
-    description: "Senior accounting manager authorized for period close, closed-period audit overrides, year-end adjustments, and tax filings.",
+    description:
+      "Senior accounting manager authorized for period close, closed-period audit overrides, year-end adjustments, and tax filings.",
   },
   {
     roleName: "Accounting Staff",
@@ -47,7 +49,8 @@ const ROLE_PERMISSIONS_MATRIX = [
     canPostJournals: true,
     canViewAllReports: true,
     canUploadFiles: true,
-    description: "Operational staff entering daily transactions, customer invoices, vendor bills, and bank staging classifications. Cannot lock periods.",
+    description:
+      "Operational staff entering daily transactions, customer invoices, vendor bills, and bank staging classifications. Cannot lock periods.",
   },
   {
     roleName: "Client Portal User",
@@ -59,7 +62,8 @@ const ROLE_PERMISSIONS_MATRIX = [
     canPostJournals: false,
     canViewAllReports: false,
     canUploadFiles: true,
-    description: "Client executive restricted strictly to uploading bank/card statements and viewing authorized statements (P&L, Cash Flow, Trial Balance). No journal access.",
+    description:
+      "Client executive restricted strictly to uploading bank/card statements and viewing authorized statements (P&L, Cash Flow, Trial Balance). No journal access.",
   },
 ];
 
@@ -135,7 +139,10 @@ function AccessPage() {
             </thead>
             <tbody>
               {ROLE_PERMISSIONS_MATRIX.map((r) => (
-                <tr key={r.roleName} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                <tr
+                  key={r.roleName}
+                  className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                >
                   <Td className="font-semibold text-ink text-[12.5px]">{r.roleName}</Td>
                   <Td>
                     <Badge tone={r.scope.includes("Internal") ? "brand" : "neutral"}>
@@ -169,7 +176,10 @@ function AccessPage() {
       >
         <div className="p-4 space-y-3">
           <p className="text-[12px] text-ink2 leading-relaxed">
-            Each client company operates as an isolated workspace with separate chart of accounts balances, customer catalogs, vendor obligations, and bank source files. Client portal users assigned to one company cannot query or view another client’s records under any circumstance.
+            Each client company operates as an isolated workspace with separate chart of accounts
+            balances, customer catalogs, vendor obligations, and bank source files. Client portal
+            users assigned to one company cannot query or view another client’s records under any
+            circumstance.
           </p>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-2">
@@ -185,9 +195,18 @@ function AccessPage() {
                   </div>
                 </div>
                 <div className="mt-2 text-[11px] text-ink2 space-y-0.5 border-t border-line/40 pt-2">
-                  <p>Entity: <span className="font-medium text-ink">{c.entity}</span> ({c.state})</p>
-                  <p>Cost Method: <span className="font-medium text-ink">{c.costMethod}</span></p>
-                  <p>Status: <span className="font-medium text-ink">{c.isPeriodClosed ? "Period Locked" : "Period Open"}</span></p>
+                  <p>
+                    Entity: <span className="font-medium text-ink">{c.entity}</span> ({c.state})
+                  </p>
+                  <p>
+                    Cost Method: <span className="font-medium text-ink">{c.costMethod}</span>
+                  </p>
+                  <p>
+                    Status:{" "}
+                    <span className="font-medium text-ink">
+                      {c.isPeriodClosed ? "Period Locked" : "Period Open"}
+                    </span>
+                  </p>
                 </div>
               </div>
             ))}

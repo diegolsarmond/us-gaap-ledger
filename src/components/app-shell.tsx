@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           return {
             ...group,
             items: group.items.filter((i) =>
-              ["/dre", "/trial-balance", "/cash-flow"].includes(i.to)
+              ["/dre", "/trial-balance", "/cash-flow"].includes(i.to),
             ),
           };
         }
@@ -99,12 +99,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handlePeriodLockClick = () => {
     if (!userPersona.canClosePeriod) {
-      alert("Access Denied: Only Platform or Accounting Administrators can lock or unlock accounting periods.");
+      alert(
+        "Access Denied: Only Platform or Accounting Administrators can lock or unlock accounting periods.",
+      );
       return;
     }
     if (!activeCompany.isPeriodClosed) {
       const confirmLock = window.confirm(
-        `Are you sure you want to LOCK period ${activeCompany.activePeriod}? Once locked, non-admin postings are blocked and adjustments require mandatory audit override reasons.`
+        `Are you sure you want to LOCK period ${activeCompany.activePeriod}? Once locked, non-admin postings are blocked and adjustments require mandatory audit override reasons.`,
       );
       if (confirmLock) {
         togglePeriodLock("Normal month-end closing procedures completed.");
@@ -112,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     } else {
       const reason = window.prompt(
         `Provide an authorized reason to UNLOCK period ${activeCompany.activePeriod}:`,
-        "CPA post-closing audit adjustment needed."
+        "CPA post-closing audit adjustment needed.",
       );
       if (reason) {
         togglePeriodLock(reason);
@@ -131,7 +133,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="leading-tight">
             <p className="text-[13px] font-semibold tracking-tight">LedgerX Platform</p>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-ink3">US GAAP Multi-Tenant</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-ink3">
+              US GAAP Multi-Tenant
+            </p>
           </div>
         </div>
 
@@ -190,7 +194,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="pt-1 border-t border-line/50 flex items-center justify-between text-[10.5px]">
             <span className="text-ink3">Ledger Balance</span>
-            <span className={`font-semibold ${isLedgerBalanced ? "text-up" : "text-down font-bold"}`}>
+            <span
+              className={`font-semibold ${isLedgerBalanced ? "text-up" : "text-down font-bold"}`}
+            >
               {isLedgerBalanced ? "Balanced (Δ $0.00)" : "UNBALANCED Δ"}
             </span>
           </div>
@@ -199,7 +205,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* US GAAP CPA Disclaimer */}
         <div className="px-3 pb-3 text-[9.5px] leading-tight text-ink3">
           <p>
-            US GAAP Operational Model. Financial policies and year-end statements require approval by a qualified U.S. CPA.
+            US GAAP Operational Model. Financial policies and year-end statements require approval
+            by a qualified U.S. CPA.
           </p>
         </div>
       </aside>
@@ -230,7 +237,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="size-2 rounded-full bg-brand" />
                 <div className="leading-tight text-left">
                   <p className="text-[11.5px] font-semibold text-ink">{userPersona.name}</p>
-                  <p className="text-[9.5px] text-ink3 uppercase tracking-wider">{userPersona.title}</p>
+                  <p className="text-[9.5px] text-ink3 uppercase tracking-wider">
+                    {userPersona.title}
+                  </p>
                 </div>
                 <span className="text-[10px] text-ink3 ml-1">▾</span>
               </button>
@@ -300,7 +309,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                         setCompanyDropdownOpen(false);
                       }}
                       className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] transition-colors hover:bg-panel ${
-                        c.id === activeCompany.id ? "font-semibold text-brand bg-brand/5" : "text-ink2"
+                        c.id === activeCompany.id
+                          ? "font-semibold text-brand bg-brand/5"
+                          : "text-ink2"
                       }`}
                     >
                       <span className="grid size-6 place-items-center rounded bg-panel font-mono text-[10px] ring-1 ring-line font-medium">
@@ -334,10 +345,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div>
             <span>US GAAP Financial Platform · Client Workspace: </span>
             <span className="font-medium text-ink">{activeCompany.name}</span>
-            <span> ({activeCompany.entity}, {activeCompany.state})</span>
+            <span>
+              {" "}
+              ({activeCompany.entity}, {activeCompany.state})
+            </span>
           </div>
           <div className="text-right">
-            <span>Notice: Accounting and tax reports are for internal management review prior to CPA sign-off.</span>
+            <span>
+              Notice: Accounting and tax reports are for internal management review prior to CPA
+              sign-off.
+            </span>
           </div>
         </footer>
       </main>

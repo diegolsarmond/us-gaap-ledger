@@ -9,7 +9,7 @@ export const Route = createFileRoute("/inventory")({
   head: () =>
     pageHead(
       "Inventory Catalog & Valuation · LedgerX",
-      "Perpetual inventory tracking with selectable FIFO and Weighted Average cost valuation methods under US GAAP."
+      "Perpetual inventory tracking with selectable FIFO and Weighted Average cost valuation methods under US GAAP.",
     ),
   component: InventoryPage,
 });
@@ -40,7 +40,10 @@ function InventoryPage() {
 
   const totalProductsCount = inventory.filter((i) => i.type === "Product").length;
   const totalServicesCount = inventory.filter((i) => i.type === "Service").length;
-  const totalUnitsOnHand = inventory.reduce((s, i) => s + (i.type === "Product" ? i.qtyOnHand : 0), 0);
+  const totalUnitsOnHand = inventory.reduce(
+    (s, i) => s + (i.type === "Product" ? i.qtyOnHand : 0),
+    0,
+  );
 
   const handleAdjustStock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +73,16 @@ function InventoryPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["SKU", "Item Name", "Type", "Valuation Method", "Quantity On Hand", "Unit Cost ($)", "Unit Price ($)", "Total Asset Value ($)"];
+    const headers = [
+      "SKU",
+      "Item Name",
+      "Type",
+      "Valuation Method",
+      "Quantity On Hand",
+      "Unit Cost ($)",
+      "Unit Price ($)",
+      "Total Asset Value ($)",
+    ];
     const rows = inventory.map((i) => [
       i.sku,
       i.name,
@@ -182,7 +194,10 @@ function InventoryPage() {
                   {inventory.map((item) => {
                     const totalVal = item.type === "Product" ? item.qtyOnHand * item.unitCost : 0;
                     return (
-                      <tr key={item.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                      <tr
+                        key={item.id}
+                        className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                      >
                         <Td className="font-mono text-[11.5px] font-semibold">{item.sku}</Td>
                         <Td className="text-ink2 font-medium">
                           {item.name}
@@ -217,7 +232,9 @@ function InventoryPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP: Inventory is recognized as an asset (1300) until consumed or invoiced to customers. Upon invoice posting, Cost of Goods Sold (5000) is recognized based on active cost method.
+                US GAAP: Inventory is recognized as an asset (1300) until consumed or invoiced to
+                customers. Upon invoice posting, Cost of Goods Sold (5000) is recognized based on
+                active cost method.
               </Note>
             </div>
           </Panel>
@@ -312,7 +329,7 @@ function InventoryPage() {
                       </label>
                       <select
                         value={newType}
-                        onChange={(e) => setNewType(e.target.value as any)}
+                        onChange={(e) => setNewType(e.target.value as "Product" | "Service")}
                         className="mt-0.5 w-full rounded bg-white px-2 py-1.5 text-[11.5px] ring-1 ring-line outline-none"
                       >
                         <option value="Product">Product</option>

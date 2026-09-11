@@ -9,7 +9,7 @@ export const Route = createFileRoute("/audit-log")({
   head: () =>
     pageHead(
       "Audit Trail & Compliance Log · LedgerX",
-      "Immutable chronological record of all operational transactions, posting events, period locks, and administrator overrides."
+      "Immutable chronological record of all operational transactions, posting events, period locks, and administrator overrides.",
     ),
   component: AuditLogPage,
 });
@@ -29,7 +29,17 @@ function AuditLogPage() {
   });
 
   const handleExportCsv = () => {
-    const headers = ["Log ID", "Timestamp (EST)", "Actor", "Role", "Action", "Target Type", "Target ID", "Details", "Override Reason"];
+    const headers = [
+      "Log ID",
+      "Timestamp (EST)",
+      "Actor",
+      "Role",
+      "Action",
+      "Target Type",
+      "Target ID",
+      "Details",
+      "Override Reason",
+    ];
     const rows = filteredLogs.map((l) => [
       l.id,
       l.timestamp,
@@ -112,7 +122,10 @@ function AuditLogPage() {
             </thead>
             <tbody>
               {filteredLogs.map((log) => (
-                <tr key={log.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                <tr
+                  key={log.id}
+                  className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                >
                   <Td className="font-mono text-[11px] text-ink3 whitespace-nowrap">
                     {log.timestamp}
                   </Td>
@@ -126,8 +139,8 @@ function AuditLogPage() {
                         log.action.includes("REVERSE") || log.action.includes("LOCK")
                           ? "down"
                           : log.action.includes("POST") || log.action.includes("CREATE")
-                          ? "brand"
-                          : "neutral"
+                            ? "brand"
+                            : "neutral"
                       }
                     >
                       {log.action}
@@ -136,9 +149,7 @@ function AuditLogPage() {
                   <Td className="font-mono text-[11.5px] text-ink2">
                     {log.targetType} · {log.targetId}
                   </Td>
-                  <Td className="text-[12px] text-ink2 max-w-[340px]">
-                    {log.details}
-                  </Td>
+                  <Td className="text-[12px] text-ink2 max-w-[340px]">{log.details}</Td>
                   <Td className="text-[11.5px] text-amber-800 font-medium">
                     {log.overrideReason ? (
                       <span className="rounded bg-amber-50 px-1.5 py-0.5 ring-1 ring-amber-200">

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/receivables")({
   head: () =>
     pageHead(
       "Accounts Receivable Aging · LedgerX",
-      "Aging schedule of customer receivables categorizing balances by days past invoice due date."
+      "Aging schedule of customer receivables categorizing balances by days past invoice due date.",
     ),
   component: ReceivablesPage,
 });
@@ -35,13 +35,30 @@ function ReceivablesPage() {
   });
 
   const totalAR = openInvoices.reduce((s, i) => s + i.total, 0);
-  const currentTotal = categorized.filter((i) => i.bucket === "Current").reduce((s, i) => s + i.total, 0);
-  const b1_30 = categorized.filter((i) => i.bucket === "1-30 Days").reduce((s, i) => s + i.total, 0);
-  const b31_60 = categorized.filter((i) => i.bucket === "31-60 Days").reduce((s, i) => s + i.total, 0);
-  const b61_plus = categorized.filter((i) => i.bucket === "61-90 Days" || i.bucket === "90+ Days").reduce((s, i) => s + i.total, 0);
+  const currentTotal = categorized
+    .filter((i) => i.bucket === "Current")
+    .reduce((s, i) => s + i.total, 0);
+  const b1_30 = categorized
+    .filter((i) => i.bucket === "1-30 Days")
+    .reduce((s, i) => s + i.total, 0);
+  const b31_60 = categorized
+    .filter((i) => i.bucket === "31-60 Days")
+    .reduce((s, i) => s + i.total, 0);
+  const b61_plus = categorized
+    .filter((i) => i.bucket === "61-90 Days" || i.bucket === "90+ Days")
+    .reduce((s, i) => s + i.total, 0);
 
   const handleExportCsv = () => {
-    const headers = ["Invoice ID", "Customer", "Issue Date", "Due Date", "Days Past Due", "Aging Bucket", "Amount (USD)", "Status"];
+    const headers = [
+      "Invoice ID",
+      "Customer",
+      "Issue Date",
+      "Due Date",
+      "Days Past Due",
+      "Aging Bucket",
+      "Amount (USD)",
+      "Status",
+    ];
     const rows = categorized.map((i) => [
       i.id,
       i.customerName,
@@ -118,7 +135,10 @@ function ReceivablesPage() {
           </thead>
           <tbody>
             {categorized.map((inv) => (
-              <tr key={inv.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+              <tr
+                key={inv.id}
+                className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+              >
                 <Td className="font-medium text-ink">
                   {inv.customerName}
                   {inv.taxExempt && (
@@ -135,8 +155,8 @@ function ReceivablesPage() {
                       inv.bucket === "Current"
                         ? "up"
                         : inv.bucket === "1-30 Days"
-                        ? "brand"
-                        : "down"
+                          ? "brand"
+                          : "down"
                     }
                   >
                     {inv.bucket}

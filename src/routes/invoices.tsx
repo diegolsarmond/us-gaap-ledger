@@ -9,7 +9,7 @@ export const Route = createFileRoute("/invoices")({
   head: () =>
     pageHead(
       "Invoices & Accounts Receivable · LedgerX",
-      "Issue product and service invoices with manual sales tax, tax-exempt certification, and automatic COGS relief."
+      "Issue product and service invoices with manual sales tax, tax-exempt certification, and automatic COGS relief.",
     ),
   component: InvoicesPage,
 });
@@ -47,15 +47,11 @@ function InvoicesPage() {
   const taxAmount = Math.round(((subtotal * effectiveTaxRate) / 100) * 100) / 100;
   const totalAmount = subtotal + taxAmount;
 
-  const totalOpen = invoices
-    .filter((i) => i.status === "Open")
-    .reduce((s, i) => s + i.total, 0);
+  const totalOpen = invoices.filter((i) => i.status === "Open").reduce((s, i) => s + i.total, 0);
   const totalOverdue = invoices
     .filter((i) => i.status === "Overdue")
     .reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoices
-    .filter((i) => i.status === "Paid")
-    .reduce((s, i) => s + i.total, 0);
+  const totalPaid = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0);
 
   const handleAddItemRow = () => {
     setFormItems([
@@ -67,7 +63,7 @@ function InvoicesPage() {
   const handleUpdateItem = (
     index: number,
     field: "sku" | "description" | "qty" | "unitPrice",
-    val: string | number
+    val: string | number,
   ) => {
     const next = [...formItems];
     const current = { ...next[index]! };
@@ -131,7 +127,10 @@ function InvoicesPage() {
     });
 
     if (result.success) {
-      setFeedback({ msg: `Invoice ${result.invoiceId} successfully issued and posted to General Ledger!`, type: "success" });
+      setFeedback({
+        msg: `Invoice ${result.invoiceId} successfully issued and posted to General Ledger!`,
+        type: "success",
+      });
       setCustomerName("");
       setCustomerEin("");
     } else {
@@ -148,7 +147,18 @@ function InvoicesPage() {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Invoice ID", "Customer", "Date", "Due Date", "Kind", "Subtotal", "Tax Rate %", "Tax Amount", "Total", "Status"];
+    const headers = [
+      "Invoice ID",
+      "Customer",
+      "Date",
+      "Due Date",
+      "Kind",
+      "Subtotal",
+      "Tax Rate %",
+      "Tax Amount",
+      "Total",
+      "Status",
+    ];
     const rows = invoices.map((i) => [
       i.id,
       i.customerName,
@@ -227,7 +237,10 @@ function InvoicesPage() {
                 </thead>
                 <tbody>
                   {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]">
+                    <tr
+                      key={inv.id}
+                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
+                    >
                       <Td className="font-mono text-[11.5px] font-semibold">{inv.id}</Td>
                       <Td className="text-ink2 font-medium">
                         <p className="truncate max-w-[180px]">{inv.customerName}</p>
@@ -246,8 +259,8 @@ function InvoicesPage() {
                             inv.status === "Paid"
                               ? "up"
                               : inv.status === "Overdue"
-                              ? "down"
-                              : "brand"
+                                ? "down"
+                                : "brand"
                           }
                         >
                           {inv.status}
@@ -277,7 +290,9 @@ function InvoicesPage() {
           {!userPersona.canCreateJournals ? (
             <Panel title="Client Portal Notice">
               <div className="p-6 text-center text-ink3 text-[12.5px]">
-                <p>Client portal users can review invoices but cannot generate new billing entries.</p>
+                <p>
+                  Client portal users can review invoices but cannot generate new billing entries.
+                </p>
               </div>
             </Panel>
           ) : (
@@ -319,7 +334,7 @@ function InvoicesPage() {
                     </label>
                     <select
                       value={kind}
-                      onChange={(e) => setKind(e.target.value as any)}
+                      onChange={(e) => setKind(e.target.value as "Product" | "Service")}
                       className="mt-1 w-full rounded-md bg-white/90 px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
                     >
                       <option value="Product">Product (Relieves Inventory & COGS)</option>
@@ -491,9 +506,7 @@ function InvoicesPage() {
                     <span>{usd(subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink3 font-sans">
-                      Sales Tax ({effectiveTaxRate}%):
-                    </span>
+                    <span className="text-ink3 font-sans">Sales Tax ({effectiveTaxRate}%):</span>
                     <span>{usd(taxAmount)}</span>
                   </div>
                   <div className="flex justify-between border-t border-line/60 pt-1 font-semibold text-[13px]">
@@ -510,7 +523,9 @@ function InvoicesPage() {
                 </button>
 
                 <Note tone="brand">
-                  US GAAP: Automatically debits Accounts Receivable (1100) and credits Revenue (4000/4100) + Tax (2200). Product sales relieve inventory lots under {activeCompany.costMethod}.
+                  US GAAP: Automatically debits Accounts Receivable (1100) and credits Revenue
+                  (4000/4100) + Tax (2200). Product sales relieve inventory lots under{" "}
+                  {activeCompany.costMethod}.
                 </Note>
               </form>
             </Panel>
