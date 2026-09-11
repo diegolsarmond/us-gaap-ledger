@@ -150,12 +150,12 @@ function InventoryPage() {
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="Inventory Catalog & Cost Valuation"
               description={`Perpetual inventory tracking and COGS valuation for ${activeCompany.name} · US GAAP Standard`}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -210,7 +210,7 @@ function InventoryPage() {
               <span className="text-[11.5px] font-medium text-ink3 uppercase tracking-wider">
                 Accounting Cost Method
               </span>
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 {(["FIFO", "WeightedAverage"] as const).map((method) => (
                   <button
                     key={method}
@@ -231,8 +231,8 @@ function InventoryPage() {
           </section>
 
           {/* Search & Type Filter */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[240px] max-w-sm flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
               <input
                 type="text"
@@ -242,7 +242,7 @@ function InventoryPage() {
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {["ALL", "Product", "Service"].map((t) => (
                 <button
                   key={t}
@@ -254,7 +254,7 @@ function InventoryPage() {
                       : "bg-surface text-ink2 hover:bg-muted ring-1 ring-line"
                   }`}
                 >
-                  {t === "ALL" ? "Todos os Itens" : t === "Product" ? "Produtos Físicos" : "Serviços"}
+                  {t === "ALL" ? "Todos os Itens" : t === "Product" ? "Produtos" : "Serviços"}
                 </button>
               ))}
             </div>

@@ -197,11 +197,11 @@ function CostCentersPage() {
             description={`Segmentação analítica e controle de limites orçamentários departamentais para ${activeCompany.name}`}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <button
             type="button"
             onClick={handleExport}
-            className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs"
+            className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
             <span>Exportar CSV</span>
@@ -209,7 +209,7 @@ function CostCentersPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm"
+            className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
             <span>Novo Centro de Custo</span>
@@ -242,8 +242,8 @@ function CostCentersPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative min-w-[240px] flex-1 max-w-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
@@ -254,7 +254,7 @@ function CostCentersPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 text-[12px]">
+        <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
           <span className="text-ink3 font-medium">Status:</span>
           {["ALL", "Active", "Inactive"].map((st) => (
             <button

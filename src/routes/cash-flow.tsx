@@ -185,18 +185,18 @@ function CashFlowPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Cash Flow & Multi-Horizon Projections"
           description={`Liquidity analysis and rolling 24-month cash runway for ${activeCompany.name} · Base USD`}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {/* Tab Switcher */}
-          <div className="flex rounded-lg bg-panel p-1 ring-1 ring-line">
+          <div className="flex flex-wrap rounded-lg bg-panel p-1 ring-1 ring-line">
             <button
               type="button"
               onClick={() => setActiveTab("actual")}
-              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors ${
+              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors cursor-pointer ${
                 activeTab === "actual" ? "bg-white text-ink shadow-2xs" : "text-ink3 hover:text-ink"
               }`}
             >
@@ -205,7 +205,7 @@ function CashFlowPage() {
             <button
               type="button"
               onClick={() => setActiveTab("forecast")}
-              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors ${
+              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors cursor-pointer ${
                 activeTab === "forecast"
                   ? "bg-white text-ink shadow-2xs"
                   : "text-ink3 hover:text-ink"
@@ -218,7 +218,7 @@ function CashFlowPage() {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs cursor-pointer"
           >
             Export (CSV)
           </button>

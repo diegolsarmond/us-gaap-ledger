@@ -43,17 +43,15 @@ function Dashboard() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
-        <div>
-          <PageTitle
-            title={`${activeCompany.name} · Operations Overview`}
-            description={`US GAAP Accrual Books · Fiscal Period ${activeCompany.activePeriod} · Functional Currency USD`}
-          />
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
+        <PageTitle
+          title={`${activeCompany.name} · Operations Overview`}
+          description={`US GAAP Accrual Books · Fiscal Period ${activeCompany.activePeriod} · Functional Currency USD`}
+        />
 
         {/* Action Shortcuts for Staff & Admins */}
         {!userPersona.allowedReportsOnly && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <Link
               to="/invoices"
               className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
@@ -78,16 +76,18 @@ function Dashboard() {
 
       {/* Period Lock Banner if Locked */}
       {activeCompany.isPeriodClosed && (
-        <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[12.5px]">
-            <span className="size-2 rounded-full bg-down animate-pulse" />
-            <span className="font-semibold">
-              Fiscal Period {activeCompany.activePeriod} is Locked:
-            </span>
-            <span>
-              Routine entries blocked. Only authorized CPA/Admin overrides with documented audit
-              justifications are accepted.
-            </span>
+        <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+          <div className="flex items-start sm:items-center gap-2 text-[12.5px]">
+            <span className="size-2 rounded-full bg-down animate-pulse shrink-0 mt-1 sm:mt-0" />
+            <div className="leading-snug">
+              <span className="font-semibold mr-1">
+                Fiscal Period {activeCompany.activePeriod} is Locked:
+              </span>
+              <span>
+                Routine entries blocked. Only authorized CPA/Admin overrides with documented audit
+                justifications are accepted.
+              </span>
+            </div>
           </div>
           <Badge tone="down">LOCKED</Badge>
         </div>

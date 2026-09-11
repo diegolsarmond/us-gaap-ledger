@@ -155,12 +155,12 @@ function ProjectsPage() {
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="Project Profitability & Job Costing"
               description={`Track billable revenue, direct costs, gross margin, and budget utilization for ${activeCompany.name}`}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -210,8 +210,8 @@ function ProjectsPage() {
           </section>
 
           {/* Search & Status Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[260px] max-w-sm flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
               <input
                 type="text"
@@ -221,7 +221,7 @@ function ProjectsPage() {
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {["ALL", "Active", "Completed", "On Hold"].map((st) => (
                 <button
                   key={st}

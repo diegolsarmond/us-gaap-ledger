@@ -73,12 +73,12 @@ function AccessPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Role-Based Access Control & Multi-Tenancy"
           description={`Strict tenant isolation and permission enforcement for Carlos' accounting operations`}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <span className="text-[12px] text-ink3">Active Persona:</span>
           <Badge tone="brand">{userPersona.title}</Badge>
         </div>

@@ -268,7 +268,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
 
       {/* Popover Dropdown de Variações Cambiais */}
       {isOpen && (
-        <div className="absolute right-0 top-12 w-80 sm:w-96 rounded-xl bg-white p-2.5 shadow-xl ring-1 ring-line z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute right-0 top-12 w-80 sm:w-96 max-w-[calc(100vw-20px)] rounded-xl bg-white p-2.5 shadow-xl ring-1 ring-line z-50 animate-in fade-in slide-in-from-top-1 duration-150">
           {/* Cabeçalho do Dropdown */}
           <div className="flex items-center justify-between border-b border-line/60 pb-2 px-1">
             <div>

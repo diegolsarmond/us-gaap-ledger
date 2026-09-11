@@ -82,7 +82,7 @@ function TaxesPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Sales Tax Collection & Compliance Summary"
           description={`State and county manual tax ledger for ${activeCompany.name} · Account 2200`}
@@ -90,7 +90,7 @@ function TaxesPage() {
         <button
           type="button"
           onClick={handleExportCsv}
-          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs self-start sm:self-auto cursor-pointer"
         >
           Export Tax Summary (CSV)
         </button>

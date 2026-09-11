@@ -62,16 +62,16 @@ function IncomeStatementPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Income Statement (Statement of Operations)"
           description={`US GAAP Accrual Statement of Profit & Loss for ${activeCompany.name} · Period ${activeCompany.activePeriod}`}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="rounded-md bg-white px-2.5 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line outline-none"
+            className="rounded-md bg-white px-2.5 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line outline-none max-w-full"
           >
             <option value="">All Projects & Operations</option>
             {projects.map((p) => (
@@ -83,14 +83,14 @@ function IncomeStatementPage() {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs cursor-pointer"
           >
             Export P&L (CSV)
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
+            className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs cursor-pointer"
           >
             Print
           </button>

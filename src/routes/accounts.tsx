@@ -106,12 +106,12 @@ function AccountsPage() {
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="Chart of Accounts (COA)"
               description={`General ledger master structure for ${activeCompany.name} · US GAAP Standard`}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -133,8 +133,8 @@ function AccountsPage() {
           </div>
 
           {/* Search and Category Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[240px] max-w-sm flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
               <input
                 type="text"

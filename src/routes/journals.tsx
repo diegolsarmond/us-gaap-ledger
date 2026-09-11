@@ -209,12 +209,12 @@ function JournalsPage() {
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="General Ledger & Double-Entry Journals"
               description={`Comprehensive double-entry transaction journal for ${activeCompany.name} · US GAAP Standard`}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -237,7 +237,7 @@ function JournalsPage() {
 
           {/* Period Locking Alert */}
           {activeCompany.isPeriodClosed && (
-            <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex items-center justify-between text-[12.5px]">
+            <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[12.5px]">
               <span className="font-semibold">
                 Aviso: O período contábil {activeCompany.activePeriod} está Bloqueado (Closed).
               </span>
@@ -247,9 +247,9 @@ function JournalsPage() {
             </div>
           )}
 
-          {/* Search bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[280px] max-w-md flex-1">
+          {/* Search bar & Ledger Balance */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
               <input
                 type="text"
@@ -259,11 +259,13 @@ function JournalsPage() {
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
-            <Badge tone={isLedgerBalanced ? "up" : "down"}>
-              {isLedgerBalanced
-                ? `Razão Equilibrado: Total Débitos = Total Créditos (${usd(totalDebitSum)})`
-                : `Desbalanço Geral: ${acct(totalDebitSum - totalCreditSum)}`}
-            </Badge>
+            <div className="self-start sm:self-auto">
+              <Badge tone={isLedgerBalanced ? "up" : "down"}>
+                {isLedgerBalanced
+                  ? `Razão Equilibrado: Total Débitos = Total Créditos (${usd(totalDebitSum)})`
+                  : `Desbalanço Geral: ${acct(totalDebitSum - totalCreditSum)}`}
+              </Badge>
+            </div>
           </div>
 
           {/* General Ledger Table Full Width */}
@@ -546,7 +548,7 @@ function JournalsPage() {
                 {lines.map((l, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-12 gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
+                    className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
                   >
                     <div className="col-span-12 sm:col-span-5">
                       <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
@@ -578,7 +580,7 @@ function JournalsPage() {
                       />
                     </div>
 
-                    <div className="col-span-5 sm:col-span-1.5">
+                    <div className="col-span-5 sm:col-span-2">
                       <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1 text-right">
                         Débito ($)
                       </label>
@@ -592,7 +594,7 @@ function JournalsPage() {
                       />
                     </div>
 
-                    <div className="col-span-5 sm:col-span-1.5">
+                    <div className="col-span-5 sm:col-span-2">
                       <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1 text-right">
                         Crédito ($)
                       </label>
@@ -606,12 +608,12 @@ function JournalsPage() {
                       />
                     </div>
 
-                    <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                    <div className="col-span-2 sm:col-span-1 flex justify-end pt-4 sm:pt-5">
                       {lines.length > 2 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveLine(idx)}
-                          className="text-rose-500 hover:text-rose-700 transition-colors p-1"
+                          className="text-rose-500 hover:text-rose-700 transition-colors p-1 cursor-pointer"
                           title="Remover linha"
                         >
                           <Trash2 className="size-4" />

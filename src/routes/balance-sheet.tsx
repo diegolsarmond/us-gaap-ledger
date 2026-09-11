@@ -89,14 +89,12 @@ function BalanceSheetPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
-        <div>
-          <PageTitle
-            title="Classified Balance Sheet"
-            description={`Statement of Financial Position for ${activeCompany.name} · US GAAP Standard`}
-          />
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
+        <PageTitle
+          title="Classified Balance Sheet"
+          description={`Statement of Financial Position for ${activeCompany.name} · US GAAP Standard`}
+        />
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <div className="flex items-center gap-1 text-[12px] bg-white px-2 py-1 rounded ring-1 ring-line">
             <span className="text-ink3">As of:</span>
             <input
@@ -109,14 +107,14 @@ function BalanceSheetPage() {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs cursor-pointer"
           >
             Export (CSV)
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
+            className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs cursor-pointer"
           >
             Print Statement
           </button>

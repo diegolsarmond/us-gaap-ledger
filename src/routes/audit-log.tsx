@@ -57,7 +57,7 @@ function AuditLogPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Audit Trail & Security Log"
           description={`Comprehensive operational event logging for ${activeCompany.name} · US GAAP Compliance`}
@@ -65,15 +65,15 @@ function AuditLogPage() {
         <button
           type="button"
           onClick={handleExportCsv}
-          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs"
+          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs self-start sm:self-auto cursor-pointer"
         >
           Export Audit Trail (CSV)
         </button>
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-white/60 p-3 rounded-lg ring-1 ring-line">
-        <div className="flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/60 p-3 rounded-lg ring-1 ring-line">
+        <div className="flex-1 min-w-0">
           <input
             type="text"
             value={searchTerm}
@@ -82,11 +82,11 @@ function AuditLogPage() {
             className="w-full rounded bg-white px-3 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
           />
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <select
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
-            className="rounded bg-white px-3 py-1.5 text-[12px] ring-1 ring-line outline-none"
+            className="w-full sm:w-auto rounded bg-white px-3 py-1.5 text-[12px] ring-1 ring-line outline-none"
           >
             <option value="">All Action Types</option>
             <option value="POST_JOURNAL_ENTRY">POST_JOURNAL_ENTRY</option>

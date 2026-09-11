@@ -216,12 +216,12 @@ function InvoicesPage() {
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
           {/* Page Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="Invoices & Accounts Receivable (AR)"
               description={`Trade invoicing and receivables management for ${activeCompany.name} · US GAAP Standard`}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -265,8 +265,8 @@ function InvoicesPage() {
           </section>
 
           {/* Search & Status Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[240px] max-w-sm flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
               <input
                 type="text"
@@ -276,7 +276,7 @@ function InvoicesPage() {
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {["ALL", "Open", "Paid", "Overdue"].map((st) => (
                 <button
                   key={st}
@@ -537,7 +537,7 @@ function InvoicesPage() {
                   {formItems.map((item, idx) => (
                     <div
                       key={idx}
-                      className="grid grid-cols-12 gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
+                      className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
                     >
                       <div className="col-span-12 sm:col-span-5">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
@@ -568,7 +568,7 @@ function InvoicesPage() {
                         )}
                       </div>
 
-                      <div className="col-span-5 sm:col-span-3">
+                      <div className="col-span-6 sm:col-span-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                           Quantidade
                         </label>
@@ -596,12 +596,12 @@ function InvoicesPage() {
                         />
                       </div>
 
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                      <div className="col-span-1 sm:col-span-1 flex justify-end pt-4 sm:pt-5">
                         {formItems.length > 1 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
-                            className="text-rose-500 hover:text-rose-700 transition-colors p-1"
+                            className="text-rose-500 hover:text-rose-700 transition-colors p-1 cursor-pointer"
                             title="Remover linha"
                           >
                             <Trash2 className="size-4" />

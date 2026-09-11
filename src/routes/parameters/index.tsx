@@ -163,12 +163,12 @@ function ParametersIndexPage() {
           title="Parâmetros & Configurações de Módulos"
           description={`Governança de parâmetros contábeis e operacionais para ${activeCompany.name} (${activeCompany.entity} - ${activeCompany.state})`}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <button
             type="button"
             onClick={handleResetDefaults}
             disabled={resetting}
-            className="flex items-center gap-1.5 rounded-lg border border-line bg-white/80 px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-white hover:text-ink shadow-2xs"
+            className="flex items-center gap-1.5 rounded-lg border border-line bg-white/80 px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-white hover:text-ink shadow-2xs cursor-pointer"
           >
             <RotateCcw className="size-3.5 text-ink3" />
             <span>Restaurar Padrões Recomendados</span>

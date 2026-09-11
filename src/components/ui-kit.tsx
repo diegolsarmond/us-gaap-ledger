@@ -14,14 +14,14 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`frost ${className}`}>
+    <section className={`frost overflow-hidden ${className}`}>
       {(title || aside) && (
-        <div className="flex items-center justify-between gap-3 border-b border-line/70 px-4 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-line/70 px-4 py-3">
           <div>
             {title && <p className="text-[13px] font-semibold tracking-tight">{title}</p>}
             {subtitle && <p className="text-[11px] text-ink3">{subtitle}</p>}
           </div>
-          {aside}
+          {aside && <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">{aside}</div>}
         </div>
       )}
       {children}
@@ -42,9 +42,9 @@ export function Kpi({
 }) {
   const toneClass = tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-ink3";
   return (
-    <div className="frost p-4">
+    <div className="frost p-3.5 sm:p-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink3">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+      <p className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
       {hint && <p className={`mt-1.5 text-[11px] tabular-nums ${toneClass}`}>{hint}</p>}
     </div>
   );
@@ -76,18 +76,22 @@ export function PageTitle({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        <p className="text-[12px] text-ink3">{description}</p>
+    <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-lg font-semibold tracking-tight leading-snug">{title}</h1>
+        <p className="text-[12px] text-ink3 leading-normal">{description}</p>
       </div>
-      {actions}
+      {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }
 
-export function Table({ children }: { children: ReactNode }) {
-  return <table className="w-full text-[13px] tabular-nums">{children}</table>;
+export function Table({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div className="w-full overflow-x-auto [scrollbar-width:thin] overscroll-x-contain">
+      <table className={`w-full text-[13px] tabular-nums ${className}`}>{children}</table>
+    </div>
+  );
 }
 
 export function Th({
@@ -101,7 +105,7 @@ export function Th({
 }) {
   return (
     <th
-      className={`col-head px-4 py-2 ${
+      className={`col-head px-3 py-2 sm:px-4 ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
       } ${className}`}
     >
@@ -124,7 +128,7 @@ export function Td({
   return (
     <td
       colSpan={colSpan}
-      className={`px-4 py-2.5 ${
+      className={`px-3 py-2 sm:px-4 sm:py-2.5 ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : ""
       } ${className}`}
     >

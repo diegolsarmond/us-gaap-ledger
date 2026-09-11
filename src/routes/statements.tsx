@@ -61,12 +61,12 @@ function StatementsPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Bank Statements & Transaction Staging"
           description={`Bank statement source file archive and double-entry transaction classification for ${activeCompany.name}`}
         />
-        <div className="flex items-center gap-2">
+        <div className="self-start sm:self-auto">
           <Badge tone="brand">
             {stagingRows.filter((r) => r.status === "Pending").length} Unclassified Staged Rows
           </Badge>
