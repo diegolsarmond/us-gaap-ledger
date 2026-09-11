@@ -1,78 +1,46 @@
 # Guia de Deploy no Easypanel (Produção)
 
-Este projeto foi configurado com um `Dockerfile` multi-stage otimizado para o **TanStack Start + Nitro**, gerando uma imagem de produção leve e com servidor standalone Node.js.
+Este projeto utiliza **TanStack Start + Nitro** compilado para um servidor standalone Node.js.
 
 ---
 
-## 1. Passo a Passo de Deploy no Easypanel
+## 1. Configuração Correta no Easypanel
 
-1. **Acessar o Easypanel**:
-   - Entre no seu painel Easypanel e escolha o projeto/ambiente desejado.
+Ao criar ou editar o serviço no Easypanel:
 
-2. **Criar um Novo Serviço**:
-   - Clique em **+ New Service**.
-   - Selecione **App** (Standard Application).
-   - Defina o nome do serviço (ex: `us-gaap-ledger`).
+1. **Service Type**: **App**
+2. **Build Method**: **Dockerfile** (caminho `./Dockerfile`)
+3. **Porta do Contêiner (CRÍTICO)**:
+   - Vá na aba **Domains** (ou **Ports**):
+   - Altere a porta de destino de `80` para **`3000`**.
+   - Protocolo: `http`.
+   - Se a porta permanecer em `80`, o Easypanel não conseguirá se comunicar com a aplicação e exibirá o erro:
+     > *"Service is not reachable. Make sure the service is running and healthy."*
 
-3. **Configuração da Fonte (Source)**:
-   - Escolha **GitHub** (ou Git Repository).
-   - Selecione o repositório `diegolsarmond/us-gaap-ledger` e a branch de produção (`main`).
-   - Habilite **Auto Deploy** (opcional, para atualizar a cada push).
-
-4. **Configuração de Build**:
-   - Build Method: Selecione **Dockerfile**.
-   - Dockerfile Path: `./Dockerfile` (padrão na raiz).
-   - Build Context: `.` (padrão na raiz).
-
-5. **Configuração de Portas**:
-   - Na aba **Domains** ou **Ports**:
-     - **Container Port**: `3000`
-     - **Protocol**: `http`
-     - Configure o seu domínio (ex: `app.seudominio.com` ou o subdomínio temporário do Easypanel). O Easypanel gerencia o SSL (HTTPS) automaticamente via Let's Encrypt / Traefik.
-
-6. **Variáveis de Ambiente (Environment)**:
-   - Por padrão, o Dockerfile já expõe:
-     - `NODE_ENV=production`
-     - `HOST=0.0.0.0`
-     - `PORT=3000`
-   - Caso precise de variáveis customizadas futuras (ex: URLs de APIs, chaves), adicione na aba **Environment**.
-
-7. **Healthcheck (Integridade)**:
-   - Path: `/`
-   - O contêiner possui verificação interna a cada 30s usando `wget` nativo.
-
-8. **Deploy**:
-   - Clique em **Deploy** no canto superior direito.
-   - Acompanhe os logs de compilação. Quando o build for concluído, o status mudará para **Running**.
+4. **Health Check no Easypanel**:
+   - Se houver a seção **Health Check** habilitada no painel do Easypanel:
+     - **Path**: `/`
+     - **Port**: `3000`
+     - **Initial Delay**: `15` segundos
 
 ---
 
-## 2. Estrutura do Dockerfile Multi-Stage
+## 2. Diagnóstico de Problemas Comuns
 
-- **Estágio 1 (`builder`)**:
-  - Imagem base: `node:22-alpine`.
-  - Instala dependências e compila a aplicação com a variável `NITRO_PRESET=node-server`.
-  - Gera o bundle completo em `.output/` (código SSR empacotado + assets estáticos em `.output/public`).
+### Erro: "Service is not reachable. Make sure the service is running and healthy."
 
-- **Estágio 2 (`runner`)**:
-  - Imagem base: `node:22-alpine`.
-  - Executa como usuário não-root (`USER node`).
-  - Copia somente o diretório `.output/`, resultando em uma imagem mínima, rápida de iniciar e sem arquivos desnecessários de desenvolvimento.
-  - Expõe a porta `3000` com comando `node .output/server/index.mjs`.
+Este erro ocorre por dois motivos principais:
 
----
+1. **Porta incompatível**:
+   - O Easypanel assume porta `80` por padrão em novos serviços. O Node.js/Nitro está escutando na porta **`3000`**.
+   - **Solução**: No Easypanel, vá em **Domains** > clique no seu domínio > ajuste a porta para **3000** e salve.
 
-## 3. Teste Local (Opcional)
+2. **Status Unhealthy**:
+   - Removido o healthcheck nativo do Busybox no Dockerfile (o `wget` minimalista do Alpine causava falso-negativo e marcava o contêiner como *unhealthy*). O novo `Dockerfile` inicia o serviço limpo e saudável.
 
-Se desejar testar a imagem localmente antes de subir para o Easypanel:
-
-```bash
-# Construir a imagem Docker
-docker build -t us-gaap-ledger:prod .
-
-# Executar o contêiner mapeando a porta 3000
-docker run -d -p 3000:3000 --name us-gaap-app us-gaap-ledger:prod
-
-# Acessar no navegador
-http://localhost:3000
-```
+3. **Verificar os Logs**:
+   - Vá na aba **Logs** do serviço no Easypanel. Você deve ver a mensagem:
+     ```
+     ➜ Listening on: http://localhost:3000/ (all interfaces)
+     ```
+   - Se a linha acima aparecer, a aplicação está rodando 100% e pronta para receber requisições.
