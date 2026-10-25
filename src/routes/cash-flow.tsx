@@ -1,3 +1,4 @@
+import { useModal } from "@/components/modal-provider";
 import { useCompanies } from "@/components/company-context";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -112,7 +113,7 @@ function CashFlowPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const modal = useModal();
   const accounts = query.data?.accounts ?? [];
   const categories = query.data?.categories ?? [];
   const selectedCurrency =
@@ -183,7 +184,6 @@ function CashFlowPage() {
         setEditing(null);
         setEditingAccount(null);
       }
-      setDeleteId(null);
       setNotice(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível salvar. Tente novamente.");
@@ -741,7 +741,8 @@ function CashFlowPage() {
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Vencimento / realização</Th>
+                      <Th>Vencimento</Th>
+                      <Th>Pagamento / recebimento</Th>
                       <Th>Descrição / categoria</Th>
                       <Th>Conta</Th>
                       <Th>Situação</Th>
@@ -752,16 +753,13 @@ function CashFlowPage() {
                   <tbody>
                     {!listed.length && (
                       <tr>
-                        <Td colSpan={6}>Nenhum lançamento neste período.</Td>
+                        <Td colSpan={7}>Nenhum lançamento neste período.</Td>
                       </tr>
                     )}
                     {listed.map((t) => (
                       <tr key={t.id} className="border-t border-line">
-                        <Td>
-                          {t.due_date}
-                          <br />
-                          {t.paid_date}
-                        </Td>
+                        <Td>{t.due_date.split("-").reverse().join("/")}</Td>
+                        <Td>{t.paid_date ? t.paid_date.split("-").reverse().join("/") : "—"}</Td>
                         <Td>
                           {t.description}
                           <br />
@@ -797,34 +795,24 @@ function CashFlowPage() {
                             <button
                               disabled={pending}
                               className="text-red-700 underline"
-                              onClick={() => setDeleteId(t.id)}
+                              onClick={async () => {
+                                const confirmed = await modal.showConfirm({
+                                  title: "Excluir lançamento?",
+                                  message: `Deseja excluir definitivamente este lançamento? Esta ação não pode ser desfeita.`,
+                                  tone: "error",
+                                  confirmText: "Excluir",
+                                });
+                                if (confirmed) {
+                                  void mutate(
+                                    () => deleteCashTransaction({ data: { id: t.id, companyId } }),
+                                    "Lançamento excluído.",
+                                  );
+                                }
+                              }}
                             >
                               Excluir
                             </button>
                           </div>
-                          {deleteId === t.id && (
-                            <div className="mt-2 text-xs">
-                              Excluir definitivamente este lançamento?
-                              <div className="mt-2 flex gap-3">
-                                <button
-                                  disabled={pending}
-                                  className="text-red-700 underline"
-                                  onClick={() =>
-                                    void mutate(
-                                      () =>
-                                        deleteCashTransaction({ data: { id: t.id, companyId } }),
-                                      "Lançamento excluído.",
-                                    )
-                                  }
-                                >
-                                  Confirmar exclusão
-                                </button>
-                                <button disabled={pending} onClick={() => setDeleteId(null)}>
-                                  Cancelar
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </Td>
                       </tr>
                     ))}

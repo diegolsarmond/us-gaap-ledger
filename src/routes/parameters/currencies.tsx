@@ -1,3 +1,4 @@
+import { useModal } from "@/components/modal-provider";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting } from "@/lib/parameters-context";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/parameters/currencies")({
 });
 function CurrenciesPage() {
   const { activeCompany, currencies, addCurrency, deleteCurrency } = useAccounting();
+  const modal = useModal();
   const [code, setCode] = useState("");
   const [saving, setSaving] = useState(false);
   const rates = useCurrencyRates(currencies.map((currency) => currency.code));
@@ -47,6 +49,13 @@ function CurrenciesPage() {
     }
   }
   async function remove(code: string) {
+    const confirmed = await modal.showConfirm({
+      title: "Remover moeda?",
+      message: `Deseja remover a moeda ${code} — ${currencyName(code)} da empresa ${activeCompany.name}?`,
+      tone: "error",
+      confirmText: "Remover",
+    });
+    if (!confirmed) return;
     setSaving(true);
     try {
       await deleteCurrency(code);

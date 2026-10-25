@@ -1,3 +1,4 @@
+import { useModal } from "@/components/modal-provider";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,7 @@ function CategoriesPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const modal = useModal();
   async function mutate(action: () => Promise<unknown>) {
     setPending(true);
     setError("");
@@ -28,7 +29,6 @@ function CategoriesPage() {
       await action();
       await cache.invalidateQueries({ queryKey: ["cash-flow"] });
       setOpen(false);
-      setDeleting(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível salvar.");
     } finally {
@@ -168,28 +168,23 @@ function CategoriesPage() {
                       </button>
                       <button
                         disabled={pending || !permissions.write_cash}
-                        onClick={() => setDeleting(c.id)}
+                        onClick={async () => {
+                          const confirmed = await modal.showConfirm({
+                            title: "Excluir categoria?",
+                            message: `Deseja excluir a categoria “${c.name}”? Esta ação não pode ser desfeita.`,
+                            tone: "error",
+                            confirmText: "Excluir",
+                          });
+                          if (confirmed) {
+                            void mutate(() =>
+                              deleteCashCategory({ data: { id: c.id, companyId } }),
+                            );
+                          }
+                        }}
                       >
                         Excluir
                       </button>
                     </div>
-                    {deleting === c.id && (
-                      <div className="mt-2">
-                        Excluir a categoria “{c.name}”?{" "}
-                        <button
-                          disabled={pending}
-                          className="text-red-700 underline"
-                          onClick={() =>
-                            void mutate(() => deleteCashCategory({ data: { id: c.id, companyId } }))
-                          }
-                        >
-                          Confirmar exclusão
-                        </button>{" "}
-                        <button disabled={pending} onClick={() => setDeleting(null)}>
-                          Cancelar
-                        </button>
-                      </div>
-                    )}
                   </Td>
                 </tr>
               ))}

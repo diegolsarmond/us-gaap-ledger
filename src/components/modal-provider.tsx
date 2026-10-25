@@ -81,8 +81,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 
   const showAlert = useCallback((options: AlertOptions | string): Promise<void> => {
     return new Promise((resolve) => {
-      const opts: AlertOptions =
-        typeof options === "string" ? { message: options } : options;
+      const opts: AlertOptions = typeof options === "string" ? { message: options } : options;
       setModal({
         type: "alert",
         title: opts.title || (opts.tone === "error" ? "Aviso do Sistema" : "Notificação"),
@@ -99,8 +98,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 
   const showConfirm = useCallback((options: ConfirmOptions | string): Promise<boolean> => {
     return new Promise((resolve) => {
-      const opts: ConfirmOptions =
-        typeof options === "string" ? { message: options } : options;
+      const opts: ConfirmOptions = typeof options === "string" ? { message: options } : options;
       setModal({
         type: "confirm",
         title: opts.title || "Confirmar Ação",
@@ -118,8 +116,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 
   const showPrompt = useCallback((options: PromptOptions | string): Promise<string | null> => {
     return new Promise((resolve) => {
-      const opts: PromptOptions =
-        typeof options === "string" ? { message: options } : options;
+      const opts: PromptOptions = typeof options === "string" ? { message: options } : options;
       const initialVal = opts.defaultValue || "";
       setPromptInput(initialVal);
       setModal({
@@ -195,14 +192,14 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         }}
       >
         {modal && (
-          <AlertDialogContent className="max-w-md rounded-2xl border border-line bg-white p-6 shadow-2xl shadow-black/10 ring-1 ring-black/5">
+          <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm gap-4 rounded-xl border border-line bg-white p-5 shadow-xl shadow-black/10">
             <AlertDialogHeader className="space-y-3">
-              <div className="flex items-start gap-3.5">
+              <div className="flex items-start gap-3">
                 {modal.type === "prompt"
                   ? getToneIconBadge("info", true)
                   : getToneIconBadge(modal.tone)}
                 <div className="space-y-1.5 text-left pt-0.5">
-                  <AlertDialogTitle className="text-[16px] font-semibold tracking-tight text-ink">
+                  <AlertDialogTitle className="text-sm font-semibold tracking-tight text-ink">
                     {modal.title}
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-[13px] text-ink2 leading-relaxed whitespace-pre-line">
@@ -231,11 +228,11 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
-            <AlertDialogFooter className="mt-6 flex flex-row items-center justify-end gap-2.5">
+            <AlertDialogFooter className="mt-1 flex flex-row items-center justify-end gap-2 sm:space-x-0">
               {modal.type === "confirm" && (
                 <AlertDialogCancel
                   onClick={() => modal.resolve(false)}
-                  className="rounded-lg border border-line bg-white px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-panel hover:text-ink transition-colors cursor-pointer shadow-2xs"
+                  className="mt-0 h-9 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] font-medium text-ink2 hover:bg-panel hover:text-ink transition-colors cursor-pointer shadow-2xs"
                 >
                   {modal.cancelText}
                 </AlertDialogCancel>
@@ -243,7 +240,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               {modal.type === "prompt" && (
                 <AlertDialogCancel
                   onClick={() => modal.resolve(null)}
-                  className="rounded-lg border border-line bg-white px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-panel hover:text-ink transition-colors cursor-pointer shadow-2xs"
+                  className="mt-0 h-9 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] font-medium text-ink2 hover:bg-panel hover:text-ink transition-colors cursor-pointer shadow-2xs"
                 >
                   {modal.cancelText}
                 </AlertDialogCancel>
@@ -261,7 +258,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               {modal.type === "confirm" && (
                 <AlertDialogAction
                   onClick={() => modal.resolve(true)}
-                  className={`rounded-lg px-4 py-2 text-[12.5px] font-semibold text-white transition-all shadow-xs cursor-pointer ${
+                  className={`h-9 rounded-md px-3 py-2 text-[12.5px] font-semibold text-white transition-all shadow-xs cursor-pointer ${
                     modal.tone === "error"
                       ? "bg-rose-600 hover:bg-rose-700"
                       : modal.tone === "warning"
