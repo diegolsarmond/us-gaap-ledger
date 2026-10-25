@@ -36,16 +36,16 @@ export async function saveAccount(
         "SELECT currency FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
         [data.id, id],
       );
-      if (!account.rowCount) throw new Error("Conta não encontrada.");
+      if (!account.rowCount) throw new Error("Account not found.");
       const movements = await client.query(
         "SELECT count(*)::int AS count, min(least(due_date, paid_date))::text AS first_date FROM cash_transactions WHERE account_id=$1 AND company_id=$2",
         [data.id, id],
       );
       const history = movements.rows[0];
       if (history.count > 0 && data.currency !== account.rows[0].currency)
-        throw new Error("A moeda não pode ser alterada em uma conta com lançamentos.");
+        throw new Error("The currency cannot be changed for an account with transactions.");
       if (history.first_date && data.opening_date > history.first_date)
-        throw new Error("A data inicial não pode ser posterior aos lançamentos existentes.");
+        throw new Error("The opening date cannot be later than existing transactions.");
       await client.query(
         "UPDATE cash_accounts SET name=$3,currency=$4,opening_date=$5,opening_balance=$6 WHERE id=$1 AND company_id=$2",
         [data.id, id, data.name, data.currency, data.opening_date, data.opening_balance],
@@ -59,7 +59,7 @@ export async function saveAccount(
   } catch (error) {
     await client.query("ROLLBACK");
     if ((error as { code?: string }).code === "23505")
-      throw new Error("Já existe uma conta com esse nome.");
+      throw new Error("An account with this name already exists.");
     throw error;
   } finally {
     client.release();
@@ -79,18 +79,17 @@ export async function saveTransaction(
       "SELECT opening_date::text FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
       [data.account_id, data.companyId],
     );
-    if (!account.rowCount) throw new Error("Conta não pertence à empresa.");
+    if (!account.rowCount) throw new Error("The account does not belong to this company.");
     if (
       data.due_date < account.rows[0].opening_date ||
       (data.paid_date && data.paid_date < account.rows[0].opening_date)
     )
-      throw new Error("As datas devem ser iguais ou posteriores à abertura da conta.");
+      throw new Error("Dates must be on or after the account opening date.");
     const category = await client.query(
       "SELECT 1 FROM cash_categories WHERE name=$1 AND (company_id IS NULL OR company_id=$2)",
       [data.category, data.companyId],
     );
-    if (!category.rowCount)
-      throw new Error("Selecione uma categoria disponível para esta empresa.");
+    if (!category.rowCount) throw new Error("Select a category available for this company.");
     const values = [
       data.companyId,
       data.account_id,
@@ -107,7 +106,7 @@ export async function saveTransaction(
         "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9 WHERE company_id=$1 AND id=$10",
         [...values, data.id],
       );
-      if (!r.rowCount) throw new Error("Lançamento não encontrado.");
+      if (!r.rowCount) throw new Error("Transaction not found.");
     } else
       await client.query(
         "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
@@ -133,7 +132,7 @@ export async function removeTransaction(transactionId: string, companyId: string
       transactionId,
       companyId,
     ]);
-    if (!r.rowCount) throw new Error("Lançamento não encontrado.");
+    if (!r.rowCount) throw new Error("Transaction not found.");
     await client.query("COMMIT");
     return { ok: true };
   } catch (e) {
@@ -160,7 +159,7 @@ export async function writeCategory(data: {
       ? (await client.query("SELECT * FROM cash_categories WHERE id=$1 FOR UPDATE", [data.id]))
           .rows[0]
       : null;
-    if (data.id && !old) throw new Error("Categoria não encontrada.");
+    if (data.id && !old) throw new Error("Category not found.");
     const scopes = [old?.company_id, data.name === undefined ? undefined : data.company_id].filter(
       (v) => v !== undefined,
     );
@@ -179,7 +178,7 @@ export async function writeCategory(data: {
         (data.name === undefined || data.company_id !== old.company_id || data.name !== old.name)
       )
         throw new Error(
-          "Categoria utilizada em lançamentos não pode ser excluída ou alterada. Crie uma nova categoria.",
+          "A category used in transactions cannot be deleted or changed. Create a new category.",
         );
     }
     if (data.name === undefined)
@@ -200,7 +199,7 @@ export async function writeCategory(data: {
   } catch (e) {
     await client.query("ROLLBACK");
     if ((e as { code?: string }).code === "23505")
-      throw new Error("Já existe uma categoria com esse nome neste escopo.");
+      throw new Error("A category with this name already exists in this scope.");
     throw e;
   } finally {
     client.release();

@@ -22,11 +22,11 @@ export function SignOutButton() {
           }
         }}
       >
-        {pending ? "Saindo…" : "Sair"}
+        {pending ? "Signing out…" : "Sign out"}
       </button>
       {error && (
         <span role="alert" className="text-xs text-red-700 ml-2">
-          Falha ao sair. Tente novamente.
+          Unable to sign out. Please try again.
         </span>
       )}
     </div>

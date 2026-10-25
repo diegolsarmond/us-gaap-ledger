@@ -13,7 +13,7 @@ export interface CurrencyConfig {
 export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   {
     key: "USDBRL",
-    name: "Dólar Comercial",
+    name: "US Dollar / Brazilian Real",
     pairLabel: "USD / BRL",
     countryCode: "us",
     flagEmoji: "🇺🇸",
@@ -21,7 +21,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "EURUSD",
-    name: "Euro / Dólar",
+    name: "Euro / US Dollar",
     pairLabel: "EUR / USD",
     countryCode: "eu",
     flagEmoji: "🇪🇺",
@@ -29,7 +29,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "GBPUSD",
-    name: "Libra / Dólar",
+    name: "British Pound / US Dollar",
     pairLabel: "GBP / USD",
     countryCode: "gb",
     flagEmoji: "🇬🇧",
@@ -37,7 +37,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "USDJPY",
-    name: "Dólar / Iene",
+    name: "US Dollar / Japanese Yen",
     pairLabel: "USD / JPY",
     countryCode: "jp",
     flagEmoji: "🇯🇵",
@@ -45,7 +45,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "CADUSD",
-    name: "Dólar Canadense",
+    name: "Canadian Dollar",
     pairLabel: "CAD / USD",
     countryCode: "ca",
     flagEmoji: "🇨🇦",
@@ -53,7 +53,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "CHFUSD",
-    name: "Franco Suíço",
+    name: "Swiss Franc",
     pairLabel: "CHF / USD",
     countryCode: "ch",
     flagEmoji: "🇨🇭",
@@ -61,7 +61,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "EURBRL",
-    name: "Euro / Real",
+    name: "Euro / Brazilian Real",
     pairLabel: "EUR / BRL",
     countryCode: "eu",
     flagEmoji: "🇪🇺",
@@ -69,7 +69,7 @@ export const SUPPORTED_CURRENCY_PAIRS: CurrencyConfig[] = [
   },
   {
     key: "GBPBRL",
-    name: "Libra / Real",
+    name: "British Pound / Brazilian Real",
     pairLabel: "GBP / BRL",
     countryCode: "gb",
     flagEmoji: "🇬🇧",
@@ -174,19 +174,20 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
     const num = parseFloat(valStr);
     if (isNaN(num)) return "--";
     if (num >= 1000) {
-      return `${symbol} ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `${symbol} ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-    return `${symbol} ${num.toLocaleString("pt-BR", { minimumFractionDigits: num < 1 ? 4 : 2, maximumFractionDigits: 4 })}`;
+    return `${symbol} ${num.toLocaleString("en-US", { minimumFractionDigits: num < 1 ? 4 : 2, maximumFractionDigits: 4 })}`;
   };
 
   // Helper de variação percentual
   const getVariationData = (rateItem?: AwesomeApiResponseItem) => {
-    if (!rateItem) return { pct: 0, isUp: false, isDown: false, formattedPct: "0.00%", text: "Estável" };
+    if (!rateItem)
+      return { pct: 0, isUp: false, isDown: false, formattedPct: "0.00%", text: "Unchanged" };
     const pct = parseFloat(rateItem.pctChange);
     const isUp = pct > 0;
     const isDown = pct < 0;
     const formattedPct = `${isUp ? "+" : ""}${pct.toFixed(2)}%`;
-    const text = isUp ? "Alta" : isDown ? "Queda" : "Estável";
+    const text = isUp ? "Up" : isDown ? "Down" : "Unchanged";
     return { pct, isUp, isDown, formattedPct, text };
   };
 
@@ -198,7 +199,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        title="Clique para selecionar e visualizar variações cambiais de hoje"
+        title="Click to select and view today's exchange rate changes"
         className="flex items-center gap-2 rounded-lg bg-white/80 px-2.5 py-1.5 text-left ring-1 ring-line hover:bg-white transition-all shadow-2xs group"
       >
         {/* Identificador Base */}
@@ -238,21 +239,21 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
             </span>
           </div>
 
-          {/* Variação em Alta ou Queda */}
+          {/* Variação em Up ou Down */}
           <div className="flex items-center gap-1 mt-0.5">
             {currentVar.isUp ? (
               <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9.5px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <TrendingUp className="size-2.5 stroke-[2.5]" />
-                {currentVar.formattedPct} Alta
+                {currentVar.formattedPct} Up
               </span>
             ) : currentVar.isDown ? (
               <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9.5px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
                 <TrendingDown className="size-2.5 stroke-[2.5]" />
-                {currentVar.formattedPct} Queda
+                {currentVar.formattedPct} Down
               </span>
             ) : (
               <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9.5px] font-medium bg-ink/5 text-ink3">
-                {currentVar.formattedPct} Estável
+                {currentVar.formattedPct} Unchanged
               </span>
             )}
           </div>
@@ -272,11 +273,11 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
           {/* Cabeçalho do Dropdown */}
           <div className="flex items-center justify-between border-b border-line/60 pb-2 px-1">
             <div>
-              <p className="text-[12px] font-semibold text-ink">Variações Cambiais de Hoje</p>
+              <p className="text-[12px] font-semibold text-ink">Today's Exchange Rate Changes</p>
               <p className="text-[10px] text-ink3">
                 {lastUpdated
-                  ? `Atualizado às ${lastUpdated.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-                  : "Consultando cotações públicas..."}
+                  ? `Updated at ${lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                  : "Loading public exchange rates..."}
               </p>
             </div>
             <button
@@ -286,7 +287,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
                 fetchRates();
               }}
               disabled={isLoading}
-              title="Atualizar cotações agora"
+              title="Refresh exchange rates now"
               className="flex items-center gap-1 rounded-md p-1.5 text-ink3 hover:text-ink hover:bg-ink/5 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin text-brand" : ""}`} />
@@ -303,7 +304,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
           </div>
 
           <p className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink3">
-            Selecione a moeda para fixar no cabeçalho
+            Select the currency to pin in the header
           </p>
 
           {/* Lista de Moedas e Cotações */}
@@ -340,7 +341,7 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
                     </div>
                   </div>
 
-                  {/* Lado Direito: Cotação + Variação Alta/Queda */}
+                  {/* Lado Direito: Cotação + Variação Up/Down */}
                   <div className="text-right shrink-0">
                     <p className="font-mono text-[11.5px] font-semibold text-ink">
                       {rateData ? formatRateValue(rateData.bid, pair.symbol) : "..."}
@@ -349,12 +350,12 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
                       {isUp ? (
                         <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                           <TrendingUp className="size-2.5 stroke-[2.5]" />
-                          {formattedPct} Alta
+                          {formattedPct} Up
                         </span>
                       ) : isDown ? (
                         <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
                           <TrendingDown className="size-2.5 stroke-[2.5]" />
-                          {formattedPct} Queda
+                          {formattedPct} Down
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-medium bg-ink/5 text-ink3">
@@ -370,9 +371,9 @@ export function CurrencyRateTicker({ baseCurrency = "USD" }: CurrencyRateTickerP
 
           {/* Rodapé informativo */}
           <div className="mt-2 border-t border-line/50 pt-2 px-1 flex items-center justify-between text-[9.5px] text-ink3">
-            <span>Fonte: API Pública (AwesomeAPI / BCB)</span>
-            {hasError && <span className="text-rose-500 font-medium">Reconectando...</span>}
-            {!hasError && <span>Atualização contínua</span>}
+            <span>Source: Public API (AwesomeAPI / BCB)</span>
+            {hasError && <span className="text-rose-500 font-medium">Reconnecting...</span>}
+            {!hasError && <span>Continuously updated</span>}
           </div>
         </div>
       )}

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { exportToCsv } from "@/lib/format";
 export const Route = createFileRoute("/cash-flow")({
-  head: () => ({ meta: [{ title: "Fluxo de caixa · World Business" }] }),
+  head: () => ({ meta: [{ title: "Cash flow · World Business" }] }),
   component: CashFlowPage,
 });
 const today = () => {
@@ -34,7 +34,7 @@ const today = () => {
 };
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
-const statusLabels = { planned: "Previsto", paid: "Realizado", cancelled: "Cancelado" };
+const statusLabels = { planned: "Planned", paid: "Actual", cancelled: "Cancelled" };
 function Field({
   label,
   children,
@@ -51,7 +51,7 @@ function Field({
     </label>
   );
 }
-function EntryFormContainer({
+function EntryFormAccountiner({
   modal,
   title,
   companyName,
@@ -76,7 +76,7 @@ function EntryFormContainer({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2">
-            <span className="block text-xs font-medium text-ink2">Empresa</span>
+            <span className="block text-xs font-medium text-ink2">Company</span>
             <span className="block text-lg font-bold text-brand">{companyName}</span>
           </DialogDescription>
         </DialogHeader>
@@ -127,7 +127,7 @@ function CashFlowPage() {
     );
   }
   const formattedAmount = amountCents
-    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: selectedCurrency }).format(
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: selectedCurrency }).format(
         Number(amountCents) / 100,
       )
     : "";
@@ -151,7 +151,7 @@ function CashFlowPage() {
     projected,
   );
   const money = (n: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(n);
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
   const totalIn = report.periods.reduce((s, p) => s + p.inflows, 0);
   const totalOut = report.periods.reduce((s, p) => s + p.outflows, 0);
   const listed = filteredTransactions.filter((t) => {
@@ -186,7 +186,7 @@ function CashFlowPage() {
       }
       setNotice(message);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar. Tente novamente.");
+      setError(e instanceof Error ? e.message : "Unable to save. Please try again.");
     } finally {
       setPending(false);
       if (focusEntryRef.current) {
@@ -212,7 +212,7 @@ function CashFlowPage() {
             opening_balance: Number(f.get("opening_balance")),
           },
         }),
-      editingAccount ? "Conta atualizada." : "Conta criada.",
+      editingAccount ? "Account updated." : "Account created.",
     );
   }
   function submitTransaction(e: FormEvent<HTMLFormElement>) {
@@ -234,22 +234,22 @@ function CashFlowPage() {
             status,
           },
         }),
-      "Lançamento salvo.",
+      "Transaction saved.",
     );
   }
   function exportReport() {
     exportToCsv(
-      "fluxo_caixa_" + currency + "_" + start + "_" + end,
+      "cash_flow_" + currency + "_" + start + "_" + end,
       [
-        "Período",
-        "Saldo anterior",
-        "Entradas",
-        "Saídas",
-        "Saldos iniciais cadastrados",
-        "Movimentação líquida",
-        "Saldo final",
-        "Moeda",
-        "Visão",
+        "Period",
+        "Previous balance",
+        "Inflows",
+        "Outflows",
+        "Recorded opening balances",
+        "Net cash flow",
+        "Closing balance",
+        "Currency",
+        "View",
       ],
       report.periods.map((p) => [
         p.label,
@@ -260,19 +260,19 @@ function CashFlowPage() {
         p.net,
         p.balance,
         currency,
-        projected ? "Previsto + realizado" : "Realizado",
+        projected ? "Planned + realizado" : "Actual",
       ]),
     );
   }
   return (
     <div className="space-y-5">
       <PageTitle
-        title="Fluxo de caixa"
-        description="Acompanhe entradas, saídas e saldos por dia, semana, mês, trimestre ou ano."
+        title="Cash flow"
+        description="Track inflows, outflows, and balances by day, week, month, quarter, or year."
         actions={
           <>
             <Link to="/parameters/cash-categories" className={button}>
-              Categorias
+              Categories
             </Link>
             <button
               className={button}
@@ -283,7 +283,7 @@ function CashFlowPage() {
                 setError("");
               }}
             >
-              Nova conta
+              New account
             </button>
             <button
               className={button}
@@ -298,21 +298,21 @@ function CashFlowPage() {
                 setError("");
               }}
             >
-              Novo lançamento
+              New transaction
             </button>
           </>
         }
       />
-      {query.isPending && <p role="status">Carregando dados do banco…</p>}
+      {query.isPending && <p role="status">Loading data…</p>}
       {query.isError && (
         <div
           role="alert"
           className="rounded border border-red-300 bg-red-50 p-4 text-sm text-red-800"
         >
-          Não foi possível carregar o fluxo de caixa. Verifique a conexão e se o script
-          database/002_cash_flow.sql foi executado.
+          Unable to load cash flow. Check your connection and confirm that
+          database/002_cash_flow.sql has been run.
           <button className="ml-3 underline" onClick={() => void query.refetch()}>
-            Tentar novamente
+            Try again
           </button>
         </div>
       )}
@@ -329,7 +329,7 @@ function CashFlowPage() {
       {query.isSuccess && (
         <>
           {form && (
-            <EntryFormContainer
+            <EntryFormAccountiner
               modal={form === "transaction"}
               companyName={activeCompany!.name}
               onClose={() => {
@@ -341,11 +341,11 @@ function CashFlowPage() {
               title={
                 form === "account"
                   ? editingAccount
-                    ? "Editar conta de caixa / banco"
-                    : "Cadastrar conta de caixa / banco"
+                    ? "Edit cash / bank account"
+                    : "Add cash / bank account"
                   : editing
-                    ? "Editar lançamento"
-                    : "Cadastrar lançamento"
+                    ? "Edit transaction"
+                    : "Add transaction"
               }
             >
               <form
@@ -370,7 +370,7 @@ function CashFlowPage() {
                 <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {form === "account" ? (
                     <>
-                      <Field label="Nome da conta">
+                      <Field label="Account name">
                         <input
                           name="name"
                           defaultValue={editingAccount?.name}
@@ -379,7 +379,7 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
-                      <Field label="Moeda">
+                      <Field label="Currency">
                         <select
                           name="currency"
                           defaultValue={editingAccount?.currency ?? currency}
@@ -390,7 +390,7 @@ function CashFlowPage() {
                           <option>EUR</option>
                         </select>
                       </Field>
-                      <Field label="Data do saldo inicial">
+                      <Field label="Opening balance date">
                         <input
                           name="opening_date"
                           type="date"
@@ -399,7 +399,7 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
-                      <Field label="Saldo inicial (pode ser negativo)">
+                      <Field label="Opening balance (may be negative)">
                         <input
                           name="opening_balance"
                           type="number"
@@ -412,15 +412,15 @@ function CashFlowPage() {
                         />
                       </Field>
                       <p className="text-xs text-ink3">
-                        O saldo inicial é a posição no início dessa data, antes dos lançamentos do
-                        dia.
+                        The opening balance is the balance at the start of this date, before the
+                        transactions for the day.
                         {editingAccount &&
-                          " Alterar o saldo inicial recalcula os saldos do fluxo. A moeda só pode ser alterada se não houver lançamentos."}
+                          " Changing the opening balance recalculates cash flow balances. The currency can only be changed if there are no transactions."}
                       </p>
                     </>
                   ) : (
                     <>
-                      <Field label="Conta">
+                      <Field label="Account">
                         <select
                           autoFocus
                           onChange={(e) => setEntryAccount(e.target.value)}
@@ -438,20 +438,18 @@ function CashFlowPage() {
                           ))}
                         </select>
                       </Field>
-                      <Field label="Tipo">
+                      <Field label="Type">
                         <select
                           name="direction"
                           value={direction}
                           onChange={(e) => setDirection(e.target.value as "in" | "out")}
                           className={control}
                         >
-                          <option value="in">Entrada</option>
-                          <option value="out">Saída</option>
+                          <option value="in">Inflow</option>
+                          <option value="out">Outflow</option>
                         </select>
                       </Field>
-                      <Field
-                        label={direction === "in" ? "Data do lançamento" : "Data do vencimento"}
-                      >
+                      <Field label={direction === "in" ? "Transaction date" : "Due date"}>
                         <input
                           name="due_date"
                           type="date"
@@ -460,7 +458,7 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
-                      <Field label="Descrição" className="sm:col-span-2 lg:col-span-3">
+                      <Field label="Description" className="sm:col-span-2 lg:col-span-3">
                         <textarea
                           rows={3}
                           name="description"
@@ -470,7 +468,7 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
-                      <Field label="Categoria">
+                      <Field label="Category">
                         <select
                           name="category"
                           defaultValue={editing?.category ?? ""}
@@ -478,7 +476,7 @@ function CashFlowPage() {
                           className={control}
                         >
                           <option value="" disabled>
-                            Selecione uma categoria
+                            Select a category
                           </option>
                           {Array.from(new Set(categories.map((c) => c.name))).map((name) => (
                             <option key={name} value={name}>
@@ -486,16 +484,14 @@ function CashFlowPage() {
                             </option>
                           ))}
                         </select>
-                        {!categories.length && (
-                          <span>Cadastre uma categoria em System Parameters.</span>
-                        )}
+                        {!categories.length && <span>Add a category in System Parameters.</span>}
                       </Field>
-                      <Field label="Valor na moeda da conta">
+                      <Field label="Amount in account currency">
                         <input
                           name="amount"
                           type="text"
                           inputMode="numeric"
-                          placeholder={new Intl.NumberFormat("pt-BR", {
+                          placeholder={new Intl.NumberFormat("en-US", {
                             style: "currency",
                             currency: selectedCurrency,
                           }).format(0)}
@@ -509,7 +505,7 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
-                      <Field label="Situação">
+                      <Field label="Status">
                         <select
                           value={status}
                           onChange={(e) => setStatus(e.target.value as typeof status)}
@@ -523,7 +519,7 @@ function CashFlowPage() {
                         </select>
                       </Field>
                       {status === "paid" && (
-                        <Field label="Data de recebimento / pagamento">
+                        <Field label="Receipt / payment date">
                           <input
                             name="paid_date"
                             type="date"
@@ -543,11 +539,11 @@ function CashFlowPage() {
                         onChange={(e) => setKeepOpen(e.target.checked)}
                         className="h-4 w-4 accent-brand"
                       />
-                      Continuar lançando (manter a janela aberta após salvar)
+                      Continue adding transactions (keep this window open after saving)
                     </label>
                   )}
                   <div className="flex items-end gap-3">
-                    <button className={button}>{pending ? "Salvando…" : "Salvar"}</button>
+                    <button className={button}>{pending ? "Saving…" : "Save"}</button>
                     <button
                       type="button"
                       className="text-sm underline"
@@ -556,24 +552,24 @@ function CashFlowPage() {
                         setError("");
                       }}
                     >
-                      Cancelar
+                      Cancel
                     </button>
                   </div>
                 </fieldset>
               </form>
-            </EntryFormContainer>
+            </EntryFormAccountiner>
           )}
           {!accounts.length && (
-            <Panel title="Comece cadastrando sua primeira conta">
+            <Panel title="Start by adding your first account">
               <p className="p-4 text-sm text-ink3">
-                Nenhum dado de demonstração é utilizado. Cadastre o saldo inicial de uma conta e
-                registre seus recebimentos e pagamentos.
+                No demo data is used. Add an account opening balance and record your receipts and
+                payments.
               </p>
             </Panel>
           )}
-          <Panel title="Período e visão">
+          <Panel title="Period and view">
             <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
-              <Field label="De">
+              <Field label="From">
                 <input
                   type="date"
                   value={start}
@@ -581,7 +577,7 @@ function CashFlowPage() {
                   className={control}
                 />
               </Field>
-              <Field label="Até">
+              <Field label="To">
                 <input
                   type="date"
                   value={end}
@@ -589,18 +585,18 @@ function CashFlowPage() {
                   className={control}
                 />
               </Field>
-              <Field label="Agrupamento">
+              <Field label="Group by">
                 <select
                   value={interval}
                   onChange={(e) => setInterval(e.target.value as Interval)}
                   className={control}
                 >
                   {[
-                    ["daily", "Diário"],
-                    ["weekly", "Semanal"],
-                    ["monthly", "Mensal"],
-                    ["quarterly", "Trimestral"],
-                    ["yearly", "Anual"],
+                    ["daily", "Daily"],
+                    ["weekly", "Weekly"],
+                    ["monthly", "Monthly"],
+                    ["quarterly", "Quarterly"],
+                    ["yearly", "Yearly"],
                   ].map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
@@ -608,7 +604,7 @@ function CashFlowPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Moeda">
+              <Field label="Currency">
                 <select
                   value={currency}
                   onChange={(e) => {
@@ -622,13 +618,13 @@ function CashFlowPage() {
                   <option>EUR</option>
                 </select>
               </Field>
-              <Field label="Conta">
+              <Field label="Account">
                 <select
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
                   className={control}
                 >
-                  <option value="">Todas nesta moeda</option>
+                  <option value="">All in this currency</option>
                   {accounts
                     .filter((a) => a.currency === currency)
                     .map((a) => (
@@ -638,26 +634,26 @@ function CashFlowPage() {
                     ))}
                 </select>
               </Field>
-              <Field label="Visão">
+              <Field label="View">
                 <select
                   value={projected ? "projected" : "actual"}
                   onChange={(e) => setProjected(e.target.value === "projected")}
                   className={control}
                 >
-                  <option value="actual">Realizado</option>
-                  <option value="projected">Realizado + previsto</option>
+                  <option value="actual">Actual</option>
+                  <option value="projected">Actual + previsto</option>
                 </select>
               </Field>
             </div>
             <p className="px-4 pb-4 text-xs text-ink3">
-              Semanas começam na segunda-feira. Realizados usam a data de pagamento; previstos usam
-              o vencimento. Valores são separados por moeda, sem conversão cambial. Cancelados não
-              afetam os saldos.
+              Weeks start on Monday. Actual transactions use the payment date; planned transactions
+              use the due date. Amounts are separated by currency without conversion. Cancelled
+              transactions do not affect balances.
             </p>
           </Panel>
           {!validRange ? (
             <p role="alert" className="text-red-700">
-              Informe um período válido de até cinco anos.
+              Enter a valid period of up to five years.
             </p>
           ) : (
             <>
@@ -666,57 +662,58 @@ function CashFlowPage() {
                   role="status"
                   className="rounded border border-line bg-white p-3 text-sm text-ink2"
                 >
-                  Há {money(plannedOutflows)} em despesas previstas neste período. Elas entram no
-                  saldo projetado; a visão Realizado considera apenas pagamentos efetivados.{" "}
+                  There are {money(plannedOutflows)} in planned expenses for this period. These are
+                  included in the projected balance; the Actual view includes only completed
+                  payments.{" "}
                   <button className="text-brand underline" onClick={() => setProjected(true)}>
-                    Incluir previstos
+                    Include planned transactions
                   </button>
                 </p>
               )}
               <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Kpi label="Saldo anterior ao período" value={money(report.opening)} />
-                <Kpi label="Entradas no período" value={money(totalIn)} tone="up" />
-                <Kpi label="Saídas no período" value={money(totalOut)} tone="down" />
+                <Kpi label="Balance before period" value={money(report.opening)} />
+                <Kpi label="Inflows during period" value={money(totalIn)} tone="up" />
+                <Kpi label="Outflows during period" value={money(totalOut)} tone="down" />
                 <Kpi
-                  label={projected ? "Saldo final projetado" : "Saldo final realizado"}
+                  label={projected ? "Projected closing balance" : "Actual closing balance"}
                   value={money(report.periods.at(-1)?.balance ?? report.opening)}
                 />
               </section>
               <Panel
-                title="Evolução do caixa"
+                title="Cash flow over time"
                 subtitle={
                   projected
-                    ? "Projeção baseada somente nos lançamentos cadastrados, sem estimativas automáticas."
-                    : "Movimentações efetivamente recebidas ou pagas."
+                    ? "Projection based only on recorded transactions, without automatic estimates."
+                    : "Transactions actually received or paid."
                 }
                 aside={
                   <button onClick={exportReport} className={button}>
-                    Exportar CSV
+                    Export CSV
                   </button>
                 }
               >
                 <p className="px-4 py-3 text-xs text-ink3">
-                  Saldo final = saldo anterior + saldos iniciais cadastrados + entradas − saídas.
-                  Saldos iniciais cadastrados são incorporados na data de abertura de cada conta. A
-                  movimentação líquida corresponde às entradas menos as saídas.
+                  Closing balance = previous balance + recorded opening balances + inflows −
+                  outflows. Recorded opening balances are included on each account opening date. Net
+                  cash flow equals inflows minus outflows.
                 </p>
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Período</Th>
-                      <Th align="right">Saldo anterior</Th>
-                      <Th align="right">Entradas</Th>
-                      <Th align="right">Saídas</Th>
-                      <Th align="right">Saldos iniciais cadastrados</Th>
-                      <Th align="right">Movimentação líquida</Th>
-                      <Th align="right">Saldo final</Th>
+                      <Th>Period</Th>
+                      <Th align="right">Previous balance</Th>
+                      <Th align="right">Inflows</Th>
+                      <Th align="right">Outflows</Th>
+                      <Th align="right">Recorded opening balances</Th>
+                      <Th align="right">Net cash flow</Th>
+                      <Th align="right">Closing balance</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.periods.map((p) => (
                       <tr key={p.label} className="border-t border-line">
                         <Td>
-                          {interval === "weekly" ? "Semana de " : ""}
+                          {interval === "weekly" ? "Week of " : ""}
                           {p.label}
                         </Td>
                         <Td align="right">{money(p.openingBalance)}</Td>
@@ -731,29 +728,29 @@ function CashFlowPage() {
                 </Table>
               </Panel>
               <Panel
-                title="Lançamentos do período"
+                title="Transactions during period"
                 subtitle={
                   projected
-                    ? "Previstos e realizados afetam os totais. Cancelados não afetam os saldos."
-                    : "Somente realizados afetam os totais. Previstos e cancelados são exibidos para consulta."
+                    ? "Planned and actual transactions affect totals. Cancelled transactions do not affect balances."
+                    : "Only actual transactions affect totals. Planned and cancelled transactions are shown for reference."
                 }
               >
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Vencimento</Th>
-                      <Th>Pagamento / recebimento</Th>
-                      <Th>Descrição / categoria</Th>
-                      <Th>Conta</Th>
-                      <Th>Situação</Th>
-                      <Th align="right">Valor</Th>
-                      <Th>Ações</Th>
+                      <Th>Due date</Th>
+                      <Th>Payment / receipt</Th>
+                      <Th>Description / category</Th>
+                      <Th>Account</Th>
+                      <Th>Status</Th>
+                      <Th align="right">Amount</Th>
+                      <Th>Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {!listed.length && (
                       <tr>
-                        <Td colSpan={7}>Nenhum lançamento neste período.</Td>
+                        <Td colSpan={7}>No transactions in this period.</Td>
                       </tr>
                     )}
                     {listed.map((t) => (
@@ -790,27 +787,28 @@ function CashFlowPage() {
                                 window.scrollTo({ top: 0, behavior: "smooth" });
                               }}
                             >
-                              Editar
+                              Edit
                             </button>
                             <button
                               disabled={pending}
                               className="text-red-700 underline"
                               onClick={async () => {
                                 const confirmed = await modal.showConfirm({
-                                  title: "Excluir lançamento?",
-                                  message: `Deseja excluir definitivamente este lançamento? Esta ação não pode ser desfeita.`,
+                                  title: "Delete transaction?",
+                                  message: `Permanently delete this transaction? This action cannot be undone.`,
                                   tone: "error",
-                                  confirmText: "Excluir",
+                                  confirmText: "Delete",
+                                  cancelText: "Cancel",
                                 });
                                 if (confirmed) {
                                   void mutate(
                                     () => deleteCashTransaction({ data: { id: t.id, companyId } }),
-                                    "Lançamento excluído.",
+                                    "Transaction deleted.",
                                   );
                                 }
                               }}
                             >
-                              Excluir
+                              Delete
                             </button>
                           </div>
                         </Td>
@@ -821,15 +819,15 @@ function CashFlowPage() {
               </Panel>
             </>
           )}
-          <Panel title="Contas cadastradas">
+          <Panel title="Accounts">
             <Table>
               <thead>
                 <tr>
-                  <Th>Conta</Th>
-                  <Th>Moeda</Th>
-                  <Th>Data inicial</Th>
-                  <Th align="right">Saldo inicial</Th>
-                  <Th>Ações</Th>
+                  <Th>Account</Th>
+                  <Th>Currency</Th>
+                  <Th>Opening date</Th>
+                  <Th align="right">Opening balance</Th>
+                  <Th>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -839,7 +837,7 @@ function CashFlowPage() {
                     <Td>{a.currency}</Td>
                     <Td>{a.opening_date}</Td>
                     <Td align="right">
-                      {new Intl.NumberFormat("pt-BR", {
+                      {new Intl.NumberFormat("en-US", {
                         style: "currency",
                         currency: a.currency,
                       }).format(a.opening_balance)}
@@ -857,7 +855,7 @@ function CashFlowPage() {
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
                       >
-                        Editar
+                        Edit
                       </button>
                     </Td>
                   </tr>

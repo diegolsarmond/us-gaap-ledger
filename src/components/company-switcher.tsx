@@ -19,10 +19,10 @@ export function CompanySwitcher() {
         </span>
         <span className="leading-tight">
           <span className="block text-[12px] font-medium text-ink truncate max-w-[100px] md:max-w-[220px]">
-            {activeCompany?.name ?? "Selecionar empresa"}
+            {activeCompany?.name ?? "Select company"}
           </span>
           <span className="hidden sm:block text-[10px] text-ink3 truncate">
-            {activeCompany ? formatEin(activeCompany.ein) : "Nenhuma empresa ativa"}
+            {activeCompany ? formatEin(activeCompany.ein) : "No active company"}
           </span>
         </span>
         <span className="text-[10px] text-ink3">▾</span>
@@ -31,8 +31,8 @@ export function CompanySwitcher() {
         <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-24px)] rounded-lg bg-white p-2 shadow-lg ring-1 ring-line z-30">
           <input
             autoFocus
-            aria-label="Buscar empresa"
-            placeholder="Buscar empresa ou EIN…"
+            aria-label="Search company"
+            placeholder="Search company or EIN…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded border border-line px-2.5 py-2 text-[12px] outline-none focus:ring-1 focus:ring-brand"
@@ -73,7 +73,7 @@ export function CompanySwitcher() {
               className="block border-t border-line mt-1 px-2.5 py-2 text-[12px] text-brand"
               onClick={() => setOpen(false)}
             >
-              Cadastrar / gerenciar empresas
+              Add / manage companies
             </Link>
           )}
         </div>

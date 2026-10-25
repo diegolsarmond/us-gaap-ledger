@@ -5,7 +5,7 @@ export const dateSchema = z
   .refine((value) => {
     const date = new Date(value + "T12:00:00Z");
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-  }, "Data inválida");
+  }, "Invalid date");
 const money = z.number().finite().max(999999999999.99).multipleOf(0.01);
 export const accountSchema = z.object({
   id: z.string().uuid().optional(),
@@ -34,7 +34,7 @@ export const transactionSchema = z
   })
   .refine(
     (t) => (t.status === "paid") === (t.paid_date !== null),
-    "Informe a data de realização apenas para lançamentos realizados.",
+    "Provide a payment date only for actual transactions.",
   );
 export type CashAccount = z.infer<typeof accountSchema> & { id: string };
 export type CashTransaction = z.infer<typeof transactionSchema> & { id: string };
@@ -94,7 +94,7 @@ export function summarize(
         : interval === "monthly"
           ? date.slice(0, 7)
           : interval === "quarterly"
-            ? `${date.slice(0, 4)} T${Math.floor(cursor.getUTCMonth() / 3) + 1}`
+            ? `${date.slice(0, 4)} Q${Math.floor(cursor.getUTCMonth() / 3) + 1}`
             : date.slice(0, 4);
     let row = periods.at(-1);
     if (!row || row.label !== label) {

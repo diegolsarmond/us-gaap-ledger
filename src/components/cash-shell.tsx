@@ -27,12 +27,12 @@ const groups = [
     items: ["Bank Feeds & Staging"],
   },
   {
-    label: "Configurações",
-    items: ["Empresas", "Perfis de acesso", "Usuários"],
+    label: "Settings",
+    items: ["Companies", "Access profiles", "Users"],
   },
   {
-    label: "Auditoria",
-    items: ["Logs de ações"],
+    label: "Audit",
+    items: ["Action logs"],
   },
   {
     label: "System Parameters",
@@ -43,7 +43,7 @@ const groups = [
       "Payment Terms",
       "Cost Centers",
       "Expense Categories",
-      "Categorias do fluxo de caixa",
+      "Cash flow categories",
       "Fiscal Periods",
     ],
   },
@@ -62,19 +62,19 @@ const menuRoutes: Record<string, string> = {
   "Sales Tax Summary": "/taxes",
   "AR Aging Position": "/receivables",
   "Bank Feeds & Staging": "/statements",
-  Empresas: "/companies",
+  Companies: "/companies",
   "Modules Overview": "/parameters",
   "Currencies & FX Rates": "/parameters/currencies",
   "Tax Jurisdictions": "/parameters/tax-jurisdictions",
   "Payment Terms": "/parameters/payment-terms",
   "Cost Centers": "/parameters/cost-centers",
-  "Categorias do fluxo de caixa": "/parameters/cash-categories",
+  "Cash flow categories": "/parameters/cash-categories",
   "Expense Categories": "/parameters/expense-categories",
   "Fiscal Periods": "/parameters/fiscal-periods",
   "Cash Flow & Forecast": "/cash-flow",
-  "Perfis de acesso": "/access",
-  Usuários: "/users",
-  "Logs de ações": "/audit-log",
+  "Access profiles": "/access",
+  Users: "/users",
+  "Action logs": "/audit-log",
 };
 export function CashShell({
   children,
@@ -108,7 +108,7 @@ export function CashShell({
   const navigation = (
     <>
       <nav
-        aria-label="Módulos"
+        aria-label="Modules"
         className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain"
       >
         {groups.map((g) => (
@@ -127,9 +127,9 @@ export function CashShell({
               {g.label}
             </p>
             {g.items
-              .filter((label) => label !== "Usuários" || permissions.manage_users)
-              .filter((label) => label !== "Perfis de acesso" || permissions.manage_profiles)
-              .filter((label) => label !== "Logs de ações" || permissions.view_audit)
+              .filter((label) => label !== "Users" || permissions.manage_users)
+              .filter((label) => label !== "Access profiles" || permissions.manage_profiles)
+              .filter((label) => label !== "Action logs" || permissions.view_audit)
               .map((label) =>
                 menuRoutes[label] && isModuleAvailable(menuRoutes[label]) ? (
                   <Link
@@ -154,7 +154,7 @@ export function CashShell({
                     type="button"
                     disabled
                     aria-disabled="true"
-                    title="Módulo indisponível nesta etapa"
+                    title="Module unavailable at this stage"
                     className="mt-0.5 flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink3 opacity-50"
                   >
                     <LockKeyhole className="size-3 shrink-0" />
@@ -195,14 +195,14 @@ export function CashShell({
       {open && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <button
-            aria-label="Fechar menu"
+            aria-label="Close menu"
             onClick={() => setOpen(false)}
             className="fixed inset-0 bg-ink/40 backdrop-blur-xs"
           />
           <div className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col border-r border-line bg-canvas shadow-2xl">
             {branding}
             <button
-              aria-label="Fechar menu"
+              aria-label="Close menu"
               onClick={() => setOpen(false)}
               className="absolute right-2 top-4"
             >
@@ -219,7 +219,7 @@ export function CashShell({
               type="button"
               onClick={() => setOpen(true)}
               className="inline-flex md:hidden items-center justify-center size-8.5 rounded-lg border border-line bg-white/80 text-ink hover:text-brand hover:bg-white transition-colors cursor-pointer shadow-2xs shrink-0"
-              aria-label="Abrir menu de navegação"
+              aria-label="Open navigation menu"
             >
               <Menu className="size-4.5" />
             </button>
@@ -237,11 +237,11 @@ export function CashShell({
                 {path === "/cash-flow"
                   ? "Cash Flow & Forecast"
                   : path === "/access"
-                    ? "Configurações · Perfis de acesso"
+                    ? "Settings · Access profiles"
                     : path === "/audit-log"
-                      ? "Auditoria · Logs de ações"
+                      ? "Audit · Action logs"
                       : path === "/users"
-                        ? "Configurações · Usuários"
+                        ? "Settings · Users"
                         : "Workspace"}
               </span>
             </div>
