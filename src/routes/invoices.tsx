@@ -120,7 +120,7 @@ function InvoicesPage() {
       taxable: !taxExempt,
     }));
 
-    const result = createInvoice({
+    const result = await createInvoice({
       customerName: customerName.trim(),
       customerEin: customerEin.trim() || undefined,
       date,
@@ -158,7 +158,7 @@ function InvoicesPage() {
 
   const handleRecordPayment = async (invId: string) => {
     const paymentDate = new Date().toISOString().split("T")[0]!;
-    const res = recordInvoicePayment(invId, paymentDate);
+    const res = await recordInvoicePayment(invId, paymentDate);
     if (!res.success) {
       await modal.showAlert({
         title: "Erro no Recebimento",

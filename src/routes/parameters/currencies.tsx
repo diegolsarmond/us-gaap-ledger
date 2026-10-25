@@ -30,14 +30,8 @@ export const Route = createFileRoute("/parameters/currencies")({
 
 function CurrenciesPage() {
   const modal = useModal();
-  const {
-    activeCompany,
-    currencies,
-    addCurrency,
-    updateCurrency,
-    deleteCurrency,
-    userPersona,
-  } = useAccounting();
+  const { activeCompany, currencies, addCurrency, updateCurrency, deleteCurrency, userPersona } =
+    useAccounting();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -82,108 +76,115 @@ function CurrenciesPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!code.trim() || !name.trim() || !exchangeRate.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor preencha o Código ISO, o Nome da Moeda e a Taxa de Câmbio.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!code.trim() || !name.trim() || !exchangeRate.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor preencha o Código ISO, o Nome da Moeda e a Taxa de Câmbio.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const rateNum = parseFloat(exchangeRate);
+      if (isNaN(rateNum) || rateNum <= 0) {
+        await modal.showAlert({
+          title: "Taxa Inválida",
+          message: "A taxa de câmbio deve ser um número positivo.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const isoCode = code.trim().toUpperCase();
+
+      if (!editingCode && currencies.some((c) => c.code === isoCode)) {
+        await modal.showAlert({
+          title: "Moeda Já Cadastrada",
+          message: `A moeda com código ${isoCode} já existe na tabela de taxas.`,
+          tone: "warning",
+        });
+        return;
+      }
+
+      if (editingCode) {
+        await updateCurrency(editingCode, {
+          name: name.trim(),
+          symbol: symbol.trim() || "$",
+          exchangeRateToUsd: rateNum,
+          quotationType,
+          status,
+        });
+        await modal.showAlert({
+          title: "Moeda Atualizada",
+          message: `Parâmetros da moeda ${editingCode} atualizados com êxito.`,
+          tone: "success",
+        });
+      } else {
+        await addCurrency({
+          code: isoCode,
+          name: name.trim(),
+          symbol: symbol.trim() || "$",
+          exchangeRateToUsd: rateNum,
+          isBaseCurrency: isoCode === "USD",
+          quotationType,
+          status,
+          lastUpdated: new Date().toISOString().split("T")[0]!,
+        });
+        await modal.showAlert({
+          title: "Moeda Adicionada",
+          message: `Moeda ${isoCode} (${name.trim()}) adicionada à tabela de paridades.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const rateNum = parseFloat(exchangeRate);
-    if (isNaN(rateNum) || rateNum <= 0) {
-      await modal.showAlert({
-        title: "Taxa Inválida",
-        message: "A taxa de câmbio deve ser um número positivo.",
-        tone: "warning",
-      });
-      return;
-    }
-
-    const isoCode = code.trim().toUpperCase();
-
-    if (!editingCode && currencies.some((c) => c.code === isoCode)) {
-      await modal.showAlert({
-        title: "Moeda Já Cadastrada",
-        message: `A moeda com código ${isoCode} já existe na tabela de taxas.`,
-        tone: "warning",
-      });
-      return;
-    }
-
-    if (editingCode) {
-      await updateCurrency(editingCode, {
-        name: name.trim(),
-        symbol: symbol.trim() || "$",
-        exchangeRateToUsd: rateNum,
-        quotationType,
-        status,
-      });
-      await modal.showAlert({
-        title: "Moeda Atualizada",
-        message: `Parâmetros da moeda ${editingCode} atualizados com êxito.`,
-        tone: "success",
-      });
-    } else {
-      await addCurrency({
-        code: isoCode,
-        name: name.trim(),
-        symbol: symbol.trim() || "$",
-        exchangeRateToUsd: rateNum,
-        isBaseCurrency: isoCode === "USD",
-        quotationType,
-        status,
-        lastUpdated: new Date().toISOString().split("T")[0]!,
-      });
-      await modal.showAlert({
-        title: "Moeda Adicionada",
-        message: `Moeda ${isoCode} (${name.trim()}) adicionada à tabela de paridades.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (curr: CurrencyParam) => {
     try {
-    if (curr.isBaseCurrency || curr.code === "USD") {
-      await modal.showAlert({
-        title: "Operação Bloqueada",
-        message: "A moeda funcional USD é a moeda base do sistema US GAAP e não pode ser excluída.",
+      if (curr.isBaseCurrency || curr.code === "USD") {
+        await modal.showAlert({
+          title: "Operação Bloqueada",
+          message:
+            "A moeda funcional USD é a moeda base do sistema US GAAP e não pode ser excluída.",
+          tone: "error",
+        });
+        return;
+      }
+
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Moeda ${curr.code}?`,
+        message: `Tem certeza que deseja remover a moeda "${curr.name}" (${curr.code}) dos parâmetros?\n\nTransações passadas manterão os lançamentos históricos gravados.`,
         tone: "error",
+        confirmText: "Sim, Excluir Moeda",
+        cancelText: "Cancelar",
       });
-      return;
-    }
 
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Moeda ${curr.code}?`,
-      message: `Tem certeza que deseja remover a moeda "${curr.name}" (${curr.code}) dos parâmetros?\n\nTransações passadas manterão os lançamentos históricos gravados.`,
-      tone: "error",
-      confirmText: "Sim, Excluir Moeda",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deleteCurrency(curr.code);
-      await modal.showAlert({
-        title: "Moeda Removida",
-        message: `A moeda ${curr.code} foi excluída dos parâmetros.`,
-        tone: "success",
-      });
+      if (confirmed) {
+        await deleteCurrency(curr.code);
+        await modal.showAlert({
+          title: "Moeda Removida",
+          message: `A moeda ${curr.code} foi excluída dos parâmetros.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (curr: CurrencyParam) => {
     try {
-    if (curr.isBaseCurrency) return;
-    const nextStatus = curr.status === "Active" ? "Inactive" : "Active";
-    await updateCurrency(curr.code, { status: nextStatus });
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
+      if (curr.isBaseCurrency) return;
+      const nextStatus = curr.status === "Active" ? "Inactive" : "Active";
+      await updateCurrency(curr.code, { status: nextStatus });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
+    }
   };
 
   // Filtered List
@@ -204,7 +205,16 @@ function CurrenciesPage() {
   const handleExport = () => {
     exportToCsv(
       `moedas-cambio-${activeCompany.id}.csv`,
-      ["Codigo_ISO", "Nome", "Simbolo", "Taxa_USD", "Moeda_Base", "Tipo_Cotacao", "Status", "Ultima_Atualizacao"],
+      [
+        "Codigo_ISO",
+        "Nome",
+        "Simbolo",
+        "Taxa_USD",
+        "Moeda_Base",
+        "Tipo_Cotacao",
+        "Status",
+        "Ultima_Atualizacao",
+      ],
       currencies.map((c) => [
         c.code,
         c.name,
@@ -264,8 +274,12 @@ function CurrenciesPage() {
               <Calculator className="size-4.5" />
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-ink">Simulador de Conversão em Tempo Real</p>
-              <p className="text-[11px] text-ink3">Paridade cambial instantânea contra USD (Functional Currency)</p>
+              <p className="text-[13px] font-semibold text-ink">
+                Simulador de Conversão em Tempo Real
+              </p>
+              <p className="text-[11px] text-ink3">
+                Paridade cambial instantânea contra USD (Functional Currency)
+              </p>
             </div>
           </div>
 
@@ -290,7 +304,12 @@ function CurrenciesPage() {
             </select>
             <span className="text-ink3">=</span>
             <span className="rounded-md bg-white px-3 py-1 font-mono font-bold text-brand ring-1 ring-line">
-              ${convertedUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+              $
+              {convertedUsd.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              USD
             </span>
           </div>
         </div>
@@ -382,7 +401,11 @@ function CurrenciesPage() {
                     type="button"
                     onClick={() => handleToggleStatus(c)}
                     disabled={c.isBaseCurrency}
-                    title={c.isBaseCurrency ? "Moeda base não pode ser inativada" : "Clique para alterar status"}
+                    title={
+                      c.isBaseCurrency
+                        ? "Moeda base não pode ser inativada"
+                        : "Clique para alterar status"
+                    }
                     className="cursor-pointer"
                   >
                     <Badge tone={c.status === "Active" ? "brand" : "neutral"}>
@@ -505,9 +528,7 @@ function CurrenciesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Status
-                  </label>
+                  <label className="block text-[11.5px] font-semibold text-ink2 mb-1">Status</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}

@@ -1,3 +1,4 @@
+import { useCompanies } from "@/components/company-context";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -5,12 +6,13 @@ import { getAuditEvents } from "@/lib/admin";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
 export const Route = createFileRoute("/audit-log")({ component: AuditPage });
 function AuditPage() {
+  const {activeCompany}=useCompanies();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
   const query = useQuery({
-    queryKey: ["system-audit", page],
-    queryFn: () => getAuditEvents({ data: { page } }),
+    queryKey: ["system-audit", activeCompany?.id,page],
+    queryFn: () => getAuditEvents({ data: { page,companyId:activeCompany?.id } }),
   });
   const rows =
     query.data?.events.filter(

@@ -49,7 +49,7 @@ function TaxesPage() {
     });
     if (!fileName) return;
 
-    recordTaxRemittance(taxId, fileName);
+    await recordTaxRemittance(taxId, fileName);
     await modal.showAlert({
       title: "Pagamento de Imposto Registrado",
       message: "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable (2200)\n• Crédito: Cash / Banco (1000)\n\nComprovante anexado: " + fileName,

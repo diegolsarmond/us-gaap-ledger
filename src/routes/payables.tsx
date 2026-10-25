@@ -81,7 +81,7 @@ function PayablesPage() {
       return;
     }
 
-    const result = createBill({
+    const result = await createBill({
       vendorName: vendorName.trim(),
       billNumber: billNumber.trim(),
       date,
@@ -132,7 +132,7 @@ function PayablesPage() {
     if (!payingBillId) return;
 
     const rate = Number(settlementRate) || undefined;
-    const res = payBill(payingBillId, payDate, rate);
+    const res = await payBill(payingBillId, payDate, rate);
     if (res.success) {
       const currentBill = bills.find((b) => b.id === payingBillId);
       setPayingBillId(null);

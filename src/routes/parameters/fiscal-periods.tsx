@@ -56,10 +56,10 @@ function FiscalPeriodsPage() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setPeriodCode("2027-01");
-    setFiscalYear("FY2027");
-    setStartDate("2027-01-01");
-    setEndDate("2027-01-31");
+    setPeriodCode("");
+    setFiscalYear(`FY${new Date().getFullYear()}`);
+    setStartDate("");
+    setEndDate("");
     setPeriodStatus("Open");
     setNotes("");
     setModalOpen(true);
@@ -78,150 +78,160 @@ function FiscalPeriodsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!periodCode.trim() || !startDate || !endDate) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código do Período, Data Inicial e Data Final.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!periodCode.trim() || !startDate || !endDate) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código do Período, Data Inicial e Data Final.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      if (!userPersona.canClosePeriod) {
+        await modal.showAlert({
+          title: "Acesso Restrito",
+          message:
+            "Apenas contadores responsáveis (CPA) ou administradores podem alterar o calendário fiscal.",
+          tone: "error",
+        });
+        return;
+      }
+
+      const cleanCode = periodCode.trim();
+
+      if (editingId) {
+        await updateFiscalPeriod(editingId, {
+          periodCode: cleanCode,
+          fiscalYear: fiscalYear.trim(),
+          startDate,
+          endDate,
+          status: periodStatus,
+          notes: notes.trim() || undefined,
+        });
+        await modal.showAlert({
+          title: "Período Atualizado",
+          message: `Parâmetros do período ${cleanCode} atualizados com sucesso.`,
+          tone: "success",
+        });
+      } else {
+        await addFiscalPeriod({
+          periodCode: cleanCode,
+          fiscalYear: fiscalYear.trim(),
+          startDate,
+          endDate,
+          status: periodStatus,
+          notes: notes.trim() || undefined,
+        });
+        await modal.showAlert({
+          title: "Período Criado",
+          message: `Período fiscal ${cleanCode} adicionado ao calendário.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    if (!userPersona.canClosePeriod) {
-      await modal.showAlert({
-        title: "Acesso Restrito",
-        message: "Apenas contadores responsáveis (CPA) ou administradores podem alterar o calendário fiscal.",
-        tone: "error",
-      });
-      return;
-    }
-
-    const cleanCode = periodCode.trim();
-
-    if (editingId) {
-      await updateFiscalPeriod(editingId, {
-        periodCode: cleanCode,
-        fiscalYear: fiscalYear.trim(),
-        startDate,
-        endDate,
-        status: periodStatus,
-        notes: notes.trim() || undefined,
-      });
-      await modal.showAlert({
-        title: "Período Atualizado",
-        message: `Parâmetros do período ${cleanCode} atualizados com sucesso.`,
-        tone: "success",
-      });
-    } else {
-      await addFiscalPeriod({
-        periodCode: cleanCode,
-        fiscalYear: fiscalYear.trim(),
-        startDate,
-        endDate,
-        status: periodStatus,
-        notes: notes.trim() || undefined,
-      });
-      await modal.showAlert({
-        title: "Período Criado",
-        message: `Período fiscal ${cleanCode} adicionado ao calendário.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (p: FiscalPeriodParam) => {
     try {
-    if (!userPersona.canClosePeriod) {
-      await modal.showAlert({
-        title: "Acesso Negado",
-        message: "Apenas o contador responsável (CPA) ou administrador pode bloquear ou desbloquear períodos.",
-        tone: "error",
-      });
-      return;
-    }
+      if (!userPersona.canClosePeriod) {
+        await modal.showAlert({
+          title: "Acesso Negado",
+          message:
+            "Apenas o contador responsável (CPA) ou administrador pode bloquear ou desbloquear períodos.",
+          tone: "error",
+        });
+        return;
+      }
 
-    if (p.status === "Open") {
-      const confirmLock = await modal.showConfirm({
-        title: `Bloquear Período ${p.periodCode}?`,
-        message: `Deseja executar o fechamento contábil e BLOQUEAR o período ${p.periodCode}?\n\nNovos lançamentos serão impedidos e ajustes exigirão justificativa formal de auditoria.`,
-        tone: "warning",
-        confirmText: "Sim, Bloquear Período",
-        cancelText: "Cancelar",
-      });
-      if (confirmLock) {
+      if (p.status === "Open") {
+        const confirmLock = await modal.showConfirm({
+          title: `Bloquear Período ${p.periodCode}?`,
+          message: `Deseja executar o fechamento contábil e BLOQUEAR o período ${p.periodCode}?\n\nNovos lançamentos serão impedidos e ajustes exigirão justificativa formal de auditoria.`,
+          tone: "warning",
+          confirmText: "Sim, Bloquear Período",
+          cancelText: "Cancelar",
+        });
+        if (confirmLock) {
+          await updateFiscalPeriod(p.id, {
+            status: "Locked",
+            closedBy: userPersona.name,
+            closingDate: new Date().toISOString().split("T")[0]!,
+            notes: p.notes
+              ? `${p.notes} | Bloqueado por ${userPersona.name}`
+              : `Bloqueado por ${userPersona.name}`,
+          });
+        }
+      } else if (p.status === "Locked") {
+        const reason = await modal.showPrompt({
+          title: `Reabrir Período Fiscal ${p.periodCode}`,
+          message: "Informe a justificativa formal de auditoria para reabertura do período:",
+          defaultValue: "Ajuste pós-fechamento solicitado pelo CPA.",
+          confirmText: "Reabrir Período",
+          cancelText: "Cancelar",
+        });
+        if (reason) {
+          await updateFiscalPeriod(p.id, {
+            status: "Open",
+            notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
+          });
+        }
+      } else {
+        // Soft-Close -> Locked
         await updateFiscalPeriod(p.id, {
           status: "Locked",
           closedBy: userPersona.name,
           closingDate: new Date().toISOString().split("T")[0]!,
-          notes: p.notes ? `${p.notes} | Bloqueado por ${userPersona.name}` : `Bloqueado por ${userPersona.name}`,
         });
       }
-    } else if (p.status === "Locked") {
-      const reason = await modal.showPrompt({
-        title: `Reabrir Período Fiscal ${p.periodCode}`,
-        message: "Informe a justificativa formal de auditoria para reabertura do período:",
-        defaultValue: "Ajuste pós-fechamento solicitado pelo CPA.",
-        confirmText: "Reabrir Período",
-        cancelText: "Cancelar",
-      });
-      if (reason) {
-        await updateFiscalPeriod(p.id, {
-          status: "Open",
-          notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
-        });
-      }
-    } else {
-      // Soft-Close -> Locked
-      await updateFiscalPeriod(p.id, {
-        status: "Locked",
-        closedBy: userPersona.name,
-        closingDate: new Date().toISOString().split("T")[0]!,
-      });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (p: FiscalPeriodParam) => {
     try {
-    if (!userPersona.canClosePeriod) {
-      await modal.showAlert({
-        title: "Acesso Negado",
-        message: "Apenas administradores podem excluir períodos do calendário.",
+      if (!userPersona.canClosePeriod) {
+        await modal.showAlert({
+          title: "Acesso Negado",
+          message: "Apenas administradores podem excluir períodos do calendário.",
+          tone: "error",
+        });
+        return;
+      }
+
+      if (p.periodCode === activeCompany.activePeriod) {
+        await modal.showAlert({
+          title: "Período Ativo do Sistema",
+          message: `O período ${p.periodCode} é o período fiscal atualmente ativo para a empresa e não pode ser excluído.`,
+          tone: "error",
+        });
+        return;
+      }
+
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Período ${p.periodCode}?`,
+        message: `Tem certeza que deseja remover este período do calendário fiscal?`,
         tone: "error",
+        confirmText: "Sim, Excluir",
+        cancelText: "Cancelar",
       });
-      return;
-    }
 
-    if (p.periodCode === activeCompany.activePeriod) {
-      await modal.showAlert({
-        title: "Período Ativo do Sistema",
-        message: `O período ${p.periodCode} é o período fiscal atualmente ativo para a empresa e não pode ser excluído.`,
-        tone: "error",
-      });
-      return;
+      if (confirmed) {
+        await deleteFiscalPeriod(p.id);
+        await modal.showAlert({
+          title: "Período Removido",
+          message: `O período ${p.periodCode} foi excluído do calendário.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Período ${p.periodCode}?`,
-      message: `Tem certeza que deseja remover este período do calendário fiscal?`,
-      tone: "error",
-      confirmText: "Sim, Excluir",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deleteFiscalPeriod(p.id);
-      await modal.showAlert({
-        title: "Período Removido",
-        message: `O período ${p.periodCode} foi excluído do calendário.`,
-        tone: "success",
-      });
-    }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const filteredPeriods = fiscalPeriods.filter((p) => {
@@ -240,7 +250,16 @@ function FiscalPeriodsPage() {
   const handleExport = () => {
     exportToCsv(
       `periodos-fiscais-${activeCompany.id}.csv`,
-      ["Periodo", "Exercicio", "Data_Inicio", "Data_Fim", "Status", "Fechado_Por", "Data_Fechamento", "Notas"],
+      [
+        "Periodo",
+        "Exercicio",
+        "Data_Inicio",
+        "Data_Fim",
+        "Status",
+        "Fechado_Por",
+        "Data_Fechamento",
+        "Notas",
+      ],
       fiscalPeriods.map((p) => [
         p.periodCode,
         p.fiscalYear,
@@ -309,11 +328,7 @@ function FiscalPeriodsPage() {
           value={softCloseCount.toString()}
           hint="Revisão preliminar"
         />
-        <Kpi
-          label="Abertos"
-          value={openCount.toString()}
-          hint="Escrituração diária ativa"
-        />
+        <Kpi label="Abertos" value={openCount.toString()} hint="Escrituração diária ativa" />
       </div>
 
       {/* Filter Bar */}
@@ -377,7 +392,10 @@ function FiscalPeriodsPage() {
             {filteredPeriods.map((p) => {
               const isCurrent = p.periodCode === activeCompany.activePeriod;
               return (
-                <tr key={p.id} className={`hover:bg-ink/[0.015] ${isCurrent ? "bg-brand/[0.02]" : ""}`}>
+                <tr
+                  key={p.id}
+                  className={`hover:bg-ink/[0.015] ${isCurrent ? "bg-brand/[0.02]" : ""}`}
+                >
                   <Td className="font-mono font-bold text-ink">
                     <div className="flex items-center gap-2">
                       <span>{p.periodCode}</span>
@@ -443,7 +461,9 @@ function FiscalPeriodsPage() {
                         onClick={() => handleDelete(p)}
                         disabled={isCurrent}
                         className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={isCurrent ? "Período corrente não pode ser excluído" : "Excluir Período"}
+                        title={
+                          isCurrent ? "Período corrente não pode ser excluído" : "Excluir Período"
+                        }
                       >
                         <Trash2 className="size-3.5" />
                       </button>

@@ -27,13 +27,8 @@ export const Route = createFileRoute("/parameters/cost-centers")({
 
 function CostCentersPage() {
   const modal = useModal();
-  const {
-    activeCompany,
-    costCenters,
-    addCostCenter,
-    updateCostCenter,
-    deleteCostCenter,
-  } = useAccounting();
+  const { activeCompany, costCenters, addCostCenter, updateCostCenter, deleteCostCenter } =
+    useAccounting();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -74,88 +69,94 @@ function CostCentersPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!code.trim() || !name.trim() || !manager.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código, Nome do Centro de Custo e Gestor Responsável.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!code.trim() || !name.trim() || !manager.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código, Nome do Centro de Custo e Gestor Responsável.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const budgetNum = parseFloat(annualBudget);
+      if (isNaN(budgetNum) || budgetNum < 0) {
+        await modal.showAlert({
+          title: "Orçamento Inválido",
+          message: "O orçamento anual deve ser um valor numérico positivo ou zero.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+
+      if (editingId) {
+        await updateCostCenter(editingId, {
+          code: cleanCode,
+          name: name.trim(),
+          manager: manager.trim(),
+          annualBudget: budgetNum,
+          description: description.trim(),
+          status,
+        });
+        await modal.showAlert({
+          title: "Centro de Custo Atualizado",
+          message: `Centro "${name.trim()}" atualizado com sucesso.`,
+          tone: "success",
+        });
+      } else {
+        await addCostCenter({
+          code: cleanCode,
+          name: name.trim(),
+          manager: manager.trim(),
+          annualBudget: budgetNum,
+          description: description.trim(),
+          status,
+        });
+        await modal.showAlert({
+          title: "Centro de Custo Cadastrado",
+          message: `Centro "${name.trim()}" (${cleanCode}) adicionado com sucesso.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const budgetNum = parseFloat(annualBudget);
-    if (isNaN(budgetNum) || budgetNum < 0) {
-      await modal.showAlert({
-        title: "Orçamento Inválido",
-        message: "O orçamento anual deve ser um valor numérico positivo ou zero.",
-        tone: "warning",
-      });
-      return;
-    }
-
-    const cleanCode = code.trim().toUpperCase();
-
-    if (editingId) {
-      await updateCostCenter(editingId, {
-        code: cleanCode,
-        name: name.trim(),
-        manager: manager.trim(),
-        annualBudget: budgetNum,
-        description: description.trim(),
-        status,
-      });
-      await modal.showAlert({
-        title: "Centro de Custo Atualizado",
-        message: `Centro "${name.trim()}" atualizado com sucesso.`,
-        tone: "success",
-      });
-    } else {
-      await addCostCenter({
-        code: cleanCode,
-        name: name.trim(),
-        manager: manager.trim(),
-        annualBudget: budgetNum,
-        description: description.trim(),
-        status,
-      });
-      await modal.showAlert({
-        title: "Centro de Custo Cadastrado",
-        message: `Centro "${name.trim()}" (${cleanCode}) adicionado com sucesso.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (cc: CostCenterParam) => {
     try {
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Centro de Custo?`,
-      message: `Deseja excluir o centro "${cc.name}" (${cc.code})?\n\nRegistros e transações alocadas anteriormente continuarão no histórico contábil.`,
-      tone: "error",
-      confirmText: "Sim, Excluir Centro",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deleteCostCenter(cc.id);
-      await modal.showAlert({
-        title: "Centro Removido",
-        message: `O centro de custo ${cc.code} foi excluído.`,
-        tone: "success",
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Centro de Custo?`,
+        message: `Deseja excluir o centro "${cc.name}" (${cc.code})?\n\nRegistros e transações alocadas anteriormente continuarão no histórico contábil.`,
+        tone: "error",
+        confirmText: "Sim, Excluir Centro",
+        cancelText: "Cancelar",
       });
+
+      if (confirmed) {
+        await deleteCostCenter(cc.id);
+        await modal.showAlert({
+          title: "Centro Removido",
+          message: `O centro de custo ${cc.code} foi excluído.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (cc: CostCenterParam) => {
     try {
-    const nextStatus = cc.status === "Active" ? "Inactive" : "Active";
-    await updateCostCenter(cc.id, { status: nextStatus });
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
+      const nextStatus = cc.status === "Active" ? "Inactive" : "Active";
+      await updateCostCenter(cc.id, { status: nextStatus });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
+    }
   };
 
   const filteredCostCenters = costCenters.filter((c) => {
@@ -299,17 +300,11 @@ function CostCentersPage() {
           <tbody>
             {filteredCostCenters.map((c) => (
               <tr key={c.id} className="hover:bg-ink/[0.015]">
-                <Td className="font-mono font-bold text-ink">
-                  {c.code}
-                </Td>
+                <Td className="font-mono font-bold text-ink">{c.code}</Td>
                 <Td className="font-semibold text-ink">{c.name}</Td>
                 <Td className="text-[12.5px] text-ink2">{c.manager}</Td>
-                <Td className="text-right font-mono font-bold text-brand">
-                  {usd(c.annualBudget)}
-                </Td>
-                <Td className="text-[12px] text-ink3 max-w-xs truncate">
-                  {c.description || "—"}
-                </Td>
+                <Td className="text-right font-mono font-bold text-brand">{usd(c.annualBudget)}</Td>
+                <Td className="text-[12px] text-ink3 max-w-xs truncate">{c.description || "—"}</Td>
                 <Td>
                   <button
                     type="button"
@@ -430,9 +425,7 @@ function CostCentersPage() {
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Status
-                </label>
+                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}

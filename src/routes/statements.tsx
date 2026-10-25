@@ -1,3 +1,4 @@
+import { parseStatementCsv } from "@/lib/statement-csv";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting } from "@/lib/accounting-store";
@@ -22,40 +23,31 @@ function StatementsPage() {
     statements,
     stagingRows,
     accounts,
-    uploadMockStatement,
+    importStatement,
     classifyStagingRow,
     userPersona,
   } = useAccounting();
 
   const [selectedFile, setSelectedFile] = useState<string>("");
-  const [selectedAccount, setSelectedAccount] = useState<string>("1000");
-  const [fileType, setFileType] = useState<"CSV" | "OFX" | "PDF">("OFX");
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [fileType, setFileType] = useState<"CSV" | "OFX" | "PDF">("CSV");
   const [customFileName, setCustomFileName] = useState("");
+  const [content,setContent]=useState("");
+  const [preview,setPreview]=useState<ReturnType<typeof parseStatementCsv>>([]);
+  const [error,setError]=useState("");
   const [classifiedTargetAccount, setClassifiedTargetAccount] = useState<Record<string, string>>(
     {},
   );
 
   const handleSimulateUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    const name =
-      customFileName.trim() ||
-      `chase-operating-${new Date().toISOString().split("T")[0]}.${fileType.toLowerCase()}`;
-    uploadMockStatement({
-      name,
-      type: fileType,
-      accountCode: selectedAccount,
-    });
-    setCustomFileName("");
-    await modal.showAlert({
-      title: "Extrato Carregado com Sucesso",
-      message: `O arquivo "${name}" foi processado e inserido na esteira de Staging Feed para classificação contábil.`,
-      tone: "success",
-    });
+    try { await importStatement({name:customFileName,type:"CSV",accountCode:selectedAccount,content});setContent("");setPreview([]);setCustomFileName("");setError("");await modal.showAlert({title:"Extrato importado",message:"Transações disponíveis para classificação.",tone:"success"}); } catch(e){setError(e instanceof Error?e.message:"Falha ao importar.");}
   };
 
   const handleClassify = (rowId: string, defaultAccount: string) => {
     const targetAcct = classifiedTargetAccount[rowId] || defaultAccount;
-    classifyStagingRow(rowId, targetAcct);
+    if(!targetAcct){setError("Selecione a conta de classificação.");return;}
+    void classifyStagingRow(rowId,targetAcct).catch(e=>setError(e.message));
   };
 
   return (
@@ -121,8 +113,7 @@ function StatementsPage() {
               </Table>
             </div>
             <div className="p-3 border-t border-line/50 text-[11.5px] text-ink3">
-              Source PDF/CSV files are preserved to satisfy IRS statutory substantiation and audit
-              trails.
+              O conteúdo CSV original é armazenado com as transações importadas.
             </div>
           </Panel>
         </div>
@@ -143,9 +134,7 @@ function StatementsPage() {
                   onChange={(e) => setSelectedAccount(e.target.value)}
                   className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                 >
-                  <option value="1000">Chase Operating Checking (1000)</option>
-                  <option value="1050">Money Market Liquidity Reserve (1050)</option>
-                  <option value="2100">American Express Corporate Card (2100)</option>
+                  <option value="">Selecione uma conta cadastrada</option>{accounts.filter(a=>a.type==="Asset"||a.type==="Liability").map(a=><option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}
                 </select>
               </div>
 
@@ -159,9 +148,9 @@ function StatementsPage() {
                     onChange={(e) => setFileType(e.target.value as "CSV" | "OFX" | "PDF")}
                     className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                   >
-                    <option value="OFX">OFX / QFX (Open Financial)</option>
+                    <option disabled value="OFX">OFX / QFX (Open Financial)</option>
                     <option value="CSV">CSV (Tabular Transactions)</option>
-                    <option value="PDF">PDF (Original e-Statement)</option>
+                    <option disabled value="PDF">PDF (Original e-Statement)</option>
                   </select>
                 </div>
                 <div>
@@ -172,23 +161,17 @@ function StatementsPage() {
                     type="text"
                     value={customFileName}
                     onChange={(e) => setCustomFileName(e.target.value)}
-                    placeholder="e.g. Dec2026-Chase.ofx"
+                    placeholder="Nome do arquivo CSV"
                     className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[11.5px] ring-1 ring-line outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid place-items-center rounded-lg border border-dashed border-line bg-ink/[0.01] p-5 text-center">
-                <p className="text-[12px] font-medium text-ink">
-                  Drag statement file here or click to simulate
-                </p>
-                <p className="text-[11px] text-ink3 mt-0.5">
-                  Supports OFX, CSV, and PDF bank exports up to 25MB
-                </p>
-              </div>
+              <div className="space-y-2 text-sm"><p>CSV de até 2 MB, cabeçalho: date,description,amount. Datas YYYY-MM-DD; valores negativos para saídas. OFX e PDF indisponíveis.</p><input aria-label="Arquivo CSV" type="file" accept=".csv,text/csv" onChange={async e=>{try{const file=e.target.files?.[0];setContent("");setPreview([]);if(!file)return;if(file.size>2000000)throw new Error("Limite de 2 MB.");const text=await file.text();const rows=parseStatementCsv(text);setContent(text);setPreview(rows);setCustomFileName(file.name);setError("");}catch(e){setError(e instanceof Error?e.message:"CSV inválido.");}}}/>{error&&<p role="alert" className="text-down">{error}</p>}{preview.length>0&&<div><p>Prévia: {preview.length} transações</p>{preview.slice(0,5).map((r,i)=><p key={i}>{r.date} · {r.description} · {r.amount}</p>)}</div>}</div>
 
               <button
                 type="submit"
+                disabled={!content||!selectedAccount||userPersona.allowedReportsOnly}
                 className="w-full rounded-md bg-brand py-2 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
               >
                 Upload & Load Staging Feed

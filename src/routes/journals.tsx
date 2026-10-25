@@ -101,7 +101,7 @@ function JournalsPage() {
       projectId: selectedProject || undefined,
     }));
 
-    const result = postJournalEntry({
+    const result = await postJournalEntry({
       date,
       memo,
       sourceType: "Manual",
@@ -143,7 +143,7 @@ function JournalsPage() {
     });
     if (!reason) return;
 
-    const res = reverseJournalEntry(entry.id, reason);
+    const res = await reverseJournalEntry(entry.id, reason);
     if (!res.success) {
       await modal.showAlert({
         title: "Erro no Estorno",

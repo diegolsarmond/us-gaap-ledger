@@ -46,7 +46,7 @@ function AccountsPage() {
       return;
     }
 
-    addAccount({
+    await addAccount({
       code: newCode.trim(),
       name: newName.trim(),
       type: newType,

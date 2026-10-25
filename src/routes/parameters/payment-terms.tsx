@@ -5,16 +5,7 @@ import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { exportToCsv } from "@/lib/format";
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  Clock,
-  Edit2,
-  Trash2,
-  Check,
-  Download,
-} from "lucide-react";
+import { ArrowLeft, Plus, Search, Clock, Edit2, Trash2, Check, Download } from "lucide-react";
 
 export const Route = createFileRoute("/parameters/payment-terms")({
   head: () =>
@@ -27,13 +18,8 @@ export const Route = createFileRoute("/parameters/payment-terms")({
 
 function PaymentTermsPage() {
   const modal = useModal();
-  const {
-    activeCompany,
-    paymentTerms,
-    addPaymentTerm,
-    updatePaymentTerm,
-    deletePaymentTerm,
-  } = useAccounting();
+  const { activeCompany, paymentTerms, addPaymentTerm, updatePaymentTerm, deletePaymentTerm } =
+    useAccounting();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -80,94 +66,100 @@ function PaymentTermsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!code.trim() || !name.trim() || !days.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código, a Descrição e o Prazo em Dias.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!code.trim() || !name.trim() || !days.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código, a Descrição e o Prazo em Dias.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const numDays = parseInt(days, 10);
+      if (isNaN(numDays) || numDays < 0) {
+        await modal.showAlert({
+          title: "Prazo Inválido",
+          message: "O prazo em dias deve ser um número inteiro maior ou igual a 0.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const discountPct = parseFloat(earlyDiscount) || 0;
+      const numDiscDays = parseInt(discountDays, 10) || 0;
+      const cleanCode = code.trim().toUpperCase();
+
+      if (editingId) {
+        await updatePaymentTerm(editingId, {
+          code: cleanCode,
+          name: name.trim(),
+          days: numDays,
+          earlyDiscountPercentage: discountPct > 0 ? discountPct : undefined,
+          discountDays: numDiscDays > 0 ? numDiscDays : undefined,
+          isDefaultCustomer,
+          isDefaultVendor,
+          status,
+        });
+        await modal.showAlert({
+          title: "Condição Comercial Atualizada",
+          message: `Prazo "${name.trim()}" atualizado com sucesso.`,
+          tone: "success",
+        });
+      } else {
+        await addPaymentTerm({
+          code: cleanCode,
+          name: name.trim(),
+          days: numDays,
+          earlyDiscountPercentage: discountPct > 0 ? discountPct : undefined,
+          discountDays: numDiscDays > 0 ? numDiscDays : undefined,
+          isDefaultCustomer,
+          isDefaultVendor,
+          status,
+        });
+        await modal.showAlert({
+          title: "Condição Cadastrada",
+          message: `Prazo "${name.trim()}" (${numDays} dias) adicionado com sucesso.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const numDays = parseInt(days, 10);
-    if (isNaN(numDays) || numDays < 0) {
-      await modal.showAlert({
-        title: "Prazo Inválido",
-        message: "O prazo em dias deve ser um número inteiro maior ou igual a 0.",
-        tone: "warning",
-      });
-      return;
-    }
-
-    const discountPct = parseFloat(earlyDiscount) || 0;
-    const numDiscDays = parseInt(discountDays, 10) || 0;
-    const cleanCode = code.trim().toUpperCase();
-
-    if (editingId) {
-      await updatePaymentTerm(editingId, {
-        code: cleanCode,
-        name: name.trim(),
-        days: numDays,
-        earlyDiscountPercentage: discountPct > 0 ? discountPct : undefined,
-        discountDays: numDiscDays > 0 ? numDiscDays : undefined,
-        isDefaultCustomer,
-        isDefaultVendor,
-        status,
-      });
-      await modal.showAlert({
-        title: "Condição Comercial Atualizada",
-        message: `Prazo "${name.trim()}" atualizado com sucesso.`,
-        tone: "success",
-      });
-    } else {
-      await addPaymentTerm({
-        code: cleanCode,
-        name: name.trim(),
-        days: numDays,
-        earlyDiscountPercentage: discountPct > 0 ? discountPct : undefined,
-        discountDays: numDiscDays > 0 ? numDiscDays : undefined,
-        isDefaultCustomer,
-        isDefaultVendor,
-        status,
-      });
-      await modal.showAlert({
-        title: "Condição Cadastrada",
-        message: `Prazo "${name.trim()}" (${numDays} dias) adicionado com sucesso.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (term: PaymentTermParam) => {
     try {
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Condição de Pagamento?`,
-      message: `Tem certeza que deseja remover a condição "${term.name}" (${term.code})?\n\nDocumentos financeiros já emitidos preservarão o vencimento original.`,
-      tone: "error",
-      confirmText: "Sim, Excluir",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deletePaymentTerm(term.id);
-      await modal.showAlert({
-        title: "Condição Removida",
-        message: `A condição de pagamento ${term.code} foi excluída.`,
-        tone: "success",
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Condição de Pagamento?`,
+        message: `Tem certeza que deseja remover a condição "${term.name}" (${term.code})?\n\nDocumentos financeiros já emitidos preservarão o vencimento original.`,
+        tone: "error",
+        confirmText: "Sim, Excluir",
+        cancelText: "Cancelar",
       });
+
+      if (confirmed) {
+        await deletePaymentTerm(term.id);
+        await modal.showAlert({
+          title: "Condição Removida",
+          message: `A condição de pagamento ${term.code} foi excluída.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (term: PaymentTermParam) => {
     try {
-    const nextStatus = term.status === "Active" ? "Inactive" : "Active";
-    await updatePaymentTerm(term.id, { status: nextStatus });
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
+      const nextStatus = term.status === "Active" ? "Inactive" : "Active";
+      await updatePaymentTerm(term.id, { status: nextStatus });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
+    }
   };
 
   const filteredTerms = paymentTerms.filter((t) => {
@@ -183,7 +175,16 @@ function PaymentTermsPage() {
   const handleExport = () => {
     exportToCsv(
       `prazos-pagamento-${activeCompany.id}.csv`,
-      ["Codigo", "Nome", "Dias_Prazo", "Desconto_Pontualidade_Pct", "Dias_Desconto", "Padrao_Cliente", "Padrao_Fornecedor", "Status"],
+      [
+        "Codigo",
+        "Nome",
+        "Dias_Prazo",
+        "Desconto_Pontualidade_Pct",
+        "Dias_Desconto",
+        "Padrao_Cliente",
+        "Padrao_Fornecedor",
+        "Status",
+      ],
       paymentTerms.map((t) => [
         t.code,
         t.name,
@@ -237,11 +238,7 @@ function PaymentTermsPage() {
 
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi
-          label="Prazos Ativos"
-          value={activeCount.toString()}
-          hint="Políticas em vigor"
-        />
+        <Kpi label="Prazos Ativos" value={activeCount.toString()} hint="Políticas em vigor" />
         <Kpi
           label="Padrão Clientes"
           value={paymentTerms.find((t) => t.isDefaultCustomer)?.code || "Nenhum"}
@@ -312,9 +309,7 @@ function PaymentTermsPage() {
           <tbody>
             {filteredTerms.map((t) => (
               <tr key={t.id} className="hover:bg-ink/[0.015]">
-                <Td className="font-mono font-bold text-ink">
-                  {t.code}
-                </Td>
+                <Td className="font-mono font-bold text-ink">{t.code}</Td>
                 <Td className="font-medium text-ink">{t.name}</Td>
                 <Td className="text-right font-mono font-bold text-brand">
                   {t.days === 0 ? "Imediato" : `${t.days} dias`}
@@ -492,9 +487,7 @@ function PaymentTermsPage() {
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Status
-                </label>
+                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}

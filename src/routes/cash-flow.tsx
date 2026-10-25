@@ -1,3 +1,4 @@
+import { useCompanies } from "@/components/company-context";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,8 +74,10 @@ function EntryFormContainer({
   );
 }
 function CashFlowPage() {
+  const {activeCompany}=useCompanies();
+  const companyId=activeCompany!.id;
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: ["cash-flow"], queryFn: () => loadCashData() });
+  const query = useQuery({ queryKey: ["cash-flow",companyId], queryFn: () => loadCashData({data:{companyId}}) });
   const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
   const [end, setEnd] = useState(today);
   const [interval, setInterval] = useState<Interval>("daily");
@@ -165,6 +168,7 @@ function CashFlowPage() {
       () =>
         saveCashAccount({
           data: {
+            companyId,
             ...(editingAccount ? { id: editingAccount.id } : {}),
             name: String(f.get("name")),
             currency: String(f.get("currency")) as "USD" | "BRL" | "EUR",
@@ -738,7 +742,7 @@ function CashFlowPage() {
                                   className="text-red-700 underline"
                                   onClick={() =>
                                     void mutate(
-                                      () => deleteCashTransaction({ data: { id: t.id } }),
+                                      () => deleteCashTransaction({ data: { id: t.id,companyId } }),
                                       "Lançamento excluído.",
                                     )
                                   }

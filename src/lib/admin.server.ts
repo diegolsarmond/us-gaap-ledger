@@ -177,8 +177,8 @@ export async function resetPassword(id: string) {
 export async function loadAudit(page: number) {
   await authorize("view_audit");
   const result = await db().query(
-    "SELECT id::text,occurred_at::text,actor_name,action,entity,target_id,before_data::text,after_data::text FROM system_audit_log ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $1",
-    [(page - 1) * 100],
+    "SELECT id::text,occurred_at::text,actor_name,action,entity,target_id,before_data::text,after_data::text FROM system_audit_log WHERE (company_id=$2::uuid OR (company_id IS NULL AND $3)) ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $1",
+    [(page - 1) * 100,companyId??null,auth.permissions.manage_users||auth.permissions.manage_profiles],
   );
   return { events: result.rows.slice(0, 100) as AuditEvent[], hasMore: result.rows.length > 100 };
 }

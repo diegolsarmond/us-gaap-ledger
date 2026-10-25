@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+
 import { useAccounting } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
-import { useModal } from "@/components/modal-provider";
+
 import {
   Coins,
   Scale,
@@ -12,7 +12,6 @@ import {
   Tag,
   Clock,
   SlidersHorizontal,
-  RotateCcw,
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
@@ -28,7 +27,6 @@ export const Route = createFileRoute("/parameters/")({
 });
 
 function ParametersIndexPage() {
-  const modal = useModal();
   const {
     activeCompany,
     currencies,
@@ -37,11 +35,7 @@ function ParametersIndexPage() {
     costCenters,
     expenseCategories,
     fiscalPeriods,
-
-    userPersona,
   } = useAccounting();
-
-  const [resetting, setResetting] = useState(false);
 
   const activeCurrenciesCount = currencies.filter((c) => c.status === "Active").length;
   const activeTaxesCount = taxJurisdictions.filter((t) => t.status === "Active").length;
@@ -133,7 +127,6 @@ function ParametersIndexPage() {
           title="Parâmetros & Configurações de Módulos"
           description={`Governança de parâmetros contábeis e operacionais para ${activeCompany.name} (${activeCompany.entity} - ${activeCompany.state})`}
         />
-
       </div>
 
       {/* KPI Overview Bar */}
@@ -148,11 +141,7 @@ function ParametersIndexPage() {
           value={activeTaxesCount.toString()}
           hint="Sales Tax Nexus"
         />
-        <Kpi
-          label="Prazos Comerciais"
-          value={activeTermsCount.toString()}
-          hint="Padrão: Net 30"
-        />
+        <Kpi label="Prazos Comerciais" value={activeTermsCount.toString()} hint="Padrão: Net 30" />
         <Kpi
           label="Centros de Custo"
           value={activeCostCentersCount.toString()}
@@ -199,16 +188,12 @@ function ParametersIndexPage() {
                   <p className="mt-0.5 text-[11px] font-mono text-brand/80 font-medium">
                     {m.subtitle}
                   </p>
-                  <p className="mt-2 text-[12px] leading-relaxed text-ink3">
-                    {m.description}
-                  </p>
+                  <p className="mt-2 text-[12px] leading-relaxed text-ink3">{m.description}</p>
                 </div>
               </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-line/60 pt-3">
-                <span className="text-[11.5px] font-semibold text-ink2">
-                  {m.countLabel}
-                </span>
+                <span className="text-[11.5px] font-semibold text-ink2">{m.countLabel}</span>
                 <span className="flex items-center gap-1 text-[12px] font-semibold text-brand transition-transform group-hover:translate-x-1">
                   Acessar CRUD <ArrowRight className="size-3.5" />
                 </span>
@@ -229,7 +214,8 @@ function ParametersIndexPage() {
             <div className="text-[12px]">
               <p className="font-semibold text-ink">Segregação por Empresa (*Multi-Tenant*)</p>
               <p className="text-ink3 mt-0.5 leading-relaxed">
-                Todas as alterações em moedas, alíquotas fiscais, centros de custo e categorias ficam estritamente isoladas na empresa cliente ativa.
+                Todas as alterações em moedas, alíquotas fiscais, centros de custo e categorias
+                ficam estritamente isoladas na empresa cliente ativa.
               </p>
             </div>
           </div>
@@ -239,7 +225,8 @@ function ParametersIndexPage() {
             <div className="text-[12px]">
               <p className="font-semibold text-ink">Trilha de Auditoria Automática</p>
               <p className="text-ink3 mt-0.5 leading-relaxed">
-                Qualquer criação, atualização de taxa ou exclusão de parâmetro registra instantaneamente um evento no log de conformidade SOC 1 / SOX.
+                Qualquer criação, atualização de taxa ou exclusão de parâmetro registra
+                instantaneamente um evento no log de conformidade SOC 1 / SOX.
               </p>
             </div>
           </div>
@@ -249,7 +236,8 @@ function ParametersIndexPage() {
             <div className="text-[12px]">
               <p className="font-semibold text-ink">Integração Imediata no Razão</p>
               <p className="text-ink3 mt-0.5 leading-relaxed">
-                Ao atualizar as taxas de câmbio ou contas de despesa, novos lançamentos nas faturas e contas a pagar utilizarão os novos parâmetros sem interrupção.
+                Ao atualizar as taxas de câmbio ou contas de despesa, novos lançamentos nas faturas
+                e contas a pagar utilizarão os novos parâmetros sem interrupção.
               </p>
             </div>
           </div>

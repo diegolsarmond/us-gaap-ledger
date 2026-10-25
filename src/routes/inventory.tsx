@@ -58,7 +58,7 @@ function InventoryPage() {
     const item = inventory.find((i) => i.id === selectedItemId);
     if (!item) return;
 
-    adjustStock(selectedItemId, Number(qtyDelta) || 0, item.unitCost, adjustMemo);
+    await adjustStock(selectedItemId, Number(qtyDelta) || 0, item.unitCost, adjustMemo);
     setView("list");
 
     await modal.showAlert({
@@ -91,7 +91,7 @@ function InventoryPage() {
     const skuUpper = newSku.toUpperCase().trim();
     const nameTrim = newName.trim();
 
-    addInventoryItem({
+    await addInventoryItem({
       sku: skuUpper,
       name: nameTrim,
       type: newType,
@@ -216,7 +216,7 @@ function InventoryPage() {
                     key={method}
                     type="button"
                     disabled={userPersona.allowedReportsOnly}
-                    onClick={() => setCostMethod(method)}
+                    onClick={async () => await setCostMethod(method)}
                     className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition-all cursor-pointer ${
                       activeCompany.costMethod === method
                         ? "bg-brand text-white shadow-2xs"

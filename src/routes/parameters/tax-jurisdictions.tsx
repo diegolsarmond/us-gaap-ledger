@@ -5,16 +5,7 @@ import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { exportToCsv } from "@/lib/format";
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  Scale,
-  Edit2,
-  Trash2,
-  Building,
-  Download,
-} from "lucide-react";
+import { ArrowLeft, Plus, Search, Scale, Edit2, Trash2, Building, Download } from "lucide-react";
 
 export const Route = createFileRoute("/parameters/tax-jurisdictions")({
   head: () =>
@@ -48,9 +39,13 @@ function TaxJurisdictionsPage() {
   const [state, setState] = useState("FL");
   const [name, setName] = useState("");
   const [rate, setRate] = useState("6.0");
-  const [taxType, setTaxType] = useState<"State Sales Tax" | "Local Surcharge" | "Combined">("State Sales Tax");
+  const [taxType, setTaxType] = useState<"State Sales Tax" | "Local Surcharge" | "Combined">(
+    "State Sales Tax",
+  );
   const [glAccountCode, setGlAccountCode] = useState("2200");
-  const [filingFrequency, setFilingFrequency] = useState<"Monthly" | "Quarterly" | "Annual">("Monthly");
+  const [filingFrequency, setFilingFrequency] = useState<"Monthly" | "Quarterly" | "Annual">(
+    "Monthly",
+  );
   const [status, setStatus] = useState<"Active" | "Inactive">("Active");
 
   const liabilityAccounts = accounts.filter((a) => a.type === "Liability");
@@ -83,92 +78,98 @@ function TaxJurisdictionsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!code.trim() || !name.trim() || !rate.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código, a Denominação da Jurisdição e a Alíquota.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!code.trim() || !name.trim() || !rate.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código, a Denominação da Jurisdição e a Alíquota.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const rateNum = parseFloat(rate);
+      if (isNaN(rateNum) || rateNum < 0) {
+        await modal.showAlert({
+          title: "Alíquota Inválida",
+          message: "A alíquota percentual deve ser um valor positivo ou zero (isento).",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+
+      if (editingId) {
+        await updateTaxJurisdiction(editingId, {
+          code: cleanCode,
+          state: state.toUpperCase(),
+          name: name.trim(),
+          rate: rateNum,
+          taxType,
+          glAccountCode,
+          filingFrequency,
+          status,
+        });
+        await modal.showAlert({
+          title: "Jurisdição Atualizada",
+          message: `Parâmetros fiscais de "${name.trim()}" atualizados com sucesso.`,
+          tone: "success",
+        });
+      } else {
+        await addTaxJurisdiction({
+          code: cleanCode,
+          state: state.toUpperCase(),
+          name: name.trim(),
+          rate: rateNum,
+          taxType,
+          glAccountCode,
+          filingFrequency,
+          status,
+        });
+        await modal.showAlert({
+          title: "Jurisdição Adicionada",
+          message: `Jurisdição "${name.trim()}" cadastrada com alíquota de ${rateNum}%.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const rateNum = parseFloat(rate);
-    if (isNaN(rateNum) || rateNum < 0) {
-      await modal.showAlert({
-        title: "Alíquota Inválida",
-        message: "A alíquota percentual deve ser um valor positivo ou zero (isento).",
-        tone: "warning",
-      });
-      return;
-    }
-
-    const cleanCode = code.trim().toUpperCase();
-
-    if (editingId) {
-      await updateTaxJurisdiction(editingId, {
-        code: cleanCode,
-        state: state.toUpperCase(),
-        name: name.trim(),
-        rate: rateNum,
-        taxType,
-        glAccountCode,
-        filingFrequency,
-        status,
-      });
-      await modal.showAlert({
-        title: "Jurisdição Atualizada",
-        message: `Parâmetros fiscais de "${name.trim()}" atualizados com sucesso.`,
-        tone: "success",
-      });
-    } else {
-      await addTaxJurisdiction({
-        code: cleanCode,
-        state: state.toUpperCase(),
-        name: name.trim(),
-        rate: rateNum,
-        taxType,
-        glAccountCode,
-        filingFrequency,
-        status,
-      });
-      await modal.showAlert({
-        title: "Jurisdição Adicionada",
-        message: `Jurisdição "${name.trim()}" cadastrada com alíquota de ${rateNum}%.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (tax: TaxJurisdictionParam) => {
     try {
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Jurisdição Fiscal?`,
-      message: `Deseja realmente excluir a regra tributária "${tax.name}" (${tax.code})?\n\nFaturas e apurações emitidas no passado manterão o histórico inalterado.`,
-      tone: "error",
-      confirmText: "Sim, Excluir Jurisdição",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deleteTaxJurisdiction(tax.id);
-      await modal.showAlert({
-        title: "Jurisdição Removida",
-        message: `A jurisdição ${tax.code} foi excluída.`,
-        tone: "success",
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Jurisdição Fiscal?`,
+        message: `Deseja realmente excluir a regra tributária "${tax.name}" (${tax.code})?\n\nFaturas e apurações emitidas no passado manterão o histórico inalterado.`,
+        tone: "error",
+        confirmText: "Sim, Excluir Jurisdição",
+        cancelText: "Cancelar",
       });
+
+      if (confirmed) {
+        await deleteTaxJurisdiction(tax.id);
+        await modal.showAlert({
+          title: "Jurisdição Removida",
+          message: `A jurisdição ${tax.code} foi excluída.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (tax: TaxJurisdictionParam) => {
     try {
-    const nextStatus = tax.status === "Active" ? "Inactive" : "Active";
-    await updateTaxJurisdiction(tax.id, { status: nextStatus });
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
+      const nextStatus = tax.status === "Active" ? "Inactive" : "Active";
+      await updateTaxJurisdiction(tax.id, { status: nextStatus });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
+    }
   };
 
   const filteredTaxes = taxJurisdictions.filter((t) => {
@@ -180,14 +181,25 @@ function TaxJurisdictionsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const activeRatesSum = taxJurisdictions.filter((t) => t.status === "Active").reduce((s, t) => s + t.rate, 0);
+  const activeRatesSum = taxJurisdictions
+    .filter((t) => t.status === "Active")
+    .reduce((s, t) => s + t.rate, 0);
   const activeCount = taxJurisdictions.filter((t) => t.status === "Active").length;
   const avgRate = activeCount > 0 ? (activeRatesSum / activeCount).toFixed(2) : "0.00";
 
   const handleExport = () => {
     exportToCsv(
       `jurisdicoes-fiscais-${activeCompany.id}.csv`,
-      ["Codigo", "Estado", "Nome", "Aliquota_Pct", "Tipo_Tributo", "Conta_Contabil", "Periodicidade", "Status"],
+      [
+        "Codigo",
+        "Estado",
+        "Nome",
+        "Aliquota_Pct",
+        "Tipo_Tributo",
+        "Conta_Contabil",
+        "Periodicidade",
+        "Status",
+      ],
       taxJurisdictions.map((t) => [
         t.code,
         t.state,
@@ -246,21 +258,9 @@ function TaxJurisdictionsPage() {
           value={activeCount.toString()}
           hint={`Empresa sede: ${activeCompany.state}`}
         />
-        <Kpi
-          label="Alíquota Média"
-          value={`${avgRate}%`}
-          hint="Média ponderada ativa"
-        />
-        <Kpi
-          label="Conta de Provisão"
-          value="2200 - Sales Tax"
-          hint="Passivo Circulante"
-        />
-        <Kpi
-          label="Nexus Padrão"
-          value={activeCompany.state}
-          hint="Jurisdição Primária"
-        />
+        <Kpi label="Alíquota Média" value={`${avgRate}%`} hint="Média ponderada ativa" />
+        <Kpi label="Conta de Provisão" value="2200 - Sales Tax" hint="Passivo Circulante" />
+        <Kpi label="Nexus Padrão" value={activeCompany.state} hint="Jurisdição Primária" />
       </div>
 
       {/* Filter Bar */}
@@ -317,22 +317,16 @@ function TaxJurisdictionsPage() {
           <tbody>
             {filteredTaxes.map((t) => (
               <tr key={t.id} className="hover:bg-ink/[0.015]">
-                <Td className="font-mono font-bold text-ink">
-                  {t.code}
-                </Td>
+                <Td className="font-mono font-bold text-ink">{t.code}</Td>
                 <Td>
                   <span className="rounded bg-panel px-2 py-0.5 font-mono text-[11px] font-semibold text-ink2 ring-1 ring-line">
                     {t.state}
                   </span>
                 </Td>
                 <Td className="font-medium text-ink">{t.name}</Td>
-                <Td className="text-right font-mono font-bold text-brand">
-                  {t.rate.toFixed(2)}%
-                </Td>
+                <Td className="text-right font-mono font-bold text-brand">{t.rate.toFixed(2)}%</Td>
                 <Td className="text-[11.5px] text-ink2">{t.taxType}</Td>
-                <Td className="font-mono text-[11.5px] text-ink3">
-                  {t.glAccountCode}
-                </Td>
+                <Td className="font-mono text-[11.5px] text-ink3">{t.glAccountCode}</Td>
                 <Td className="text-[11.5px] text-ink2">{t.filingFrequency}</Td>
                 <Td>
                   <button
@@ -492,9 +486,7 @@ function TaxJurisdictionsPage() {
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Status
-                </label>
+                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}

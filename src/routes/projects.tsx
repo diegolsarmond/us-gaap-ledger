@@ -83,7 +83,7 @@ function ProjectsPage() {
       return;
     }
 
-    createProject({
+    await createProject({
       code: code.toUpperCase().trim(),
       name: name.trim(),
       clientName: clientName.trim() || "Cliente Direto",

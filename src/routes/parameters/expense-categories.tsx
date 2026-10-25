@@ -5,16 +5,7 @@ import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { exportToCsv } from "@/lib/format";
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  Tag,
-  Edit2,
-  Trash2,
-  BookmarkCheck,
-  Download,
-} from "lucide-react";
+import { ArrowLeft, Plus, Search, Tag, Edit2, Trash2, BookmarkCheck, Download } from "lucide-react";
 
 export const Route = createFileRoute("/parameters/expense-categories")({
   head: () =>
@@ -82,78 +73,84 @@ function ExpenseCategoriesPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     try {
-    e.preventDefault();
-    if (!code.trim() || !name.trim() || !glAccountCode.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código, o Nome da Categoria e a Conta Contábil de Débito.",
-        tone: "warning",
-      });
-      return;
+      e.preventDefault();
+      if (!code.trim() || !name.trim() || !glAccountCode.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código, o Nome da Categoria e a Conta Contábil de Débito.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+
+      if (editingId) {
+        await updateExpenseCategory(editingId, {
+          code: cleanCode,
+          name: name.trim(),
+          glAccountCode,
+          taxDeductibility,
+          description: description.trim(),
+          status,
+        });
+        await modal.showAlert({
+          title: "Categoria Atualizada",
+          message: `Mapeamento contábil da categoria "${name.trim()}" atualizado.`,
+          tone: "success",
+        });
+      } else {
+        await addExpenseCategory({
+          code: cleanCode,
+          name: name.trim(),
+          glAccountCode,
+          taxDeductibility,
+          description: description.trim(),
+          status,
+        });
+        await modal.showAlert({
+          title: "Categoria Cadastrada",
+          message: `Categoria "${name.trim()}" vinculada à conta ${glAccountCode}.`,
+          tone: "success",
+        });
+      }
+
+      setModalOpen(false);
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-
-    const cleanCode = code.trim().toUpperCase();
-
-    if (editingId) {
-      await updateExpenseCategory(editingId, {
-        code: cleanCode,
-        name: name.trim(),
-        glAccountCode,
-        taxDeductibility,
-        description: description.trim(),
-        status,
-      });
-      await modal.showAlert({
-        title: "Categoria Atualizada",
-        message: `Mapeamento contábil da categoria "${name.trim()}" atualizado.`,
-        tone: "success",
-      });
-    } else {
-      await addExpenseCategory({
-        code: cleanCode,
-        name: name.trim(),
-        glAccountCode,
-        taxDeductibility,
-        description: description.trim(),
-        status,
-      });
-      await modal.showAlert({
-        title: "Categoria Cadastrada",
-        message: `Categoria "${name.trim()}" vinculada à conta ${glAccountCode}.`,
-        tone: "success",
-      });
-    }
-
-    setModalOpen(false);
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (cat: ExpenseCategoryParam) => {
     try {
-    const confirmed = await modal.showConfirm({
-      title: `Excluir Categoria de Despesa?`,
-      message: `Deseja realmente excluir a categoria "${cat.name}" (${cat.code})?\n\nLançamentos já escriturados no diário manterão suas contas originais preservadas.`,
-      tone: "error",
-      confirmText: "Sim, Excluir Categoria",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      await deleteExpenseCategory(cat.id);
-      await modal.showAlert({
-        title: "Categoria Removida",
-        message: `A categoria ${cat.code} foi excluída.`,
-        tone: "success",
+      const confirmed = await modal.showConfirm({
+        title: `Excluir Categoria de Despesa?`,
+        message: `Deseja realmente excluir a categoria "${cat.name}" (${cat.code})?\n\nLançamentos já escriturados no diário manterão suas contas originais preservadas.`,
+        tone: "error",
+        confirmText: "Sim, Excluir Categoria",
+        cancelText: "Cancelar",
       });
+
+      if (confirmed) {
+        await deleteExpenseCategory(cat.id);
+        await modal.showAlert({
+          title: "Categoria Removida",
+          message: `A categoria ${cat.code} foi excluída.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
     }
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (cat: ExpenseCategoryParam) => {
     try {
-    const nextStatus = cat.status === "Active" ? "Inactive" : "Active";
-    await updateExpenseCategory(cat.id, { status: nextStatus });
-    } catch { /* Persistence error is displayed by ParametersProvider. */ }
+      const nextStatus = cat.status === "Active" ? "Inactive" : "Active";
+      await updateExpenseCategory(cat.id, { status: nextStatus });
+    } catch {
+      /* Persistence error is displayed by ParametersProvider. */
+    }
   };
 
   const filteredCategories = expenseCategories.filter((c) => {
@@ -166,7 +163,9 @@ function ExpenseCategoriesPage() {
   });
 
   const activeCount = expenseCategories.filter((c) => c.status === "Active").length;
-  const fullyDeductibleCount = expenseCategories.filter((c) => c.taxDeductibility === "100% Deductible").length;
+  const fullyDeductibleCount = expenseCategories.filter(
+    (c) => c.taxDeductibility === "100% Deductible",
+  ).length;
 
   const handleExport = () => {
     exportToCsv(
@@ -235,7 +234,9 @@ function ExpenseCategoriesPage() {
         />
         <Kpi
           label="Refeições & Representação"
-          value={expenseCategories.filter((c) => c.taxDeductibility === "50% Meals & Ent.").length.toString()}
+          value={expenseCategories
+            .filter((c) => c.taxDeductibility === "50% Meals & Ent.")
+            .length.toString()}
           hint="50% Limite fiscal IRS"
         />
         <Kpi
@@ -299,9 +300,7 @@ function ExpenseCategoriesPage() {
               const acct = accounts.find((a) => a.code === c.glAccountCode);
               return (
                 <tr key={c.id} className="hover:bg-ink/[0.015]">
-                  <Td className="font-mono font-bold text-ink">
-                    {c.code}
-                  </Td>
+                  <Td className="font-mono font-bold text-ink">{c.code}</Td>
                   <Td className="font-semibold text-ink">{c.name}</Td>
                   <Td>
                     <div className="flex items-center gap-1.5 font-mono text-[12px]">
@@ -406,9 +405,6 @@ function ExpenseCategoriesPage() {
                         {a.code} - {a.name}
                       </option>
                     ))}
-                    {!expenseAccounts.some((a) => a.code === "6200") && (
-                      <option value="6200">6200 - General & Admin Expense</option>
-                    )}
                   </select>
                 </div>
               </div>
@@ -435,9 +431,15 @@ function ExpenseCategoriesPage() {
                   onChange={(e) => setTaxDeductibility(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="100% Deductible">100% Dedutível (Despesa Ordinária e Necessária)</option>
-                  <option value="50% Meals & Ent.">50% Limite Dedutível (Refeições e Representação)</option>
-                  <option value="Non-Deductible">Não Dedutível (Multas ou Despesas Pessoais)</option>
+                  <option value="100% Deductible">
+                    100% Dedutível (Despesa Ordinária e Necessária)
+                  </option>
+                  <option value="50% Meals & Ent.">
+                    50% Limite Dedutível (Refeições e Representação)
+                  </option>
+                  <option value="Non-Deductible">
+                    Não Dedutível (Multas ou Despesas Pessoais)
+                  </option>
                 </select>
               </div>
 
@@ -455,9 +457,7 @@ function ExpenseCategoriesPage() {
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Status
-                </label>
+                <label className="block text-[11.5px] font-semibold text-ink2 mb-1">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}
