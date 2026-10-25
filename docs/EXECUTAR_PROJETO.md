@@ -31,7 +31,7 @@ node --env-file=.env scripts/create-user.mjs admin@empresa.com "Administrador"
 Remove-Item Env:LEDGER_INITIAL_PASSWORD
 ```
 
-Não há usuário ou senha padrão. O script cria outros usuários da mesma forma; e-mail duplicado é rejeitado. Para redefinir uma senha, desative o usuário e revogue suas sessões até que o administrador faça a atualização segura do hash.
+A tela pública `/cadastro`, acessível pelo link Criar conta no login, permite cadastrar nome, e-mail, senha e confirmação. O cadastro usa as mesmas tabelas do script `001_auth.sql`, sem migração adicional. As senhas exigem de 12 a 256 caracteres, e e-mails duplicados são rejeitados. Após cadastrar, entre pela tela de login. Não há usuário ou senha padrão. O script cria outros usuários da mesma forma; e-mail duplicado é rejeitado. Para redefinir uma senha, desative o usuário e revogue suas sessões até que o administrador faça a atualização segura do hash.
 
 ## 3. Executar
 
@@ -65,4 +65,3 @@ UPDATE app_users SET active = false WHERE email = 'usuario@empresa.com';
 DELETE FROM app_sessions WHERE user_id IN (SELECT id FROM app_users WHERE email = 'usuario@empresa.com');
 COMMIT;
 ```
-

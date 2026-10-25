@@ -72,3 +72,15 @@ export async function signOut() {
   if (token) await db().query("DELETE FROM app_sessions WHERE token_hash = $1", [digest(token)]);
   deleteCookie(cookie, { path: "/" });
 }
+
+export async function registerUser(name: string, email: string, password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+  const result = await db().query(
+    `INSERT INTO app_users (name, email, password_hash) VALUES ($1, $2, $3)
+     ON CONFLICT (email) DO NOTHING RETURNING id`,
+    [name.trim(), email.trim().toLowerCase(), passwordHash],
+  );
+  if (!result.rowCount) return { error: "Já existe um usuário com este e-mail." };
+  return { error: null };
+}

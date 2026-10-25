@@ -81,20 +81,21 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {
     const user = await getSession();
-    if (!user && location.pathname !== "/") throw redirect({ to: "/" });
+    if (!user && !["/", "/cadastro", "/cadastro/"].includes(location.pathname))
+      throw redirect({ to: "/" });
     return { user };
   },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LedgerX · Contabilidade US GAAP" },
+      { title: "World Business · Contabilidade US GAAP" },
       {
         name: "description",
         content:
           "Sistema contábil US GAAP multi-cliente: lançamentos, faturas, estoque, relatórios e multimoeda.",
       },
-      { property: "og:title", content: "LedgerX · Contabilidade US GAAP" },
+      { property: "og:title", content: "World Business · Contabilidade US GAAP" },
       {
         property: "og:description",
         content:

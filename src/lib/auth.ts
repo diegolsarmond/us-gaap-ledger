@@ -17,3 +17,22 @@ export const logout = createServerFn({ method: "POST" }).handler(async () => {
   const { signOut } = await import("./auth.server");
   return signOut();
 });
+
+export const register = createServerFn({ method: "POST" })
+  .validator(
+    z
+      .object({
+        name: z.string().trim().min(2).max(120),
+        email: z.string().trim().email().max(254),
+        password: z.string().min(12).max(256),
+        confirmPassword: z.string().min(12).max(256),
+      })
+      .refine((data) => data.password === data.confirmPassword, {
+        message: "As senhas não coincidem.",
+        path: ["confirmPassword"],
+      }),
+  )
+  .handler(async ({ data }) => {
+    const { registerUser } = await import("./auth.server");
+    return registerUser(data.name, data.email, data.password);
+  });

@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { BookOpen, LockKeyhole, ArrowRight } from "lucide-react";
 import { login } from "@/lib/auth";
@@ -41,7 +41,7 @@ function Login() {
       <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl border border-line bg-white shadow-xl md:grid-cols-2">
         <section className="bg-ink text-white p-8 md:p-12 flex flex-col justify-between gap-12">
           <div className="flex items-center gap-3 text-2xl font-bold">
-            <BookOpen className="size-8" /> LedgerX
+            <BookOpen className="size-8 shrink-0" /> World Business
           </div>
           <div>
             <p className="text-xs uppercase tracking-widest text-white/60 mb-4">
@@ -105,8 +105,14 @@ function Login() {
               <ArrowRight className="size-4" />
             </button>
           </form>
+          <p className="mt-6 text-sm text-ink3">
+            Ainda não tem acesso?{" "}
+            <Link to="/cadastro" className="font-semibold text-brand hover:underline">
+              Criar conta
+            </Link>
+          </p>
           <p className="mt-8 text-xs leading-relaxed text-ink3">
-            Para solicitar acesso ou redefinir sua senha, entre em contato com o administrador.
+            Para redefinir sua senha, entre em contato com o administrador.
           </p>
         </section>
       </div>
