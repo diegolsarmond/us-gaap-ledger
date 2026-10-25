@@ -107,7 +107,7 @@ export async function registerUser(name: string, email: string, password: string
 
 export async function changeRequiredPassword(password: string) {
   const user = await readSession();
-  if (!user) throw new Error("Sessão expirada. Entre novamente.");
+  if (!user) throw new Error("Your session has expired. Please sign in again.");
   const client = await db().connect();
   try {
     await client.query("BEGIN");
@@ -117,10 +117,10 @@ export async function changeRequiredPassword(password: string) {
     );
     const current = result.rows[0];
     if (!current?.must_change_password || !(await readSession()))
-      throw new Error("Sessão inválida. Entre novamente.");
+      throw new Error("Invalid session. Please sign in again.");
     const [oldSalt, oldHash] = current.password_hash.split(":");
     if (timingSafeEqual(scryptSync(password, oldSalt, 64), Buffer.from(oldHash, "hex")))
-      throw new Error("A nova senha deve ser diferente da senha temporária.");
+      throw new Error("Your new password must be different from your temporary password.");
     const salt = randomBytes(16).toString("hex");
     const hash = salt + ":" + scryptSync(password, salt, 64).toString("hex");
     await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);

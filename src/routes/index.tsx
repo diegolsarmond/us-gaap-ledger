@@ -183,6 +183,32 @@ function RequiredPasswordChange() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const checks = [
+    { label: "At least 12 characters", met: password.length >= 12 },
+    {
+      label: "Uppercase and lowercase letters",
+      met: /[a-z]/.test(password) && /[A-Z]/.test(password),
+    },
+    { label: "At least one number", met: /[0-9]/.test(password) },
+    { label: "At least one symbol", met: /[^a-zA-Z0-9\s]/.test(password) },
+  ];
+  const score = checks.filter((check) => check.met).length;
+  const strength = !password
+    ? "Not entered"
+    : password.length < 12 || score < 2
+      ? "Weak"
+      : score < 4
+        ? "Medium"
+        : "Strong";
+  const strengthColor =
+    strength === "Strong"
+      ? "bg-emerald-600"
+      : strength === "Medium"
+        ? "bg-amber-500"
+        : "bg-red-500";
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
@@ -190,7 +216,7 @@ function RequiredPasswordChange() {
     const password = String(form.get("password"));
     const confirmPassword = String(form.get("confirmPassword"));
     if (password !== confirmPassword) {
-      setError("As senhas não coincidem.");
+      setError("Passwords do not match.");
       return;
     }
     setPending(true);
@@ -200,47 +226,115 @@ function RequiredPasswordChange() {
       await router.invalidate();
       await router.navigate({ to: "/cash-flow" });
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Não foi possível alterar a senha.");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to change your password. Please try again.",
+      );
     } finally {
       setPending(false);
     }
   }
   return (
-    <main className="min-h-screen bg-panel text-ink flex items-center justify-center p-5">
+    <main lang="en" className="min-h-screen bg-panel text-ink flex items-center justify-center p-5">
       <section className="w-full max-w-md rounded-2xl border border-line bg-white p-8 shadow-xl">
         <LockKeyhole className="size-8 text-brand mb-6" />
-        <h1 className="text-2xl font-semibold">Altere sua senha</h1>
+        <h1 className="text-2xl font-semibold">Change your password</h1>
         <p className="mt-2 mb-6 text-sm text-ink3">
-          Sua senha foi redefinida. Crie uma nova senha com pelo menos 12 caracteres para acessar o
-          sistema.
+          Your password has been reset. Create a new password with at least 12 characters to access
+          your workspace.
         </p>
         <form onSubmit={submit} className="space-y-5">
-          <label className="block text-sm font-medium">
-            Nova senha
-            <input
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={256}
-              required
-              disabled={pending}
-              className="mt-2 w-full rounded-lg border border-line p-3"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Confirmar nova senha
-            <input
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={256}
-              required
-              disabled={pending}
-              className="mt-2 w-full rounded-lg border border-line p-3"
-            />
-          </label>
+          <div>
+            <label htmlFor="new-password" className="block text-sm font-medium">
+              New password
+            </label>
+            <div className="relative mt-2">
+              <input
+                id="new-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={12}
+                maxLength={256}
+                required
+                disabled={pending}
+                aria-describedby="password-strength password-guidance"
+                className="w-full rounded-lg border border-line p-3 pr-12"
+              />
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide new password" : "Show new password"}
+                aria-controls="new-password"
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-lg text-ink3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+              </button>
+            </div>
+            <p id="password-strength" role="status" className="mt-3 text-sm">
+              Password strength: <strong>{strength}</strong>
+            </p>
+            <div className="mt-2 flex gap-1" aria-hidden="true">
+              {checks.map((check, index) => (
+                <span
+                  key={check.label}
+                  className={
+                    "h-1.5 flex-1 rounded-full " +
+                    (password && index < (password.length < 12 ? 1 : score)
+                      ? strengthColor
+                      : "bg-line")
+                  }
+                />
+              ))}
+            </div>
+            <ul id="password-guidance" className="mt-3 space-y-1 text-xs text-ink3">
+              {checks.map((check) => (
+                <li key={check.label} className={check.met ? "text-emerald-700" : ""}>
+                  {check.met ? "✓" : "○"} {check.label}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-ink3">
+              Strength is an estimate. Use a unique password and avoid common words or personal
+              details.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="confirm-password" className="block text-sm font-medium">
+              Confirm new password
+            </label>
+            <div className="relative mt-2">
+              <input
+                id="confirm-password"
+                name="confirmPassword"
+                type={showConfirmation ? "text" : "password"}
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={256}
+                required
+                disabled={pending}
+                className="w-full rounded-lg border border-line p-3 pr-12"
+              />
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setShowConfirmation((value) => !value)}
+                aria-label={
+                  showConfirmation ? "Hide password confirmation" : "Show password confirmation"
+                }
+                aria-controls="confirm-password"
+                aria-pressed={showConfirmation}
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-lg text-ink3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                {showConfirmation ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+              </button>
+            </div>
+          </div>
           {error && (
             <p role="alert" className="text-sm text-red-700">
               {error}
@@ -250,7 +344,7 @@ function RequiredPasswordChange() {
             disabled={pending}
             className="w-full rounded-lg bg-brand p-3 font-semibold text-white disabled:opacity-60"
           >
-            {pending ? "Salvando…" : "Salvar nova senha"}
+            {pending ? "Saving…" : "Save new password"}
           </button>
           <button
             type="button"
@@ -261,7 +355,7 @@ function RequiredPasswordChange() {
               await router.invalidate();
             }}
           >
-            Sair
+            Sign out
           </button>
         </form>
       </section>

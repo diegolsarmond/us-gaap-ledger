@@ -45,7 +45,7 @@ export const changePassword = createServerFn({ method: "POST" })
         confirmPassword: z.string().min(12).max(256),
       })
       .refine((data) => data.password === data.confirmPassword, {
-        message: "As senhas não coincidem.",
+        message: "Passwords do not match.",
         path: ["confirmPassword"],
       }),
   )
