@@ -36,7 +36,7 @@ const Context = createContext<
 >(null);
 export function useAccounting() {
   const value = useContext(Context);
-  if (!value) throw new Error("ParametersProvider ausente");
+  if (!value) throw new Error("ParametersProvider is missing");
   return value;
 }
 export function ParametersProvider({ children }: { children: React.ReactNode }) {
@@ -59,18 +59,13 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
             void query.refetch();
           }}
         >
-          Tentar novamente
+          Try again
         </button>
       </div>
     );
   if (!activeCompany)
-    return (
-      <p>
-        Nenhuma empresa disponível. Cadastre uma empresa no cadastro de empresas ou solicite acesso
-        ao administrador.
-      </p>
-    );
-  if (!query.data) return <p role="status">Carregando parâmetros…</p>;
+    return <p>No companies available. Add a company or request access from an administrator.</p>;
+  if (!query.data) return <p role="status">Loading parameters…</p>;
   const data = query.data;
   const methods: Record<string, unknown> = {};
   const names: Record<ParameterDomain, string> = {
@@ -116,7 +111,7 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
           });
           await queryClient.invalidateQueries({ queryKey: ["parameters"] });
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Falha ao salvar.");
+          setError(e instanceof Error ? e.message : "Unable to save.");
           throw e;
         } finally {
           setBusy(false);
@@ -125,8 +120,8 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
   return (
     <Context.Provider value={{ ...data, ...methods, activeCompany } as any}>
       <p className="mb-3 text-sm text-ink3">
-        Parâmetros globais são compartilhados com todas as empresas. Parâmetros específicos podem
-        ser vinculados a uma ou mais empresas. Os parâmetros exibidos se aplicam à empresa ativa.
+        Global parameters are shared with all companies. Company-specific parameters can be linked
+        to one or more companies. The parameters shown apply to the active company.
       </p>
       {error && (
         <p role="alert" className="mb-4 text-down">

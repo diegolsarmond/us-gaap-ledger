@@ -37,16 +37,14 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
       input.companyId,
     ]);
     if (revision.rows[0].revision !== input.revision)
-      throw new Error(
-        "Os dados foram alterados em outra sessão. Atualize a página e tente novamente.",
-      );
+      throw new Error("The data was changed in another session. Refresh the page and try again.");
     const source = await client.query(`SELECT data FROM ${table} WHERE company_id=$1 AND id=$2`, [
       input.companyId,
       input.id,
     ]);
     const old = source.rows[0]?.data;
     if (input.operation !== "create" && !old)
-      throw new Error("Parâmetro não encontrado. Atualize a página.");
+      throw new Error("Parameter not found. Refresh the page.");
     const sharedId = old?.sharedId ?? crypto.randomUUID();
     const scope =
       input.domain === "currencies" ? "companies" : (value?.scope ?? old?.scope ?? "companies");

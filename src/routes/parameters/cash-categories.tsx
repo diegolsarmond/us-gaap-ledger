@@ -6,7 +6,10 @@ import { useCompanies } from "@/components/company-context";
 import { loadCashData, saveCashCategory, deleteCashCategory } from "@/lib/cash-flow";
 import type { CashCategory } from "@/lib/cash-flow-model";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
-export const Route = createFileRoute("/parameters/cash-categories")({ component: CategoriesPage });
+export const Route = createFileRoute("/parameters/cash-categories")({
+  head: () => ({ meta: [{ title: "Cash Flow Categories · World Business" }] }),
+  component: CategoriesPage,
+});
 const control = "rounded-md border border-line bg-white px-3 py-2 text-sm";
 function CategoriesPage() {
   const { activeCompany, companies, permissions } = useCompanies();
@@ -30,7 +33,7 @@ function CategoriesPage() {
       await cache.invalidateQueries({ queryKey: ["cash-flow"] });
       setOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(e instanceof Error ? e.message : "Unable to save.");
     } finally {
       setPending(false);
     }
@@ -52,8 +55,8 @@ function CategoriesPage() {
   return (
     <div className="space-y-5">
       <PageTitle
-        title="Categorias do fluxo de caixa"
-        description="Categorias globais aparecem em todas as empresas. Categorias específicas aparecem somente na empresa selecionada."
+        title="Cash flow categories"
+        description="Global categories appear in all companies. Company-specific categories appear only in the selected company."
         actions={
           <button
             disabled={pending || !permissions.write_cash}
@@ -64,31 +67,31 @@ function CategoriesPage() {
               setError("");
             }}
           >
-            Nova categoria
+            New category
           </button>
         }
       />
       <Link to="/cash-flow" className="text-brand underline">
-        Voltar ao fluxo de caixa
+        Back to cash flow
       </Link>
       {error && (
         <p role="alert" className="text-red-700">
           {error}
         </p>
       )}
-      {query.isPending && <p role="status">Carregando categorias…</p>}
+      {query.isPending && <p role="status">Loading categories…</p>}
       {query.isError && (
         <p role="alert">
-          Não foi possível carregar as categorias. Verifique a migração 007_cash_categories.sql.{" "}
-          <button onClick={() => void query.refetch()}>Tentar novamente</button>
+          Unable to load categories. Check the 007_cash_categories.sql migration.{" "}
+          <button onClick={() => void query.refetch()}>Try again</button>
         </p>
       )}
       {open && (
-        <Panel title={editing ? "Editar categoria" : "Nova categoria"}>
+        <Panel title={editing ? "Edit category" : "New category"}>
           <form key={editing?.id ?? "new"} onSubmit={submit} className="space-y-4 p-4">
             <fieldset disabled={pending} className="space-y-4">
               <label className="block">
-                Nome{" "}
+                Name{" "}
                 <input
                   autoFocus
                   name="name"
@@ -99,13 +102,13 @@ function CategoriesPage() {
                 />
               </label>
               <label className="block">
-                Escopo{" "}
+                Scope{" "}
                 <select
                   name="scope"
                   defaultValue={editing ? (editing.company_id ?? "") : companyId}
                   className={control + " block w-full"}
                 >
-                  <option value="">Global — todas as empresas</option>
+                  <option value="">Global — all companies</option>
                   {companies
                     .filter((c) => c.active)
                     .map((c) => (
@@ -116,13 +119,13 @@ function CategoriesPage() {
                 </select>
               </label>
               <p className="text-xs text-ink3">
-                Alterações globais exigem permissão de escrita em todas as empresas. Categorias
-                utilizadas em lançamentos ficam protegidas contra alterações e exclusão.
+                Global changes require write permission in all companies. Categories used in
+                transactions are protected from changes and deletion.
               </p>
               <div className="flex gap-3">
-                <button className={control}>{pending ? "Salvando…" : "Salvar"}</button>
+                <button className={control}>{pending ? "Saving…" : "Save"}</button>
                 <button type="button" onClick={() => setOpen(false)}>
-                  Cancelar
+                  Cancel
                 </button>
               </div>
             </fieldset>
@@ -130,19 +133,19 @@ function CategoriesPage() {
         </Panel>
       )}
       <input
-        aria-label="Buscar categoria"
-        placeholder="Buscar categoria…"
+        aria-label="Search categories"
+        placeholder="Search categories…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className={control}
       />
-      <Panel title={`Categorias disponíveis para ${activeCompany!.name}`}>
+      <Panel title={`Categories available for ${activeCompany!.name}`}>
         <Table>
           <thead>
             <tr>
-              <Th>Nome</Th>
-              <Th>Escopo</Th>
-              <Th>Ações</Th>
+              <Th>Name</Th>
+              <Th>Scope</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -164,16 +167,17 @@ function CategoriesPage() {
                           setError("");
                         }}
                       >
-                        Editar
+                        Edit
                       </button>
                       <button
                         disabled={pending || !permissions.write_cash}
                         onClick={async () => {
                           const confirmed = await modal.showConfirm({
-                            title: "Excluir categoria?",
-                            message: `Deseja excluir a categoria “${c.name}”? Esta ação não pode ser desfeita.`,
+                            title: "Delete category?",
+                            message: `Delete the category “${c.name}”? This action cannot be undone.`,
                             tone: "error",
-                            confirmText: "Excluir",
+                            confirmText: "Delete",
+                            cancelText: "Cancel",
                           });
                           if (confirmed) {
                             void mutate(() =>
@@ -182,7 +186,7 @@ function CategoriesPage() {
                           }
                         }}
                       >
-                        Excluir
+                        Delete
                       </button>
                     </div>
                   </Td>
@@ -190,7 +194,7 @@ function CategoriesPage() {
               ))}
             {query.isSuccess && !query.data.categories.length && (
               <tr>
-                <Td colSpan={3}>Nenhuma categoria cadastrada.</Td>
+                <Td colSpan={3}>No categories added yet.</Td>
               </tr>
             )}
           </tbody>

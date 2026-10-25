@@ -15,8 +15,8 @@ import { ArrowLeft, Plus, Search, Scale, Edit2, Trash2, Building, Download } fro
 export const Route = createFileRoute("/parameters/tax-jurisdictions")({
   head: () =>
     pageHead(
-      "Jurisdições Fiscais & Sales Tax · LedgerX",
-      "Parametrização de alíquotas estaduais e locais de Sales Tax, obrigações de entrega e contas de passivo.",
+      "Tax Jurisdictions & Sales Tax · LedgerX",
+      "Manage state and local sales tax rates, filing obligations, and liability accounts.",
     ),
   component: TaxJurisdictionsPage,
 });
@@ -89,8 +89,8 @@ function TaxJurisdictionsPage() {
       e.preventDefault();
       if (!code.trim() || !name.trim() || !rate.trim()) {
         await modal.showAlert({
-          title: "Campos Obrigatórios",
-          message: "Por favor informe o Código, a Denominação da Jurisdição e a Alíquota.",
+          title: "Required Fields",
+          message: "Enter the code, jurisdiction name, and tax rate.",
           tone: "warning",
         });
         return;
@@ -99,8 +99,8 @@ function TaxJurisdictionsPage() {
       const rateNum = parseFloat(rate);
       if (isNaN(rateNum) || rateNum < 0) {
         await modal.showAlert({
-          title: "Alíquota Inválida",
-          message: "A alíquota percentual deve ser um valor positivo ou zero (isento).",
+          title: "Invalid Tax Rate",
+          message: "The percentage rate must be positive or zero (exempt).",
           tone: "warning",
         });
         return;
@@ -121,8 +121,8 @@ function TaxJurisdictionsPage() {
           status,
         });
         await modal.showAlert({
-          title: "Jurisdição Atualizada",
-          message: `Parâmetros fiscais de "${name.trim()}" atualizados com sucesso.`,
+          title: "Jurisdiction Updated",
+          message: `Tax settings for "${name.trim()}" updated successfully.`,
           tone: "success",
         });
       } else {
@@ -138,8 +138,8 @@ function TaxJurisdictionsPage() {
           status,
         });
         await modal.showAlert({
-          title: "Jurisdição Adicionada",
-          message: `Jurisdição "${name.trim()}" cadastrada com alíquota de ${rateNum}%.`,
+          title: "Jurisdiction Added",
+          message: `Jurisdiction "${name.trim()}" added with a tax rate of ${rateNum}%.`,
           tone: "success",
         });
       }
@@ -153,18 +153,18 @@ function TaxJurisdictionsPage() {
   const handleDelete = async (tax: TaxJurisdictionParam) => {
     try {
       const confirmed = await modal.showConfirm({
-        title: `Excluir Jurisdição Fiscal?`,
-        message: `Deseja realmente excluir a regra tributária "${tax.name}" (${tax.code})?\n\nFaturas e apurações emitidas no passado manterão o histórico inalterado.`,
+        title: `Delete Tax Jurisdiction?`,
+        message: `Delete tax rule "${tax.name}" (${tax.code})?\n\nPreviously issued invoices and tax assessments will retain their history.`,
         tone: "error",
-        confirmText: "Sim, Excluir Jurisdição",
-        cancelText: "Cancelar",
+        confirmText: "Yes, Delete Jurisdiction",
+        cancelText: "Cancel",
       });
 
       if (confirmed) {
         await deleteTaxJurisdiction(tax.id);
         await modal.showAlert({
-          title: "Jurisdição Removida",
-          message: `A jurisdição ${tax.code} foi excluída.`,
+          title: "Jurisdiction Removed",
+          message: `Jurisdiction ${tax.code} was deleted.`,
           tone: "success",
         });
       }
@@ -199,15 +199,15 @@ function TaxJurisdictionsPage() {
 
   const handleExport = () => {
     exportToCsv(
-      `jurisdicoes-fiscais-${activeCompany.id}.csv`,
+      `tax-jurisdictions-${activeCompany.id}.csv`,
       [
-        "Codigo",
-        "Estado",
-        "Nome",
-        "Aliquota_Pct",
-        "Tipo_Tributo",
-        "Conta_Contabil",
-        "Periodicidade",
+        "Code",
+        "State",
+        "Name",
+        "Tax_Rate_Pct",
+        "Tax_Type",
+        "GL_Account",
+        "Filing Frequency",
         "Status",
       ],
       taxJurisdictions.map((t) => [
@@ -237,8 +237,8 @@ function TaxJurisdictionsPage() {
             </Link>
           </div>
           <PageTitle
-            title="Jurisdições Fiscais & Alíquotas de Sales Tax"
-            description={`Tabelas de tributação estadual e local para cálculo automático nas faturas de ${activeCompany.name}`}
+            title="Tax Jurisdictions & Sales Tax Rates"
+            description={`State and local tax tables for automatic calculations on invoices for ${activeCompany.name}`}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -248,7 +248,7 @@ function TaxJurisdictionsPage() {
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
-            <span>Exportar CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
@@ -256,7 +256,7 @@ function TaxJurisdictionsPage() {
             className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
-            <span>Nova Jurisdição</span>
+            <span>New Jurisdiction</span>
           </button>
         </div>
       </div>
@@ -264,13 +264,13 @@ function TaxJurisdictionsPage() {
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
-          label="Jurisdições Ativas"
+          label="Active Jurisdictions"
           value={activeCount.toString()}
-          hint={`Empresa sede: ${activeCompany.state}`}
+          hint={`Company location: ${activeCompany.state}`}
         />
-        <Kpi label="Alíquota Média" value={`${avgRate}%`} hint="Média ponderada ativa" />
-        <Kpi label="Conta de Provisão" value="2200 - Sales Tax" hint="Passivo Circulante" />
-        <Kpi label="Nexus Padrão" value={activeCompany.state} hint="Jurisdição Primária" />
+        <Kpi label="Average Tax Rate" value={`${avgRate}%`} hint="Active weighted average" />
+        <Kpi label="Accrual Account" value="2200 - Sales Tax" hint="Current Liabilities" />
+        <Kpi label="Default Nexus" value={activeCompany.state} hint="Primary Jurisdiction" />
       </div>
 
       {/* Filter Bar */}
@@ -279,7 +279,7 @@ function TaxJurisdictionsPage() {
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
-            placeholder="Buscar por código, órgão ou estado..."
+            placeholder="Search by code, agency, or state..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-line bg-white pl-9 pr-3 py-1.5 text-[12.5px] placeholder:text-ink3 focus:border-brand focus:outline-none"
@@ -299,7 +299,7 @@ function TaxJurisdictionsPage() {
                   : "bg-white text-ink2 border border-line hover:bg-canvas"
               }`}
             >
-              {st === "ALL" ? "Todos" : st === "Active" ? "Ativos" : "Inativos"}
+              {st === "ALL" ? "All" : st === "Active" ? "Active" : "Inactive"}
             </button>
           ))}
         </div>
@@ -307,22 +307,22 @@ function TaxJurisdictionsPage() {
 
       {/* Table Panel */}
       <Panel
-        title={`Tabela de Jurisdições Fiscais (${filteredTaxes.length})`}
+        title={`Tax Jurisdiction Table (${filteredTaxes.length})`}
         aside={<Badge tone="brand">Sales Tax Nexus</Badge>}
       >
         <Table>
           <thead>
             <tr>
-              <Th>Código</Th>
-              <Th>Estado</Th>
-              <Th>Órgão Fiscal / Jurisdição</Th>
-              <Th className="text-right">Alíquota</Th>
-              <Th>Tipo</Th>
-              <Th>Conta de Passivo</Th>
-              <Th>Periodicidade</Th>
+              <Th>Code</Th>
+              <Th>State</Th>
+              <Th>Tax Agency / Jurisdiction</Th>
+              <Th className="text-right">Tax Rate</Th>
+              <Th>Type</Th>
+              <Th>Liability Account</Th>
+              <Th>Filing Frequency</Th>
               <Th>Status</Th>
-              <Th>Escopo / Empresas</Th>
-              <Th className="text-right">Ações</Th>
+              <Th>Scope / Companies</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -343,11 +343,11 @@ function TaxJurisdictionsPage() {
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(t)}
-                    title="Clique para alternar status"
+                    title="Click to change status"
                     className="cursor-pointer"
                   >
                     <Badge tone={t.status === "Active" ? "brand" : "neutral"}>
-                      {t.status === "Active" ? "Ativa" : "Inativa"}
+                      {t.status === "Active" ? "Active" : "Inactive"}
                     </Badge>
                   </button>
                 </Td>
@@ -360,7 +360,7 @@ function TaxJurisdictionsPage() {
                       type="button"
                       onClick={() => openEditModal(t)}
                       className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                      title="Editar Jurisdição"
+                      title="Edit Jurisdiction"
                     >
                       <Edit2 className="size-3.5" />
                     </button>
@@ -368,7 +368,7 @@ function TaxJurisdictionsPage() {
                       type="button"
                       onClick={() => handleDelete(t)}
                       className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors"
-                      title="Excluir Jurisdição"
+                      title="Delete Jurisdiction"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -385,10 +385,10 @@ function TaxJurisdictionsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
-              {editingId ? "Editar Jurisdição Fiscal" : "Nova Jurisdição Fiscal"}
+              {editingId ? "Edit Tax Jurisdiction" : "New Tax Jurisdiction"}
             </h2>
             <p className="text-[12px] text-ink3 mt-0.5">
-              Configuração de alíquotas estaduais para apuração de Sales Tax no US GAAP Ledger.
+              Configure state sales tax rates in the US GAAP Ledger.
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
@@ -396,11 +396,11 @@ function TaxJurisdictionsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Código da Regra *
+                    Rule Code *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: FL-STATE"
+                    placeholder="e.g., FL-STATE"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono uppercase text-[13px] focus:border-brand focus:outline-none"
@@ -409,12 +409,12 @@ function TaxJurisdictionsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Estado (Sigla 2 Letras) *
+                    State (2-Letter Code) *
                   </label>
                   <input
                     type="text"
                     maxLength={2}
-                    placeholder="Ex: FL"
+                    placeholder="e.g., FL"
                     value={state}
                     onChange={(e) => setState(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono uppercase text-[13px] focus:border-brand focus:outline-none"
@@ -424,11 +424,11 @@ function TaxJurisdictionsPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Nome do Órgão Governamental / Jurisdição *
+                  Government Agency / Jurisdiction Name *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Florida Department of Revenue"
+                  placeholder="e.g., Florida Department of Revenue"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[13px] focus:border-brand focus:outline-none"
@@ -438,12 +438,12 @@ function TaxJurisdictionsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Alíquota (%) *
+                    Tax Rate (%) *
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Ex: 6.00"
+                    placeholder="e.g., 6.00"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -452,16 +452,16 @@ function TaxJurisdictionsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Tipo de Imposto
+                    Tax Type
                   </label>
                   <select
                     value={taxType}
                     onChange={(e) => setTaxType(e.target.value as any)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                   >
-                    <option value="State Sales Tax">Estadual (State Sales Tax)</option>
+                    <option value="State Sales Tax">State Sales Tax</option>
                     <option value="Local Surcharge">Local (County/City Surcharge)</option>
-                    <option value="Combined">Combinado (State + Local)</option>
+                    <option value="Combined">Combined (State + Local)</option>
                   </select>
                 </div>
               </div>
@@ -469,7 +469,7 @@ function TaxJurisdictionsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Conta de Passivo (GL)
+                    Liability Account (GL)
                   </label>
                   <select
                     value={glAccountCode}
@@ -486,16 +486,16 @@ function TaxJurisdictionsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Periodicidade Oficial
+                    Filing Frequency
                   </label>
                   <select
                     value={filingFrequency}
                     onChange={(e) => setFilingFrequency(e.target.value as any)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                   >
-                    <option value="Monthly">Mensal (Monthly)</option>
-                    <option value="Quarterly">Trimestral (Quarterly)</option>
-                    <option value="Annual">Anual (Annual)</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Annual">Annual</option>
                   </select>
                 </div>
               </div>
@@ -507,8 +507,8 @@ function TaxJurisdictionsPage() {
                   onChange={(e) => setStatus(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="Active">Ativa</option>
-                  <option value="Inactive">Inativa</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
 
@@ -518,13 +518,13 @@ function TaxJurisdictionsPage() {
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-line px-3.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:bg-canvas transition-colors"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-lg bg-ink px-4 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Salvar Alterações" : "Cadastrar Jurisdição"}
+                  {editingId ? "Save Changes" : "Add Jurisdiction"}
                 </button>
               </div>
             </form>

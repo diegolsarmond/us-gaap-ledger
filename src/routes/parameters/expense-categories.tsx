@@ -15,8 +15,8 @@ import { ArrowLeft, Plus, Search, Tag, Edit2, Trash2, BookmarkCheck, Download } 
 export const Route = createFileRoute("/parameters/expense-categories")({
   head: () =>
     pageHead(
-      "Categorias de Despesas & Mapeamento Contábil · LedgerX",
-      "De-para de despesas operacionais para contas do Plano de Contas US GAAP e regras de dedutibilidade fiscal.",
+      "Expense Categories & Account Mapping · LedgerX",
+      "Map operating expenses to US GAAP accounts and tax deductibility rules.",
     ),
   component: ExpenseCategoriesPage,
 });
@@ -84,8 +84,8 @@ function ExpenseCategoriesPage() {
       e.preventDefault();
       if (!code.trim() || !name.trim() || !glAccountCode.trim()) {
         await modal.showAlert({
-          title: "Campos Obrigatórios",
-          message: "Por favor informe o Código, o Nome da Categoria e a Conta Contábil de Débito.",
+          title: "Required Fields",
+          message: "Enter the code, category name, and debit account.",
           tone: "warning",
         });
         return;
@@ -104,8 +104,8 @@ function ExpenseCategoriesPage() {
           status,
         });
         await modal.showAlert({
-          title: "Categoria Atualizada",
-          message: `Mapeamento contábil da categoria "${name.trim()}" atualizado.`,
+          title: "Category Updated",
+          message: `Account mapping for category "${name.trim()}" updated.`,
           tone: "success",
         });
       } else {
@@ -119,8 +119,8 @@ function ExpenseCategoriesPage() {
           status,
         });
         await modal.showAlert({
-          title: "Categoria Cadastrada",
-          message: `Categoria "${name.trim()}" vinculada à conta ${glAccountCode}.`,
+          title: "Category Added",
+          message: `Category "${name.trim()}" linked to account ${glAccountCode}.`,
           tone: "success",
         });
       }
@@ -134,18 +134,18 @@ function ExpenseCategoriesPage() {
   const handleDelete = async (cat: ExpenseCategoryParam) => {
     try {
       const confirmed = await modal.showConfirm({
-        title: `Excluir Categoria de Despesa?`,
-        message: `Deseja realmente excluir a categoria "${cat.name}" (${cat.code})?\n\nLançamentos já escriturados no diário manterão suas contas originais preservadas.`,
+        title: `Delete Expense Category?`,
+        message: `Delete category "${cat.name}" (${cat.code})?\n\nExisting journal entries will retain their original accounts.`,
         tone: "error",
-        confirmText: "Sim, Excluir Categoria",
-        cancelText: "Cancelar",
+        confirmText: "Yes, Delete Category",
+        cancelText: "Cancel",
       });
 
       if (confirmed) {
         await deleteExpenseCategory(cat.id);
         await modal.showAlert({
-          title: "Categoria Removida",
-          message: `A categoria ${cat.code} foi excluída.`,
+          title: "Category Removed",
+          message: `Category ${cat.code} was deleted.`,
           tone: "success",
         });
       }
@@ -180,7 +180,7 @@ function ExpenseCategoriesPage() {
   const handleExport = () => {
     exportToCsv(
       `categorias-despesas-${activeCompany.id}.csv`,
-      ["Codigo", "Nome", "Conta_Contabil", "Dedutibilidade_Fiscal", "Descricao", "Status"],
+      ["Code", "Name", "GL_Account", "Tax_Deductibility", "Description", "Status"],
       expenseCategories.map((c) => [
         c.code,
         c.name,
@@ -206,8 +206,8 @@ function ExpenseCategoriesPage() {
             </Link>
           </div>
           <PageTitle
-            title="Categorias de Despesas & Mapeamento Contábil"
-            description={`Classificação ágil de contas a pagar (Bills) com direcionamento automático no Razão US GAAP de ${activeCompany.name}`}
+            title="Expense Categories & Account Mapping"
+            description={`Classify vendor bills with automatic mapping to the US GAAP general ledger for ${activeCompany.name}`}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -217,7 +217,7 @@ function ExpenseCategoriesPage() {
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
-            <span>Exportar CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
@@ -225,34 +225,30 @@ function ExpenseCategoriesPage() {
             className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
-            <span>Nova Categoria</span>
+            <span>New Category</span>
           </button>
         </div>
       </div>
 
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kpi label="Active Categories" value={activeCount.toString()} hint="Operational mappings" />
         <Kpi
-          label="Categorias Ativas"
-          value={activeCount.toString()}
-          hint="Mapeamentos operacionais"
-        />
-        <Kpi
-          label="100% Dedutíveis (IRS)"
+          label="100% Deductible (IRS)"
           value={fullyDeductibleCount.toString()}
-          hint="Dedução fiscal integral"
+          hint="Full tax deduction"
         />
         <Kpi
-          label="Refeições & Representação"
+          label="Meals & Entertainment"
           value={expenseCategories
             .filter((c) => c.taxDeductibility === "50% Meals & Ent.")
             .length.toString()}
-          hint="50% Limite fiscal IRS"
+          hint="50% IRS tax limit"
         />
         <Kpi
-          label="Contas no Plano"
+          label="Chart of Accounts Entries"
           value={accounts.length.toString()}
-          hint="Plano de contas padronizado"
+          hint="Standard chart of accounts"
         />
       </div>
 
@@ -262,7 +258,7 @@ function ExpenseCategoriesPage() {
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
-            placeholder="Buscar por código, nome ou conta contábil..."
+            placeholder="Search by code, name, or account..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-line bg-white pl-9 pr-3 py-1.5 text-[12.5px] placeholder:text-ink3 focus:border-brand focus:outline-none"
@@ -282,7 +278,7 @@ function ExpenseCategoriesPage() {
                   : "bg-white text-ink2 border border-line hover:bg-canvas"
               }`}
             >
-              {st === "ALL" ? "Todos" : st === "Active" ? "Ativos" : "Inativos"}
+              {st === "ALL" ? "All" : st === "Active" ? "Active" : "Inactive"}
             </button>
           ))}
         </div>
@@ -290,20 +286,20 @@ function ExpenseCategoriesPage() {
 
       {/* Table Panel */}
       <Panel
-        title={`Categorias Cadastradas (${filteredCategories.length})`}
+        title={`Registered Categories (${filteredCategories.length})`}
         aside={<Badge tone="brand">GL Mapping</Badge>}
       >
         <Table>
           <thead>
             <tr>
-              <Th>Código</Th>
-              <Th>Nome Amigável da Categoria</Th>
-              <Th>Conta US GAAP Vinculada</Th>
-              <Th>Dedutibilidade Fiscal (IRS)</Th>
-              <Th>Descrição</Th>
+              <Th>Code</Th>
+              <Th>Category Display Name</Th>
+              <Th>Linked US GAAP Account</Th>
+              <Th>Tax Deductibility (IRS)</Th>
+              <Th>Description</Th>
               <Th>Status</Th>
-              <Th>Escopo / Empresas</Th>
-              <Th className="text-right">Ações</Th>
+              <Th>Scope / Companies</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -318,7 +314,9 @@ function ExpenseCategoriesPage() {
                       <span className="rounded bg-brand/10 px-1.5 py-0.5 font-bold text-brand">
                         {c.glAccountCode}
                       </span>
-                      <span className="text-ink2">{acct ? acct.name : "Conta no Razão"}</span>
+                      <span className="text-ink2">
+                        {acct ? acct.name : "General Ledger Account"}
+                      </span>
                     </div>
                   </Td>
                   <Td>
@@ -341,11 +339,11 @@ function ExpenseCategoriesPage() {
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(c)}
-                      title="Clique para alternar status"
+                      title="Click to change status"
                       className="cursor-pointer"
                     >
                       <Badge tone={c.status === "Active" ? "brand" : "neutral"}>
-                        {c.status === "Active" ? "Ativa" : "Inativa"}
+                        {c.status === "Active" ? "Active" : "Inactive"}
                       </Badge>
                     </button>
                   </Td>
@@ -358,7 +356,7 @@ function ExpenseCategoriesPage() {
                         type="button"
                         onClick={() => openEditModal(c)}
                         className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                        title="Editar Categoria"
+                        title="Edit Category"
                       >
                         <Edit2 className="size-3.5" />
                       </button>
@@ -366,7 +364,7 @@ function ExpenseCategoriesPage() {
                         type="button"
                         onClick={() => handleDelete(c)}
                         className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors"
-                        title="Excluir Categoria"
+                        title="Delete Category"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -384,10 +382,10 @@ function ExpenseCategoriesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
-              {editingId ? "Editar Categoria de Despesa" : "Nova Categoria de Despesa"}
+              {editingId ? "Edit Expense Category" : "New Expense Category"}
             </h2>
             <p className="text-[12px] text-ink3 mt-0.5">
-              Associação direta com a conta contábil para lançamentos automáticos no razão.
+              Link directly to a general ledger account for automatic journal entries.
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
@@ -395,11 +393,11 @@ function ExpenseCategoriesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Código Interno *
+                    Internal Code *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: EXP-CLOUD"
+                    placeholder="e.g., EXP-CLOUD"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono uppercase text-[13px] focus:border-brand focus:outline-none"
@@ -408,7 +406,7 @@ function ExpenseCategoriesPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Conta Contábil US GAAP *
+                    US GAAP Account *
                   </label>
                   <select
                     value={glAccountCode}
@@ -426,11 +424,11 @@ function ExpenseCategoriesPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Nome Amigável da Despesa *
+                  Expense Display Name *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: SaaS & Infraestrutura Cloud"
+                  placeholder="e.g., SaaS & Cloud Infrastructure"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[13px] focus:border-brand focus:outline-none"
@@ -439,7 +437,7 @@ function ExpenseCategoriesPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Classificação Fiscal (IRS Deductibility)
+                  Tax Classification (IRS Deductibility)
                 </label>
                 <select
                   value={taxDeductibility}
@@ -447,24 +445,24 @@ function ExpenseCategoriesPage() {
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
                   <option value="100% Deductible">
-                    100% Dedutível (Despesa Ordinária e Necessária)
+                    100% Deductible (Ordinary and Necessary Expense)
                   </option>
                   <option value="50% Meals & Ent.">
-                    50% Limite Dedutível (Refeições e Representação)
+                    50% Deduction Limit (Meals and Entertainment)
                   </option>
                   <option value="Non-Deductible">
-                    Não Dedutível (Multas ou Despesas Pessoais)
+                    Non-Deductible (Fines or Personal Expenses)
                   </option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Descrição dos Gastos Abrangidos
+                  Description of Covered Expenses
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ex: Servidores em nuvem AWS, licenças Slack, Google Workspace e banco de dados."
+                  placeholder="e.g., AWS cloud servers, Slack licenses, Google Workspace, and databases."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
@@ -478,8 +476,8 @@ function ExpenseCategoriesPage() {
                   onChange={(e) => setStatus(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="Active">Ativa</option>
-                  <option value="Inactive">Inativa</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
 
@@ -489,13 +487,13 @@ function ExpenseCategoriesPage() {
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-line px-3.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:bg-canvas transition-colors"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-lg bg-ink px-4 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Salvar Alterações" : "Cadastrar Categoria"}
+                  {editingId ? "Save Changes" : "Add Category"}
                 </button>
               </div>
             </form>

@@ -27,8 +27,8 @@ import {
 export const Route = createFileRoute("/parameters/fiscal-periods")({
   head: () =>
     pageHead(
-      "Períodos & Calendário Fiscal · LedgerX",
-      "Governança de fechamento contábil mensal (Hard & Soft Period Close) sob US GAAP.",
+      "Fiscal Periods & Calendar · LedgerX",
+      "Monthly accounting close governance (hard and soft close) under US GAAP.",
     ),
   component: FiscalPeriodsPage,
 });
@@ -89,8 +89,8 @@ function FiscalPeriodsPage() {
       e.preventDefault();
       if (!periodCode.trim() || !startDate || !endDate) {
         await modal.showAlert({
-          title: "Campos Obrigatórios",
-          message: "Por favor informe o Código do Período, Data Inicial e Data Final.",
+          title: "Required Fields",
+          message: "Enter the period code, start date, and end date.",
           tone: "warning",
         });
         return;
@@ -98,9 +98,9 @@ function FiscalPeriodsPage() {
 
       if (!userPersona.canClosePeriod) {
         await modal.showAlert({
-          title: "Acesso Restrito",
+          title: "Restricted Access",
           message:
-            "Apenas contadores responsáveis (CPA) ou administradores podem alterar o calendário fiscal.",
+            "Only responsible accountants (CPAs) or administrators can change the fiscal calendar.",
           tone: "error",
         });
         return;
@@ -119,8 +119,8 @@ function FiscalPeriodsPage() {
           notes: notes.trim() || undefined,
         });
         await modal.showAlert({
-          title: "Período Atualizado",
-          message: `Parâmetros do período ${cleanCode} atualizados com sucesso.`,
+          title: "Period Updated",
+          message: `Settings for period ${cleanCode} updated successfully.`,
           tone: "success",
         });
       } else {
@@ -134,8 +134,8 @@ function FiscalPeriodsPage() {
           notes: notes.trim() || undefined,
         });
         await modal.showAlert({
-          title: "Período Criado",
-          message: `Período fiscal ${cleanCode} adicionado ao calendário.`,
+          title: "Period Created",
+          message: `Fiscal period ${cleanCode} added to the calendar.`,
           tone: "success",
         });
       }
@@ -150,9 +150,9 @@ function FiscalPeriodsPage() {
     try {
       if (!userPersona.canClosePeriod) {
         await modal.showAlert({
-          title: "Acesso Negado",
+          title: "Access Denied",
           message:
-            "Apenas o contador responsável (CPA) ou administrador pode bloquear ou desbloquear períodos.",
+            "Only the responsible accountant (CPA) or an administrator can lock or unlock periods.",
           tone: "error",
         });
         return;
@@ -160,11 +160,11 @@ function FiscalPeriodsPage() {
 
       if (p.status === "Open") {
         const confirmLock = await modal.showConfirm({
-          title: `Bloquear Período ${p.periodCode}?`,
-          message: `Deseja executar o fechamento contábil e BLOQUEAR o período ${p.periodCode}?\n\nNovos lançamentos serão impedidos e ajustes exigirão justificativa formal de auditoria.`,
+          title: `Lock Period ${p.periodCode}?`,
+          message: `Perform the accounting close and LOCK period ${p.periodCode}?\n\nNew entries will be blocked and adjustments will require a formal audit justification.`,
           tone: "warning",
-          confirmText: "Sim, Bloquear Período",
-          cancelText: "Cancelar",
+          confirmText: "Yes, Lock Period",
+          cancelText: "Cancel",
         });
         if (confirmLock) {
           await updateFiscalPeriod(p.id, {
@@ -172,22 +172,22 @@ function FiscalPeriodsPage() {
             closedBy: userPersona.name,
             closingDate: new Date().toISOString().split("T")[0]!,
             notes: p.notes
-              ? `${p.notes} | Bloqueado por ${userPersona.name}`
-              : `Bloqueado por ${userPersona.name}`,
+              ? `${p.notes} | Locked by ${userPersona.name}`
+              : `Locked by ${userPersona.name}`,
           });
         }
       } else if (p.status === "Locked") {
         const reason = await modal.showPrompt({
-          title: `Reabrir Período Fiscal ${p.periodCode}`,
-          message: "Informe a justificativa formal de auditoria para reabertura do período:",
-          defaultValue: "Ajuste pós-fechamento solicitado pelo CPA.",
-          confirmText: "Reabrir Período",
-          cancelText: "Cancelar",
+          title: `Reopen Fiscal Period ${p.periodCode}`,
+          message: "Enter the formal audit justification for reopening the period:",
+          defaultValue: "Post-close adjustment requested by the CPA.",
+          confirmText: "Reopen Period",
+          cancelText: "Cancel",
         });
         if (reason) {
           await updateFiscalPeriod(p.id, {
             status: "Open",
-            notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
+            notes: `Reopened on ${new Date().toISOString().split("T")[0]}: ${reason}`,
           });
         }
       } else {
@@ -207,8 +207,8 @@ function FiscalPeriodsPage() {
     try {
       if (!userPersona.canClosePeriod) {
         await modal.showAlert({
-          title: "Acesso Negado",
-          message: "Apenas administradores podem excluir períodos do calendário.",
+          title: "Access Denied",
+          message: "Only administrators can delete calendar periods.",
           tone: "error",
         });
         return;
@@ -216,26 +216,26 @@ function FiscalPeriodsPage() {
 
       if (p.periodCode === activeCompany.activePeriod) {
         await modal.showAlert({
-          title: "Período Ativo do Sistema",
-          message: `O período ${p.periodCode} é o período fiscal atualmente ativo para a empresa e não pode ser excluído.`,
+          title: "Active System Period",
+          message: `Period ${p.periodCode} is the currently active fiscal period for the company and cannot be deleted.`,
           tone: "error",
         });
         return;
       }
 
       const confirmed = await modal.showConfirm({
-        title: `Excluir Período ${p.periodCode}?`,
-        message: `Tem certeza que deseja remover este período do calendário fiscal?`,
+        title: `Delete Period ${p.periodCode}?`,
+        message: `Remove this period from the fiscal calendar?`,
         tone: "error",
-        confirmText: "Sim, Excluir",
-        cancelText: "Cancelar",
+        confirmText: "Yes, Delete",
+        cancelText: "Cancel",
       });
 
       if (confirmed) {
         await deleteFiscalPeriod(p.id);
         await modal.showAlert({
-          title: "Período Removido",
-          message: `O período ${p.periodCode} foi excluído do calendário.`,
+          title: "Period Removed",
+          message: `Period ${p.periodCode} was deleted from the calendar.`,
           tone: "success",
         });
       }
@@ -259,16 +259,16 @@ function FiscalPeriodsPage() {
 
   const handleExport = () => {
     exportToCsv(
-      `periodos-fiscais-${activeCompany.id}.csv`,
+      `fiscal-periods-${activeCompany.id}.csv`,
       [
-        "Periodo",
-        "Exercicio",
-        "Data_Inicio",
-        "Data_Fim",
+        "Period",
+        "Fiscal_Year",
+        "Start_Date",
+        "End_Date",
         "Status",
-        "Fechado_Por",
-        "Data_Fechamento",
-        "Notas",
+        "Closed_By",
+        "Closing_Date",
+        "Notes",
       ],
       fiscalPeriods.map((p) => [
         p.periodCode,
@@ -297,8 +297,8 @@ function FiscalPeriodsPage() {
             </Link>
           </div>
           <PageTitle
-            title="Períodos & Calendário Fiscal (Period Close)"
-            description={`Governança de fechamento contábil e proteção de integridade dos livros de ${activeCompany.name}`}
+            title="Fiscal Periods & Calendar (Period Close)"
+            description={`Accounting close governance and ledger integrity for ${activeCompany.name}`}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -308,7 +308,7 @@ function FiscalPeriodsPage() {
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
-            <span>Exportar CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
@@ -316,7 +316,7 @@ function FiscalPeriodsPage() {
             className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
-            <span>Novo Período Fiscal</span>
+            <span>New Fiscal Period</span>
           </button>
         </div>
       </div>
@@ -324,21 +324,21 @@ function FiscalPeriodsPage() {
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
-          label="Período Ativo"
+          label="Active Period"
           value={activeCompany.activePeriod}
-          hint={activeCompany.isPeriodClosed ? "Bloqueado (Locked)" : "Aberto para lançamentos"}
+          hint={activeCompany.isPeriodClosed ? "Locked" : "Open for entries"}
         />
         <Kpi
-          label="Períodos Bloqueados"
+          label="Locked Periods"
           value={lockedCount.toString()}
-          hint="Imutáveis por regra SOX"
+          hint="Immutable under SOX rules"
         />
         <Kpi
-          label="Em Conferência (Soft)"
+          label="Under Review (Soft Close)"
           value={softCloseCount.toString()}
-          hint="Revisão preliminar"
+          hint="Preliminary review"
         />
-        <Kpi label="Abertos" value={openCount.toString()} hint="Escrituração diária ativa" />
+        <Kpi label="Open" value={openCount.toString()} hint="Daily posting enabled" />
       </div>
 
       {/* Filter Bar */}
@@ -347,7 +347,7 @@ function FiscalPeriodsPage() {
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
-            placeholder="Buscar período, ano fiscal ou notas..."
+            placeholder="Search period, fiscal year, or notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-line bg-white pl-9 pr-3 py-1.5 text-[12.5px] placeholder:text-ink3 focus:border-brand focus:outline-none"
@@ -368,12 +368,12 @@ function FiscalPeriodsPage() {
               }`}
             >
               {st === "ALL"
-                ? "Todos"
+                ? "All"
                 : st === "Open"
-                  ? "Abertos"
+                  ? "Open"
                   : st === "Soft-Close"
-                    ? "Conferência"
-                    : "Bloqueados"}
+                    ? "Under Review"
+                    : "Locked"}
             </button>
           ))}
         </div>
@@ -381,22 +381,22 @@ function FiscalPeriodsPage() {
 
       {/* Table Panel */}
       <Panel
-        title={`Calendário de Períodos Fiscais (${filteredPeriods.length})`}
+        title={`Fiscal Period Calendar (${filteredPeriods.length})`}
         aside={<Badge tone="brand">US GAAP Hard Close</Badge>}
       >
         <Table>
           <thead>
             <tr>
-              <Th>Período</Th>
-              <Th>Exercício</Th>
-              <Th>Início</Th>
-              <Th>Término</Th>
-              <Th>Status de Governança</Th>
-              <Th>Fechado Por</Th>
-              <Th>Data Fechamento</Th>
-              <Th>Notas de Auditoria</Th>
-              <Th>Escopo / Empresas</Th>
-              <Th className="text-right">Ações</Th>
+              <Th>Period</Th>
+              <Th>Fiscal Year</Th>
+              <Th>Start</Th>
+              <Th>End</Th>
+              <Th>Governance Status</Th>
+              <Th>Closed By</Th>
+              <Th>Closing Date</Th>
+              <Th>Audit Notes</Th>
+              <Th>Scope / Companies</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -412,7 +412,7 @@ function FiscalPeriodsPage() {
                       <span>{p.periodCode}</span>
                       {isCurrent && (
                         <span className="rounded bg-brand/10 px-1.5 py-0.2 text-[10px] font-semibold text-brand">
-                          Atual
+                          Current
                         </span>
                       )}
                     </div>
@@ -424,7 +424,7 @@ function FiscalPeriodsPage() {
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(p)}
-                      title="Clique para alternar o status do período"
+                      title="Click to change the period status"
                       className="cursor-pointer"
                     >
                       <Badge
@@ -439,15 +439,15 @@ function FiscalPeriodsPage() {
                         <span className="flex items-center gap-1">
                           {p.status === "Locked" ? (
                             <>
-                              <Lock className="size-3" /> Bloqueado
+                              <Lock className="size-3" /> Locked
                             </>
                           ) : p.status === "Soft-Close" ? (
                             <>
-                              <AlertTriangle className="size-3" /> Conferência
+                              <AlertTriangle className="size-3" /> Under Review
                             </>
                           ) : (
                             <>
-                              <Unlock className="size-3" /> Aberto
+                              <Unlock className="size-3" /> Open
                             </>
                           )}
                         </span>
@@ -466,7 +466,7 @@ function FiscalPeriodsPage() {
                         type="button"
                         onClick={() => openEditModal(p)}
                         className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                        title="Editar Período"
+                        title="Edit Period"
                       >
                         <Edit2 className="size-3.5" />
                       </button>
@@ -475,9 +475,7 @@ function FiscalPeriodsPage() {
                         onClick={() => handleDelete(p)}
                         disabled={isCurrent}
                         className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={
-                          isCurrent ? "Período corrente não pode ser excluído" : "Excluir Período"
-                        }
+                        title={isCurrent ? "The current period cannot be deleted" : "Delete Period"}
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -495,10 +493,10 @@ function FiscalPeriodsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
-              {editingId ? `Editar Período ${periodCode}` : "Novo Período Fiscal"}
+              {editingId ? `Edit Period ${periodCode}` : "New Fiscal Period"}
             </h2>
             <p className="text-[12px] text-ink3 mt-0.5">
-              Governança de competência e datas de corte para livros contábeis.
+              Manage accounting periods and cutoff dates for the general ledger.
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
@@ -506,11 +504,11 @@ function FiscalPeriodsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Código (YYYY-MM) *
+                    Code (YYYY-MM) *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: 2027-01"
+                    placeholder="e.g., 2027-01"
                     value={periodCode}
                     onChange={(e) => setPeriodCode(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -519,11 +517,11 @@ function FiscalPeriodsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Exercício Fiscal *
+                    Fiscal Year *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: FY2027"
+                    placeholder="e.g., FY2027"
                     value={fiscalYear}
                     onChange={(e) => setFiscalYear(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -534,7 +532,7 @@ function FiscalPeriodsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Data de Início *
+                    Start Date *
                   </label>
                   <input
                     type="date"
@@ -546,7 +544,7 @@ function FiscalPeriodsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Data de Término *
+                    End Date *
                   </label>
                   <input
                     type="date"
@@ -559,26 +557,26 @@ function FiscalPeriodsPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Status de Governança
+                  Governance Status
                 </label>
                 <select
                   value={periodStatus}
                   onChange={(e) => setPeriodStatus(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="Open">Aberto (Lançamentos permitidos)</option>
-                  <option value="Soft-Close">Em Conferência (Soft-Close / CPA review)</option>
-                  <option value="Locked">Bloqueado (Hard Close / Travado contra edições)</option>
+                  <option value="Open">Open (Entries allowed)</option>
+                  <option value="Soft-Close">Under Review (Soft Close / CPA Review)</option>
+                  <option value="Locked">Locked (Hard Close / Editing disabled)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Notas de Auditoria / Justificativa
+                  Audit Notes / Justification
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ex: Calendário anual aprovado em ata ou motivo do ajuste."
+                  placeholder="e.g., Approved annual calendar or reason for adjustment."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
@@ -591,13 +589,13 @@ function FiscalPeriodsPage() {
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-line px-3.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:bg-canvas transition-colors"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-lg bg-ink px-4 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Salvar Alterações" : "Criar Período"}
+                  {editingId ? "Save Changes" : "Create Period"}
                 </button>
               </div>
             </form>

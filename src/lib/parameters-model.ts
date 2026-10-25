@@ -41,7 +41,7 @@ export const parameterSchemas = {
       (v) =>
         (v.discountDays ?? 0) <= v.days &&
         (!(v.isDefaultCustomer || v.isDefaultVendor) || v.status === "Active"),
-      "Desconto deve ocorrer até o vencimento e condições padrão devem estar ativas.",
+      "The discount deadline must be on or before the due date, and default payment terms must be active.",
     ),
   costCenters: z.object({
     ...base,

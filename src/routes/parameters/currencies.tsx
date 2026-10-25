@@ -14,8 +14,8 @@ import { pageHead } from "@/lib/head";
 export const Route = createFileRoute("/parameters/currencies")({
   head: () =>
     pageHead(
-      "Moedas da empresa · LedgerX",
-      "Selecione as moedas utilizadas pela empresa e consulte as cotações automaticamente.",
+      "Company currencies · LedgerX",
+      "Select the currencies used by the company and view exchange rates automatically.",
     ),
   component: CurrenciesPage,
 });
@@ -50,10 +50,11 @@ function CurrenciesPage() {
   }
   async function remove(code: string) {
     const confirmed = await modal.showConfirm({
-      title: "Remover moeda?",
-      message: `Deseja remover a moeda ${code} — ${currencyName(code)} da empresa ${activeCompany.name}?`,
+      title: "Remove currency?",
+      message: `Remove currency ${code} — ${currencyName(code)} from company ${activeCompany.name}?`,
       tone: "error",
-      confirmText: "Remover",
+      confirmText: "Remove",
+      cancelText: "Cancel",
     });
     if (!confirmed) return;
     setSaving(true);
@@ -68,21 +69,21 @@ function CurrenciesPage() {
   return (
     <div className="space-y-6">
       <PageTitle
-        title="Moedas da empresa"
-        description={`Selecione uma ou mais moedas utilizadas por ${activeCompany.name}. Símbolos e cotações são automáticos.`}
+        title="Company currencies"
+        description={`Select one or more currencies used by ${activeCompany.name}. Symbols and exchange rates are automatic.`}
       />
-      <Panel title="Vincular moeda">
+      <Panel title="Add currency">
         <form onSubmit={add} className="flex flex-wrap items-end gap-3 p-4">
           <label className="space-y-2 text-sm">
-            Moeda
+            Currency
             <select
-              aria-label="Moeda"
+              aria-label="Currency"
               required
               value={code}
               onChange={(event) => setCode(event.target.value)}
               className="block rounded border border-line bg-white p-2"
             >
-              <option value="">Selecione uma moeda</option>
+              <option value="">Select a currency</option>
               {available.map((value) => (
                 <option key={value} value={value}>
                   {value} — {currencyName(value)}
@@ -94,19 +95,19 @@ function CurrenciesPage() {
             disabled={!code || saving}
             className="rounded bg-ink px-4 py-2 text-sm text-white disabled:opacity-50"
           >
-            Adicionar moeda
+            Add currency
           </button>
         </form>
       </Panel>
-      <Panel title={`Moedas utilizadas (${currencies.length})`}>
+      <Panel title={`Currencies in use (${currencies.length})`}>
         <Table>
           <thead>
             <tr>
-              <Th>Moeda</Th>
-              <Th>Símbolo automático</Th>
-              <Th>Cotação em USD</Th>
-              <Th>Data da cotação</Th>
-              <Th>Ações</Th>
+              <Th>Currency</Th>
+              <Th>Automatic symbol</Th>
+              <Th>Exchange rate in USD</Th>
+              <Th>Exchange rate date</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -120,21 +121,21 @@ function CurrenciesPage() {
                   <Td>{currencySymbol(currency.code)}</Td>
                   <Td>
                     {currency.code === "USD"
-                      ? "1,000000"
+                      ? "1.000000"
                       : quote
-                        ? quote.rate.toLocaleString("pt-BR", {
+                        ? quote.rate.toLocaleString("en-US", {
                             minimumFractionDigits: 6,
                             maximumFractionDigits: 6,
                           })
                         : rates.isPending
-                          ? "Consultando…"
-                          : "Indisponível"}
+                          ? "Loading…"
+                          : "Unavailable"}
                   </Td>
                   <Td>
                     {currency.code === "USD"
-                      ? "Moeda de referência"
+                      ? "Reference currency"
                       : quote
-                        ? new Date(quote.date).toLocaleString("pt-BR")
+                        ? new Date(quote.date).toLocaleString("en-US")
                         : "—"}
                   </Td>
                   <Td>
@@ -143,7 +144,7 @@ function CurrenciesPage() {
                       onClick={() => void remove(currency.code)}
                       className="text-down disabled:opacity-50"
                     >
-                      Remover vínculo
+                      Remove currency
                     </button>
                   </Td>
                 </tr>
@@ -151,7 +152,7 @@ function CurrenciesPage() {
             })}
             {!currencies.length && (
               <tr>
-                <Td colSpan={5}>Selecione as moedas que esta empresa utiliza.</Td>
+                <Td colSpan={5}>Select the currencies used by this company.</Td>
               </tr>
             )}
           </tbody>
@@ -159,19 +160,17 @@ function CurrenciesPage() {
       </Panel>
       <div className="space-y-2 text-sm text-ink3">
         <p>
-          Fonte: AwesomeAPI. Consulta automática a cada 2 minutos. A data exibida corresponde à
-          última cotação disponível, inclusive em fins de semana e feriados. Símbolos e taxas não
-          são armazenados no banco.
+          Source: AwesomeAPI. Rates refresh automatically every 2 minutes. The date shown is the
+          latest available quote, including weekends and holidays. Symbols and rates are not stored
+          in the database.
         </p>
-        {rates.isError && (
-          <p role="alert">Não foi possível consultar as cotações. Tente novamente.</p>
-        )}
+        {rates.isError && <p role="alert">Unable to load exchange rates. Please try again.</p>}
         <button
           disabled={rates.isFetching}
           onClick={() => void rates.refetch()}
           className="rounded border border-line px-3 py-2 disabled:opacity-50"
         >
-          {rates.isFetching ? "Consultando…" : "Atualizar cotações"}
+          {rates.isFetching ? "Loading…" : "Refresh exchange rates"}
         </button>
       </div>
     </div>

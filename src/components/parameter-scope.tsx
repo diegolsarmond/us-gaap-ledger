@@ -24,22 +24,20 @@ export function ParameterScopeField({
   const { companies } = useCompanies();
   return (
     <fieldset className="rounded-lg border border-line p-3 space-y-2">
-      <legend className="text-xs font-semibold">Escopo do parâmetro</legend>
+      <legend className="text-xs font-semibold">Parameter scope</legend>
       <select
-        aria-label="Escopo do parâmetro"
+        aria-label="Parameter scope"
         className="w-full rounded border border-line p-2 text-sm"
         value={control.value.scope}
         onChange={(e) =>
           control.setValue({ ...control.value, scope: e.target.value as "global" | "companies" })
         }
       >
-        <option value="global">Global — todas as empresas</option>
-        <option value="companies">Empresas específicas</option>
+        <option value="global">Global — all companies</option>
+        <option value="companies">Specific companies</option>
       </select>
       {control.value.scope === "global" ? (
-        <p className="text-xs text-ink3">
-          Compartilhado com todas as empresas. Alterações afetam todas elas.
-        </p>
+        <p className="text-xs text-ink3">Shared with all companies. Changes affect all of them.</p>
       ) : (
         <div className="max-h-36 overflow-y-auto space-y-2">
           {companies
@@ -61,7 +59,7 @@ export function ParameterScopeField({
                 {c.name}
               </label>
             ))}
-          <p className="text-xs text-ink3">Selecione uma ou mais empresas.</p>
+          <p className="text-xs text-ink3">Select one or more companies.</p>
         </div>
       )}
     </fieldset>
@@ -72,9 +70,9 @@ export function ParameterScopeLabel({ value }: { value: ParameterScope }) {
   return (
     <span className="text-xs">
       {value.scope === "global"
-        ? "Global · Todas as empresas"
+        ? "Global · All companies"
         : (value.companyIds ?? [activeCompany?.id])
-            .map((id) => companies.find((c) => c.id === id)?.name ?? "Empresa sem acesso")
+            .map((id) => companies.find((c) => c.id === id)?.name ?? "Company unavailable")
             .join(", ")}
     </span>
   );

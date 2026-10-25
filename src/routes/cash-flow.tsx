@@ -103,6 +103,8 @@ function CashFlowPage() {
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [entryAccount, setEntryAccount] = useState("");
   const [amountCents, setAmountCents] = useState("");
+  const [openingBalanceCents, setOpeningBalanceCents] = useState("0");
+  const [accountCurrency, setAccountCurrency] = useState("USD");
   const [keepOpen, setKeepOpen] = useState(false);
   const entryFormRef = useRef<HTMLFormElement>(null);
   const continueEntryRef = useRef(false);
@@ -209,7 +211,7 @@ function CashFlowPage() {
             name: String(f.get("name")),
             currency: String(f.get("currency")) as "USD" | "BRL" | "EUR",
             opening_date: String(f.get("opening_date")),
-            opening_balance: Number(f.get("opening_balance")),
+            opening_balance: Number(openingBalanceCents) / 100,
           },
         }),
       editingAccount ? "Account updated." : "Account created.",
@@ -279,6 +281,8 @@ function CashFlowPage() {
               disabled={!query.isSuccess || pending}
               onClick={() => {
                 setEditingAccount(null);
+                setOpeningBalanceCents("0");
+                setAccountCurrency(currency);
                 setForm("account");
                 setError("");
               }}
@@ -382,7 +386,8 @@ function CashFlowPage() {
                       <Field label="Currency">
                         <select
                           name="currency"
-                          defaultValue={editingAccount?.currency ?? currency}
+                          value={accountCurrency}
+                          onChange={(e) => setAccountCurrency(e.target.value)}
                           className={control}
                         >
                           <option>USD</option>
@@ -402,11 +407,27 @@ function CashFlowPage() {
                       <Field label="Opening balance (may be negative)">
                         <input
                           name="opening_balance"
-                          type="number"
-                          step="0.01"
-                          min="-999999999999.99"
-                          max="999999999999.99"
-                          defaultValue={editingAccount?.opening_balance ?? 0}
+                          type="text"
+                          inputMode="text"
+                          placeholder={new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: accountCurrency,
+                          }).format(0)}
+                          value={
+                            openingBalanceCents === ""
+                              ? ""
+                              : new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: accountCurrency,
+                                }).format(Number(openingBalanceCents) / 100)
+                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const digits = raw.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14);
+                            setOpeningBalanceCents(
+                              raw === "" ? "" : `${raw.includes("-") ? "-" : ""}${digits || "0"}`,
+                            );
+                          }}
                           required
                           className={control}
                         />
@@ -849,6 +870,8 @@ function CashFlowPage() {
                         className="text-brand underline"
                         onClick={() => {
                           setEditingAccount(a);
+                          setOpeningBalanceCents(String(Math.round(a.opening_balance * 100)));
+                          setAccountCurrency(a.currency);
                           setForm("account");
                           setError("");
                           setNotice("");

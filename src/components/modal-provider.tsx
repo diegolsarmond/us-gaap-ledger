@@ -84,7 +84,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       const opts: AlertOptions = typeof options === "string" ? { message: options } : options;
       setModal({
         type: "alert",
-        title: opts.title || (opts.tone === "error" ? "Aviso do Sistema" : "Notificação"),
+        title: opts.title || (opts.tone === "error" ? "System Notice" : "Notification"),
         message: opts.message,
         tone: opts.tone || "info",
         confirmText: opts.confirmText || "OK",
@@ -101,11 +101,11 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       const opts: ConfirmOptions = typeof options === "string" ? { message: options } : options;
       setModal({
         type: "confirm",
-        title: opts.title || "Confirmar Ação",
+        title: opts.title || "Confirm Action",
         message: opts.message,
         tone: opts.tone || "warning",
-        confirmText: opts.confirmText || "Confirmar",
-        cancelText: opts.cancelText || "Cancelar",
+        confirmText: opts.confirmText || "Confirm",
+        cancelText: opts.cancelText || "Cancel",
         resolve: (val) => {
           setModal(null);
           resolve(val);
@@ -121,12 +121,12 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       setPromptInput(initialVal);
       setModal({
         type: "prompt",
-        title: opts.title || "Entrada de Dados",
+        title: opts.title || "Data Entry",
         message: opts.message,
         defaultValue: initialVal,
         placeholder: opts.placeholder || "",
-        confirmText: opts.confirmText || "Confirmar",
-        cancelText: opts.cancelText || "Cancelar",
+        confirmText: opts.confirmText || "Confirm",
+        cancelText: opts.cancelText || "Cancel",
         resolve: (val) => {
           setModal(null);
           resolve(val);

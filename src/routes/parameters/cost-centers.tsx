@@ -24,8 +24,8 @@ import {
 export const Route = createFileRoute("/parameters/cost-centers")({
   head: () =>
     pageHead(
-      "Centros de Custo & Unidades · LedgerX",
-      "Segmentação departamental analítica, limites orçamentários e governança de despesas.",
+      "Cost Centers & Units · LedgerX",
+      "Departmental cost allocation, budget limits, and expense governance.",
     ),
   component: CostCentersPage,
 });
@@ -80,8 +80,8 @@ function CostCentersPage() {
       e.preventDefault();
       if (!code.trim() || !name.trim() || !manager.trim()) {
         await modal.showAlert({
-          title: "Campos Obrigatórios",
-          message: "Por favor informe o Código, Nome do Centro de Custo e Gestor Responsável.",
+          title: "Required Fields",
+          message: "Enter the code, cost center name, and responsible manager.",
           tone: "warning",
         });
         return;
@@ -90,8 +90,8 @@ function CostCentersPage() {
       const budgetNum = parseFloat(annualBudget);
       if (isNaN(budgetNum) || budgetNum < 0) {
         await modal.showAlert({
-          title: "Orçamento Inválido",
-          message: "O orçamento anual deve ser um valor numérico positivo ou zero.",
+          title: "Invalid Budget",
+          message: "The annual budget must be a positive number or zero.",
           tone: "warning",
         });
         return;
@@ -110,8 +110,8 @@ function CostCentersPage() {
           status,
         });
         await modal.showAlert({
-          title: "Centro de Custo Atualizado",
-          message: `Centro "${name.trim()}" atualizado com sucesso.`,
+          title: "Cost Center Updated",
+          message: `Cost center "${name.trim()}" updated successfully.`,
           tone: "success",
         });
       } else {
@@ -125,8 +125,8 @@ function CostCentersPage() {
           status,
         });
         await modal.showAlert({
-          title: "Centro de Custo Cadastrado",
-          message: `Centro "${name.trim()}" (${cleanCode}) adicionado com sucesso.`,
+          title: "Cost Center Added",
+          message: `Cost center "${name.trim()}" (${cleanCode}) added successfully.`,
           tone: "success",
         });
       }
@@ -140,18 +140,18 @@ function CostCentersPage() {
   const handleDelete = async (cc: CostCenterParam) => {
     try {
       const confirmed = await modal.showConfirm({
-        title: `Excluir Centro de Custo?`,
-        message: `Deseja excluir o centro "${cc.name}" (${cc.code})?\n\nRegistros e transações alocadas anteriormente continuarão no histórico contábil.`,
+        title: `Delete Cost Center?`,
+        message: `Delete cost center "${cc.name}" (${cc.code})?\n\nPreviously allocated records and transactions will remain in the accounting history.`,
         tone: "error",
-        confirmText: "Sim, Excluir Centro",
-        cancelText: "Cancelar",
+        confirmText: "Yes, Delete Cost Center",
+        cancelText: "Cancel",
       });
 
       if (confirmed) {
         await deleteCostCenter(cc.id);
         await modal.showAlert({
-          title: "Centro Removido",
-          message: `O centro de custo ${cc.code} foi excluído.`,
+          title: "Cost Center Removed",
+          message: `Cost center ${cc.code} was deleted.`,
           tone: "success",
         });
       }
@@ -184,7 +184,7 @@ function CostCentersPage() {
   const handleExport = () => {
     exportToCsv(
       `centros-de-custo-${activeCompany.id}.csv`,
-      ["Codigo", "Nome", "Gestor", "Orcamento_Anual", "Descricao", "Status"],
+      ["Code", "Name", "Manager", "Annual_Budget", "Description", "Status"],
       costCenters.map((c) => [
         c.code,
         c.name,
@@ -210,8 +210,8 @@ function CostCentersPage() {
             </Link>
           </div>
           <PageTitle
-            title="Centros de Custo & Unidades de Negócio"
-            description={`Segmentação analítica e controle de limites orçamentários departamentais para ${activeCompany.name}`}
+            title="Cost Centers & Business Units"
+            description={`Cost allocation and departmental budget control for ${activeCompany.name}`}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -221,7 +221,7 @@ function CostCentersPage() {
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
-            <span>Exportar CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
@@ -229,7 +229,7 @@ function CostCentersPage() {
             className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
-            <span>Novo Centro de Custo</span>
+            <span>New Cost Center</span>
           </button>
         </div>
       </div>
@@ -237,22 +237,22 @@ function CostCentersPage() {
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
-          label="Centros Ativos"
+          label="Active Cost Centers"
           value={activeCenters.length.toString()}
-          hint="Departamentos operacionais"
+          hint="Operating departments"
         />
         <Kpi
-          label="Orçamento Consolidado"
+          label="Consolidated Budget"
           value={usd(totalAllocatedBudget)}
-          hint="Teto anual aprovado"
+          hint="Approved annual limit"
         />
         <Kpi
-          label="Média por Centro"
+          label="Average per Cost Center"
           value={activeCenters.length > 0 ? usd(totalAllocatedBudget / activeCenters.length) : "$0"}
-          hint="Média ponderada anual"
+          hint="Annual weighted average"
         />
         <Kpi
-          label="Moeda Orçamentária"
+          label="Budget Currency"
           value={activeCompany.baseCurrency}
           hint="US GAAP Functional Currency"
         />
@@ -264,7 +264,7 @@ function CostCentersPage() {
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
-            placeholder="Buscar por código, nome ou gestor..."
+            placeholder="Search by code, name, or manager..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-line bg-white pl-9 pr-3 py-1.5 text-[12.5px] placeholder:text-ink3 focus:border-brand focus:outline-none"
@@ -284,7 +284,7 @@ function CostCentersPage() {
                   : "bg-white text-ink2 border border-line hover:bg-canvas"
               }`}
             >
-              {st === "ALL" ? "Todos" : st === "Active" ? "Ativos" : "Inativos"}
+              {st === "ALL" ? "All" : st === "Active" ? "Active" : "Inactive"}
             </button>
           ))}
         </div>
@@ -292,20 +292,20 @@ function CostCentersPage() {
 
       {/* Table Panel */}
       <Panel
-        title={`Centros de Custo Cadastrados (${filteredCostCenters.length})`}
+        title={`Registered Cost Centers (${filteredCostCenters.length})`}
         aside={<Badge tone="brand">Departmental Units</Badge>}
       >
         <Table>
           <thead>
             <tr>
-              <Th>Código</Th>
-              <Th>Nome da Unidade / Departamento</Th>
-              <Th>Gestor Responsável</Th>
-              <Th className="text-right">Orçamento Anual</Th>
-              <Th>Finalidade Operacional</Th>
+              <Th>Code</Th>
+              <Th>Unit / Department Name</Th>
+              <Th>Responsible Manager</Th>
+              <Th className="text-right">Annual Budget</Th>
+              <Th>Operational Purpose</Th>
               <Th>Status</Th>
-              <Th>Escopo / Empresas</Th>
-              <Th className="text-right">Ações</Th>
+              <Th>Scope / Companies</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -320,11 +320,11 @@ function CostCentersPage() {
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(c)}
-                    title="Clique para alternar status"
+                    title="Click to change status"
                     className="cursor-pointer"
                   >
                     <Badge tone={c.status === "Active" ? "brand" : "neutral"}>
-                      {c.status === "Active" ? "Ativo" : "Inativo"}
+                      {c.status === "Active" ? "Active" : "Inactive"}
                     </Badge>
                   </button>
                 </Td>
@@ -337,7 +337,7 @@ function CostCentersPage() {
                       type="button"
                       onClick={() => openEditModal(c)}
                       className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                      title="Editar Centro"
+                      title="Edit Cost Center"
                     >
                       <Edit2 className="size-3.5" />
                     </button>
@@ -345,7 +345,7 @@ function CostCentersPage() {
                       type="button"
                       onClick={() => handleDelete(c)}
                       className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors"
-                      title="Excluir Centro"
+                      title="Delete Cost Center"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -362,10 +362,10 @@ function CostCentersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
-              {editingId ? "Editar Centro de Custo" : "Novo Centro de Custo"}
+              {editingId ? "Edit Cost Center" : "New Cost Center"}
             </h2>
             <p className="text-[12px] text-ink3 mt-0.5">
-              Segmentação gerencial para alocação analítica de custos e despesas.
+              Allocate costs and expenses by management unit.
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
@@ -373,11 +373,11 @@ function CostCentersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Código Estruturado *
+                    Structured Code *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: CC-100"
+                    placeholder="e.g., CC-100"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono uppercase text-[13px] focus:border-brand focus:outline-none"
@@ -386,13 +386,13 @@ function CostCentersPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Orçamento Anual ($) *
+                    Annual Budget ($) *
                   </label>
                   <input
                     type="number"
                     min="0"
                     step="1000"
-                    placeholder="Ex: 250000"
+                    placeholder="e.g., 250000"
                     value={annualBudget}
                     onChange={(e) => setAnnualBudget(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -402,11 +402,11 @@ function CostCentersPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Nome do Centro / Departamento *
+                  Cost Center / Department Name *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Operações & Frota Marítima"
+                  placeholder="e.g., Operations & Marine Fleet"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[13px] focus:border-brand focus:outline-none"
@@ -415,11 +415,11 @@ function CostCentersPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Gestor Responsável *
+                  Responsible Manager *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Dave Higgins (Diretor de Operações)"
+                  placeholder="e.g., Dave Higgins (Operations Director)"
                   value={manager}
                   onChange={(e) => setManager(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[13px] focus:border-brand focus:outline-none"
@@ -428,11 +428,11 @@ function CostCentersPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Descrição Operacional
+                  Operational Description
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ex: Atividades diárias de manutenção, abastecimento e equipes de pátio."
+                  placeholder="e.g., Daily maintenance, fueling, and yard crew activities."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
@@ -446,8 +446,8 @@ function CostCentersPage() {
                   onChange={(e) => setStatus(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="Active">Ativo</option>
-                  <option value="Inactive">Inativo</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
 
@@ -457,13 +457,13 @@ function CostCentersPage() {
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-line px-3.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:bg-canvas transition-colors"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-lg bg-ink px-4 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Salvar Alterações" : "Cadastrar Centro"}
+                  {editingId ? "Save Changes" : "Add Cost Center"}
                 </button>
               </div>
             </form>

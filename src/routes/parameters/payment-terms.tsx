@@ -15,8 +15,8 @@ import { ArrowLeft, Plus, Search, Clock, Edit2, Trash2, Check, Download } from "
 export const Route = createFileRoute("/parameters/payment-terms")({
   head: () =>
     pageHead(
-      "Prazos & Condições de Pagamento · LedgerX",
-      "Parametrização de prazos contratuais comerciais (Net 15, Net 30, Net 60, Descontos Financeiros).",
+      "Payment Terms & Conditions · LedgerX",
+      "Manage contractual payment terms (Net 15, Net 30, Net 60, and early payment discounts).",
     ),
   component: PaymentTermsPage,
 });
@@ -77,8 +77,8 @@ function PaymentTermsPage() {
       e.preventDefault();
       if (!code.trim() || !name.trim() || !days.trim()) {
         await modal.showAlert({
-          title: "Campos Obrigatórios",
-          message: "Por favor informe o Código, a Descrição e o Prazo em Dias.",
+          title: "Required Fields",
+          message: "Enter the code, description, and payment term in days.",
           tone: "warning",
         });
         return;
@@ -87,8 +87,8 @@ function PaymentTermsPage() {
       const numDays = parseInt(days, 10);
       if (isNaN(numDays) || numDays < 0) {
         await modal.showAlert({
-          title: "Prazo Inválido",
-          message: "O prazo em dias deve ser um número inteiro maior ou igual a 0.",
+          title: "Invalid Payment Term",
+          message: "The payment term must be a whole number of days greater than or equal to 0.",
           tone: "warning",
         });
         return;
@@ -111,8 +111,8 @@ function PaymentTermsPage() {
           status,
         });
         await modal.showAlert({
-          title: "Condição Comercial Atualizada",
-          message: `Prazo "${name.trim()}" atualizado com sucesso.`,
+          title: "Payment Term Updated",
+          message: `Payment term "${name.trim()}" updated successfully.`,
           tone: "success",
         });
       } else {
@@ -128,8 +128,8 @@ function PaymentTermsPage() {
           status,
         });
         await modal.showAlert({
-          title: "Condição Cadastrada",
-          message: `Prazo "${name.trim()}" (${numDays} dias) adicionado com sucesso.`,
+          title: "Payment Term Added",
+          message: `Payment term "${name.trim()}" (${numDays} days) added successfully.`,
           tone: "success",
         });
       }
@@ -143,18 +143,18 @@ function PaymentTermsPage() {
   const handleDelete = async (term: PaymentTermParam) => {
     try {
       const confirmed = await modal.showConfirm({
-        title: `Excluir Condição de Pagamento?`,
-        message: `Tem certeza que deseja remover a condição "${term.name}" (${term.code})?\n\nDocumentos financeiros já emitidos preservarão o vencimento original.`,
+        title: `Delete Payment Term?`,
+        message: `Remove payment term "${term.name}" (${term.code})?\n\nPreviously issued financial documents will retain their original due dates.`,
         tone: "error",
-        confirmText: "Sim, Excluir",
-        cancelText: "Cancelar",
+        confirmText: "Yes, Delete",
+        cancelText: "Cancel",
       });
 
       if (confirmed) {
         await deletePaymentTerm(term.id);
         await modal.showAlert({
-          title: "Condição Removida",
-          message: `A condição de pagamento ${term.code} foi excluída.`,
+          title: "Payment Term Removed",
+          message: `Payment term ${term.code} was deleted.`,
           tone: "success",
         });
       }
@@ -184,15 +184,15 @@ function PaymentTermsPage() {
 
   const handleExport = () => {
     exportToCsv(
-      `prazos-pagamento-${activeCompany.id}.csv`,
+      `payment-terms-${activeCompany.id}.csv`,
       [
-        "Codigo",
-        "Nome",
-        "Dias_Prazo",
-        "Desconto_Pontualidade_Pct",
-        "Dias_Desconto",
-        "Padrao_Cliente",
-        "Padrao_Fornecedor",
+        "Code",
+        "Name",
+        "Payment_Days",
+        "Early_Discount_Pct",
+        "Discount_Days",
+        "Customer_Default",
+        "Vendor_Default",
         "Status",
       ],
       paymentTerms.map((t) => [
@@ -201,8 +201,8 @@ function PaymentTermsPage() {
         t.days.toString(),
         (t.earlyDiscountPercentage || 0).toString(),
         (t.discountDays || 0).toString(),
-        t.isDefaultCustomer ? "Sim" : "Nao",
-        t.isDefaultVendor ? "Sim" : "Nao",
+        t.isDefaultCustomer ? "Yes" : "No",
+        t.isDefaultVendor ? "Yes" : "No",
         t.status,
       ]),
     );
@@ -222,8 +222,8 @@ function PaymentTermsPage() {
             </Link>
           </div>
           <PageTitle
-            title="Condições & Prazos Comerciais de Pagamento"
-            description={`Políticas de crédito, vencimentos e descontos comerciais para ${activeCompany.name}`}
+            title="Payment Terms & Credit Policies"
+            description={`Credit policies, due dates, and early payment discounts for ${activeCompany.name}`}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -233,7 +233,7 @@ function PaymentTermsPage() {
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-canvas hover:text-ink shadow-2xs cursor-pointer"
           >
             <Download className="size-3.5" />
-            <span>Exportar CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
@@ -241,28 +241,28 @@ function PaymentTermsPage() {
             className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-sm cursor-pointer"
           >
             <Plus className="size-3.5" />
-            <span>Novo Prazo Comercial</span>
+            <span>New Payment Term</span>
           </button>
         </div>
       </div>
 
       {/* KPI Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Prazos Ativos" value={activeCount.toString()} hint="Políticas em vigor" />
+        <Kpi label="Active Payment Terms" value={activeCount.toString()} hint="Current policies" />
         <Kpi
-          label="Padrão Clientes"
-          value={paymentTerms.find((t) => t.isDefaultCustomer)?.code || "Nenhum"}
-          hint="Aplicado em novas Invoices"
+          label="Customer Default"
+          value={paymentTerms.find((t) => t.isDefaultCustomer)?.code || "None"}
+          hint="Applied to new invoices"
         />
         <Kpi
-          label="Padrão Fornecedores"
-          value={paymentTerms.find((t) => t.isDefaultVendor)?.code || "Nenhum"}
-          hint="Aplicado em novas Bills"
+          label="Vendor Default"
+          value={paymentTerms.find((t) => t.isDefaultVendor)?.code || "None"}
+          hint="Applied to new bills"
         />
         <Kpi
-          label="Descontos Pontualidade"
+          label="Early Payment Discounts"
           value={paymentTerms.filter((t) => (t.earlyDiscountPercentage || 0) > 0).length.toString()}
-          hint="Cláusulas 2/10 Net 30"
+          hint="2/10 Net 30 terms"
         />
       </div>
 
@@ -272,7 +272,7 @@ function PaymentTermsPage() {
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink3" />
           <input
             type="text"
-            placeholder="Buscar prazo ou código..."
+            placeholder="Search term or code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-line bg-white pl-9 pr-3 py-1.5 text-[12.5px] placeholder:text-ink3 focus:border-brand focus:outline-none"
@@ -292,7 +292,7 @@ function PaymentTermsPage() {
                   : "bg-white text-ink2 border border-line hover:bg-canvas"
               }`}
             >
-              {st === "ALL" ? "Todos" : st === "Active" ? "Ativos" : "Inativos"}
+              {st === "ALL" ? "All" : st === "Active" ? "Active" : "Inactive"}
             </button>
           ))}
         </div>
@@ -300,21 +300,21 @@ function PaymentTermsPage() {
 
       {/* Table Panel */}
       <Panel
-        title={`Prazos Comerciais (${filteredTerms.length})`}
+        title={`Payment Terms (${filteredTerms.length})`}
         aside={<Badge tone="brand">Credit Policy</Badge>}
       >
         <Table>
           <thead>
             <tr>
-              <Th>Código</Th>
-              <Th>Nome Descritivo</Th>
-              <Th className="text-right">Dias de Prazo</Th>
-              <Th>Desconto Pontualidade</Th>
-              <Th>Padrão Clientes</Th>
-              <Th>Padrão Fornecedores</Th>
+              <Th>Code</Th>
+              <Th>Descriptive Name</Th>
+              <Th className="text-right">Payment Term (Days)</Th>
+              <Th>Early Payment Discount</Th>
+              <Th>Customer Default</Th>
+              <Th>Vendor Default</Th>
               <Th>Status</Th>
-              <Th>Escopo / Empresas</Th>
-              <Th className="text-right">Ações</Th>
+              <Th>Scope / Companies</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -323,12 +323,12 @@ function PaymentTermsPage() {
                 <Td className="font-mono font-bold text-ink">{t.code}</Td>
                 <Td className="font-medium text-ink">{t.name}</Td>
                 <Td className="text-right font-mono font-bold text-brand">
-                  {t.days === 0 ? "Imediato" : `${t.days} dias`}
+                  {t.days === 0 ? "Immediate" : `${t.days} days`}
                 </Td>
                 <Td>
                   {t.earlyDiscountPercentage ? (
                     <span className="rounded bg-up/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-up">
-                      {t.earlyDiscountPercentage}% em {t.discountDays} dias
+                      {t.earlyDiscountPercentage}% within {t.discountDays} days
                     </span>
                   ) : (
                     <span className="text-[11.5px] text-ink3">—</span>
@@ -337,14 +337,14 @@ function PaymentTermsPage() {
                 <Td>
                   {t.isDefaultCustomer && (
                     <span className="inline-flex items-center gap-1 rounded bg-brand/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand">
-                      <Check className="size-3" /> Padrão AR
+                      <Check className="size-3" /> AR Default
                     </span>
                   )}
                 </Td>
                 <Td>
                   {t.isDefaultVendor && (
                     <span className="inline-flex items-center gap-1 rounded bg-ink/10 px-2 py-0.5 text-[10.5px] font-semibold text-ink">
-                      <Check className="size-3" /> Padrão AP
+                      <Check className="size-3" /> AP Default
                     </span>
                   )}
                 </Td>
@@ -352,11 +352,11 @@ function PaymentTermsPage() {
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(t)}
-                    title="Clique para alternar status"
+                    title="Click to change status"
                     className="cursor-pointer"
                   >
                     <Badge tone={t.status === "Active" ? "brand" : "neutral"}>
-                      {t.status === "Active" ? "Ativo" : "Inativo"}
+                      {t.status === "Active" ? "Active" : "Inactive"}
                     </Badge>
                   </button>
                 </Td>
@@ -369,7 +369,7 @@ function PaymentTermsPage() {
                       type="button"
                       onClick={() => openEditModal(t)}
                       className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                      title="Editar Prazo"
+                      title="Edit Payment Term"
                     >
                       <Edit2 className="size-3.5" />
                     </button>
@@ -377,7 +377,7 @@ function PaymentTermsPage() {
                       type="button"
                       onClick={() => handleDelete(t)}
                       className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors"
-                      title="Excluir Prazo"
+                      title="Delete Payment Term"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -394,10 +394,10 @@ function PaymentTermsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
-              {editingId ? "Editar Condição de Pagamento" : "Nova Condição Comercial"}
+              {editingId ? "Edit Payment Term" : "New Payment Term"}
             </h2>
             <p className="text-[12px] text-ink3 mt-0.5">
-              Definição de prazo em dias e regras de desconto antecipado para faturas.
+              Set invoice payment terms in days and early payment discount rules.
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
@@ -405,11 +405,11 @@ function PaymentTermsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Código Identificador *
+                    Identifier Code *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: NET_30"
+                    placeholder="e.g., NET_30"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono uppercase text-[13px] focus:border-brand focus:outline-none"
@@ -418,12 +418,12 @@ function PaymentTermsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Prazo Total (Dias) *
+                    Total Term (Days) *
                   </label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="Ex: 30"
+                    placeholder="e.g., 30"
                     value={days}
                     onChange={(e) => setDays(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -433,11 +433,11 @@ function PaymentTermsPage() {
 
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                  Nome / Descrição Comercial *
+                  Name / Description *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Net 30 Days (Vencimento em 30 dias)"
+                  placeholder="e.g., Net 30 Days (Due in 30 days)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[13px] focus:border-brand focus:outline-none"
@@ -447,13 +447,13 @@ function PaymentTermsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Desconto Antecipação (%)
+                    Early Payment Discount (%)
                   </label>
                   <input
                     type="number"
                     step="0.1"
                     min="0"
-                    placeholder="Ex: 2.0"
+                    placeholder="e.g., 2.0"
                     value={earlyDiscount}
                     onChange={(e) => setEarlyDiscount(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -462,12 +462,12 @@ function PaymentTermsPage() {
 
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
-                    Dias Limite p/ Desconto
+                    Discount Deadline (Days)
                   </label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="Ex: 10"
+                    placeholder="e.g., 10"
                     value={discountDays}
                     onChange={(e) => setDiscountDays(e.target.value)}
                     className="w-full rounded-md border border-line bg-white px-3 py-1.5 font-mono text-[13px] focus:border-brand focus:outline-none"
@@ -484,7 +484,7 @@ function PaymentTermsPage() {
                     className="size-4 rounded text-brand focus:ring-brand"
                   />
                   <span className="text-[12px] font-medium text-ink">
-                    Definir como Padrão para Clientes (Invoices)
+                    Set as Default for Customers (Invoices)
                   </span>
                 </label>
 
@@ -496,7 +496,7 @@ function PaymentTermsPage() {
                     className="size-4 rounded text-brand focus:ring-brand"
                   />
                   <span className="text-[12px] font-medium text-ink">
-                    Definir como Padrão para Fornecedores (Bills)
+                    Set as Default for Vendors (Bills)
                   </span>
                 </label>
               </div>
@@ -508,8 +508,8 @@ function PaymentTermsPage() {
                   onChange={(e) => setStatus(e.target.value as any)}
                   className="w-full rounded-md border border-line bg-white px-3 py-1.5 text-[12.5px] focus:border-brand focus:outline-none"
                 >
-                  <option value="Active">Ativo</option>
-                  <option value="Inactive">Inativo</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
 
@@ -519,13 +519,13 @@ function PaymentTermsPage() {
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-line px-3.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:bg-canvas transition-colors"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-lg bg-ink px-4 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Salvar Alterações" : "Cadastrar Condição"}
+                  {editingId ? "Save Changes" : "Add Payment Term"}
                 </button>
               </div>
             </form>
