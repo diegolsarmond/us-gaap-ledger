@@ -181,8 +181,8 @@ export function CashShell({
           </div>
         </div>
       )}
-      <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b border-line/70 frost-bar px-3 sm:px-6">
+      <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden pt-14">
+        <header className="fixed top-0 left-0 right-0 md:left-64 z-20 flex h-14 items-center justify-between gap-2 border-b border-line/70 frost-bar px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"

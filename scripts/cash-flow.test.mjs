@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 import { summarize, dateSchema, transactionSchema } from '../src/lib/cash-flow-model.ts';
 const account = {id:'a', name:'Conta', currency:'USD', opening_date:'2026-10-01', opening_balance:100};
 const entry = (overrides={}) => ({id:'t',account_id:'a',description:'Recebimento',category:'Vendas',direction:'in',amount:10.10,due_date:'2026-10-02',paid_date:'2026-10-03',status:'paid',...overrides});
+
+test('despesas previstas entram nas saídas e reduzem o saldo projetado sem duplicar pagamentos',()=>{
+ const entries=[
+  entry({id:'p1',direction:'out',status:'planned',paid_date:null,amount:100.10}),
+  entry({id:'p2',direction:'out',status:'planned',paid_date:null,amount:254.79}),
+  entry({id:'paid',direction:'out',amount:123}),
+  entry({id:'cancelled',direction:'out',status:'cancelled',paid_date:null,amount:999}),
+ ];
+ for (const interval of ['daily','weekly','monthly','quarterly','yearly']) {
+  const projected=summarize([account],entries,'2026-10-01','2026-10-31',interval,true);
+  assert.equal(Math.round(projected.periods.reduce((sum,p)=>sum+p.outflows,0)*100),47789);
+  assert.equal(projected.periods.at(-1).balance,-377.89);
+  const actual=summarize([account],entries,'2026-10-01','2026-10-31',interval,false);
+  assert.equal(actual.periods.at(-1).balance,-23);
+ }
+ const paid=entries.map(t=>t.id==='p1'?{...t,status:'paid',paid_date:'2026-10-04'}:t);
+ assert.equal(summarize([account],paid,'2026-10-01','2026-10-31','monthly',true).periods[0].outflows,477.89);
+});
 test('realizado utiliza pagamento, previsto utiliza vencimento e cancelados não afetam saldo',()=>{
  const entries=[entry(),entry({id:'p',status:'planned',paid_date:null,amount:20}),entry({id:'c',status:'cancelled',paid_date:null,amount:999})];
  const actual=summarize([account],entries,'2026-10-02','2026-10-03','daily',false);

@@ -78,7 +78,7 @@ function CashFlowPage() {
   const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
   const [end, setEnd] = useState(today);
   const [interval, setInterval] = useState<Interval>("daily");
-  const [projected, setProjected] = useState(false);
+  const [projected, setProjected] = useState(true);
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
   const [form, setForm] = useState<"account" | "transaction" | null>(null);
@@ -121,6 +121,10 @@ function CashFlowPage() {
     const date = t.paid_date ?? t.due_date;
     return date >= start && date <= end;
   });
+  const plannedOutflows =
+    listed
+      .filter((t) => t.status === "planned" && t.direction === "out")
+      .reduce((sum, t) => sum + Math.round(t.amount * 100), 0) / 100;
   async function mutate(action: () => Promise<unknown>, message: string) {
     if (pending) return;
     continueEntryRef.current = form === "transaction" && !editing && keepOpen;
@@ -587,6 +591,18 @@ function CashFlowPage() {
             </p>
           ) : (
             <>
+              {!projected && plannedOutflows > 0 && (
+                <p
+                  role="status"
+                  className="rounded border border-line bg-white p-3 text-sm text-ink2"
+                >
+                  Há {money(plannedOutflows)} em despesas previstas neste período. Elas entram no
+                  saldo projetado; a visão Realizado considera apenas pagamentos efetivados.{" "}
+                  <button className="text-brand underline" onClick={() => setProjected(true)}>
+                    Incluir previstos
+                  </button>
+                </p>
+              )}
               <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Kpi label="Saldo anterior ao período" value={money(report.opening)} />
                 <Kpi label="Entradas no período" value={money(totalIn)} tone="up" />
@@ -611,8 +627,8 @@ function CashFlowPage() {
               >
                 <p className="px-4 py-3 text-xs text-ink3">
                   Saldo final = saldo anterior + saldos iniciais cadastrados + entradas − saídas.
-                  Saldos iniciais cadastrados são incorporados na data de abertura de cada conta.
-                  A movimentação líquida corresponde às entradas menos as saídas.
+                  Saldos iniciais cadastrados são incorporados na data de abertura de cada conta. A
+                  movimentação líquida corresponde às entradas menos as saídas.
                 </p>
                 <Table>
                   <thead>
@@ -646,7 +662,11 @@ function CashFlowPage() {
               </Panel>
               <Panel
                 title="Lançamentos do período"
-                subtitle="Inclui previstos, realizados e cancelados das contas selecionadas."
+                subtitle={
+                  projected
+                    ? "Previstos e realizados afetam os totais. Cancelados não afetam os saldos."
+                    : "Somente realizados afetam os totais. Previstos e cancelados são exibidos para consulta."
+                }
               >
                 <Table>
                   <thead>
@@ -679,7 +699,10 @@ function CashFlowPage() {
                         </Td>
                         <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
                         <Td>{statusLabels[t.status]}</Td>
-                        <Td align="right">
+                        <Td
+                          align="right"
+                          className={`font-medium ${t.direction === "out" ? "text-red-700" : "text-blue-700"}`}
+                        >
                           {t.direction === "out" ? "−" : "+"}
                           {money(t.amount)}
                         </Td>

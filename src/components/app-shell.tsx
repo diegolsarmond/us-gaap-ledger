@@ -387,9 +387,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main Container */}
-      <main className="min-w-0 flex-1 flex flex-col max-w-full overflow-x-hidden">
+      <main className="min-w-0 flex-1 flex flex-col max-w-full overflow-x-hidden pt-14">
         {/* Header Bar */}
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b border-line/70 frost-bar px-3 sm:px-6">
+        <header className="fixed top-0 left-0 right-0 md:left-64 z-20 flex h-14 items-center justify-between gap-2 border-b border-line/70 frost-bar px-3 sm:px-6">
           {/* Lado Esquerdo: Hambúrguer Mobile + Logo compacta + Breadcrumb */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
