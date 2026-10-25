@@ -4,7 +4,7 @@ import type { CashAccount, CashTransaction, CashData } from "./cash-flow-model";
 export async function load(companyId: string): Promise<CashData> {
   await authorizeCompany(companyId);
   const id = companyId;
-  const [accounts, transactions] = await Promise.all([
+  const [accounts, transactions, categories] = await Promise.all([
     db().query(
       "SELECT id, name, currency, opening_date::text, opening_balance::float8 FROM cash_accounts WHERE company_id=$1 ORDER BY name",
       [id],
@@ -13,8 +13,12 @@ export async function load(companyId: string): Promise<CashData> {
       "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
       [id],
     ),
+    db().query(
+      "SELECT id,name,company_id FROM cash_categories WHERE company_id IS NULL OR company_id=$1 ORDER BY name",
+      [id],
+    ),
   ]);
-  return { accounts: accounts.rows, transactions: transactions.rows };
+  return { accounts: accounts.rows, transactions: transactions.rows, categories: categories.rows };
 }
 export async function saveAccount(
   data: Omit<CashAccount, "id"> & { id?: string | undefined; companyId: string },
@@ -81,6 +85,12 @@ export async function saveTransaction(
       (data.paid_date && data.paid_date < account.rows[0].opening_date)
     )
       throw new Error("As datas devem ser iguais ou posteriores à abertura da conta.");
+    const category = await client.query(
+      "SELECT 1 FROM cash_categories WHERE name=$1 AND (company_id IS NULL OR company_id=$2)",
+      [data.category, data.companyId],
+    );
+    if (!category.rowCount)
+      throw new Error("Selecione uma categoria disponível para esta empresa.");
     const values = [
       data.companyId,
       data.account_id,
@@ -128,6 +138,69 @@ export async function removeTransaction(transactionId: string, companyId: string
     return { ok: true };
   } catch (e) {
     await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function writeCategory(data: {
+  id?: string | undefined;
+  companyId: string;
+  name?: string;
+  company_id?: string | null;
+}) {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(data.companyId, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    const old = data.id
+      ? (await client.query("SELECT * FROM cash_categories WHERE id=$1 FOR UPDATE", [data.id]))
+          .rows[0]
+      : null;
+    if (data.id && !old) throw new Error("Categoria não encontrada.");
+    const scopes = [old?.company_id, data.name === undefined ? undefined : data.company_id].filter(
+      (v) => v !== undefined,
+    );
+    if (scopes.includes(null)) {
+      const companies = await client.query("SELECT id FROM companies WHERE active");
+      for (const c of companies.rows) await authorizeCompany(c.id, "write_cash", client);
+    }
+    for (const id of scopes) if (id) await authorizeCompany(id, "write_cash", client);
+    if (old) {
+      const used = await client.query(
+        "SELECT 1 FROM cash_transactions WHERE category=$1 AND ($2::uuid IS NULL OR company_id=$2) LIMIT 1",
+        [old.name, old.company_id],
+      );
+      if (
+        used.rowCount &&
+        (data.name === undefined || data.company_id !== old.company_id || data.name !== old.name)
+      )
+        throw new Error(
+          "Categoria utilizada em lançamentos não pode ser excluída ou alterada. Crie uma nova categoria.",
+        );
+    }
+    if (data.name === undefined)
+      await client.query("DELETE FROM cash_categories WHERE id=$1", [data.id]);
+    else if (data.id)
+      await client.query("UPDATE cash_categories SET name=$2,company_id=$3 WHERE id=$1", [
+        data.id,
+        data.name,
+        data.company_id,
+      ]);
+    else
+      await client.query("INSERT INTO cash_categories(name,company_id) VALUES($1,$2)", [
+        data.name,
+        data.company_id,
+      ]);
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    if ((e as { code?: string }).code === "23505")
+      throw new Error("Já existe uma categoria com esse nome neste escopo.");
     throw e;
   } finally {
     client.release();

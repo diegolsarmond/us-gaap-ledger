@@ -14,6 +14,12 @@ export const accountSchema = z.object({
   opening_date: dateSchema,
   opening_balance: money.min(-999999999999.99),
 });
+export const cashCategorySchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(100),
+  company_id: z.string().uuid().nullable(),
+});
+export type CashCategory = z.infer<typeof cashCategorySchema> & { id: string };
 export const transactionSchema = z
   .object({
     id: z.string().uuid().optional(),
@@ -32,7 +38,11 @@ export const transactionSchema = z
   );
 export type CashAccount = z.infer<typeof accountSchema> & { id: string };
 export type CashTransaction = z.infer<typeof transactionSchema> & { id: string };
-export type CashData = { accounts: CashAccount[]; transactions: CashTransaction[] };
+export type CashData = {
+  accounts: CashAccount[];
+  transactions: CashTransaction[];
+  categories: CashCategory[];
+};
 export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 export function summarize(
   accounts: CashAccount[],

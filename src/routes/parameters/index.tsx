@@ -46,6 +46,18 @@ function ParametersIndexPage() {
 
   const modules = [
     {
+      id: "cash-categories",
+      title: "Categorias do fluxo de caixa",
+      subtitle: "Classificação de entradas e saídas",
+      description:
+        "Cadastre categorias globais ou específicas por empresa para selecionar nos lançamentos do fluxo de caixa.",
+      to: "/parameters/cash-categories",
+      icon: Tag,
+      countLabel: "Global ou por empresa",
+      badgeTone: "brand" as const,
+      tag: "Fluxo de caixa",
+    },
+    {
       id: "currencies",
       title: "Currencies & FX Rates",
       subtitle: "US GAAP ASC 830 · Multi-Currency & FX Rates",

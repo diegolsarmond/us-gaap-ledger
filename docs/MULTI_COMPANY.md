@@ -11,6 +11,7 @@ Em uma instalação existente com as migrações 001–003, aplicar na ordem:
 1. `database/004_companies.sql`: empresas, permissões, vínculos, dados contábeis por domínio e relacionamentos com chave composta por empresa.
 2. `database/005_reset_legacy_cash.sql`: **exclui definitivamente o caixa antigo sem empresa**, conforme a transição autorizada. Mantém usuários, sessões, perfis e auditoria. A execução é registrada e a repetição preserva os novos registros com empresa.
 3. `database/006_system_parameters.sql`: auditoria dos parâmetros.
+4. `database/007_cash_categories.sql`: cadastro de categorias de caixa, quando presente nesta versão.
 
 Esses scripts não são executados na inicialização da aplicação. Em instalação nova, aplicar também as migrações anteriores. As alterações não exigem reescrita do histórico Git.
 

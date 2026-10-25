@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { accountSchema, transactionSchema } from "./cash-flow-model";
+import { accountSchema, transactionSchema, cashCategorySchema } from "./cash-flow-model";
 export const loadCashData = createServerFn({ method: "GET" })
   .validator(z.object({ companyId: z.string().uuid() }))
   .handler(async ({ data }) => {
@@ -25,3 +25,10 @@ export const deleteCashTransaction = createServerFn({ method: "POST" })
     const server = await import("./cash-flow.server");
     return server.removeTransaction(data.id, data.companyId);
   });
+
+export const saveCashCategory = createServerFn({ method: "POST" })
+  .validator(cashCategorySchema.extend({ companyId: z.string().uuid() }))
+  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
+export const deleteCashCategory = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
+  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));

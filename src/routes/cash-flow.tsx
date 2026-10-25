@@ -1,5 +1,5 @@
 import { useCompanies } from "@/components/company-context";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -91,6 +91,9 @@ function CashFlowPage() {
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
   const [form, setForm] = useState<"account" | "transaction" | null>(null);
+  const [direction, setDirection] = useState<"in" | "out">("in");
+  const [entryAccount, setEntryAccount] = useState("");
+  const [amountCents, setAmountCents] = useState("");
   const [keepOpen, setKeepOpen] = useState(false);
   const entryFormRef = useRef<HTMLFormElement>(null);
   const continueEntryRef = useRef(false);
@@ -103,6 +106,22 @@ function CashFlowPage() {
   const [notice, setNotice] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const accounts = query.data?.accounts ?? [];
+  const categories = query.data?.categories ?? [];
+  const selectedCurrency =
+    accounts.find((a) => a.id === entryAccount)?.currency ?? filteredCurrency();
+  function filteredCurrency() {
+    return (
+      accounts.find((a) => a.id === accountId)?.currency ??
+      accounts.find((a) => a.currency === currency)?.currency ??
+      accounts[0]?.currency ??
+      currency
+    );
+  }
+  const formattedAmount = amountCents
+    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: selectedCurrency }).format(
+        Number(amountCents) / 100,
+      )
+    : "";
   const transactions = query.data?.transactions ?? [];
   const filteredAccounts = accounts.filter(
     (a) => a.currency === currency && (!accountId || a.id === accountId),
@@ -147,6 +166,9 @@ function CashFlowPage() {
         const entryForm = entryFormRef.current;
         entryForm?.reset();
         setStatus("planned");
+        setDirection("in");
+        setAmountCents("");
+        setEntryAccount("");
         focusEntryRef.current = true;
       } else {
         setForm(null);
@@ -198,7 +220,7 @@ function CashFlowPage() {
             description: String(f.get("description")),
             category: String(f.get("category")),
             direction: String(f.get("direction")) as "in" | "out",
-            amount: Number(f.get("amount")),
+            amount: Number(amountCents) / 100,
             due_date: String(f.get("due_date")),
             paid_date: status === "paid" ? String(f.get("paid_date")) : null,
             status,
@@ -241,6 +263,9 @@ function CashFlowPage() {
         description="Acompanhe entradas, saídas e saldos por dia, semana, mês, trimestre ou ano."
         actions={
           <>
+            <Link to="/parameters/cash-categories" className={button}>
+              Categorias
+            </Link>
             <button
               className={button}
               disabled={!query.isSuccess || pending}
@@ -257,6 +282,9 @@ function CashFlowPage() {
               disabled={!accounts.length || pending}
               onClick={() => {
                 setEditing(null);
+                setDirection("in");
+                setAmountCents("");
+                setEntryAccount("");
                 setStatus("planned");
                 setForm("transaction");
                 setError("");
@@ -387,6 +415,7 @@ function CashFlowPage() {
                       <Field label="Conta">
                         <select
                           autoFocus
+                          onChange={(e) => setEntryAccount(e.target.value)}
                           name="account_id"
                           defaultValue={
                             editing?.account_id ?? filteredAccounts[0]?.id ?? accounts[0]?.id
@@ -401,6 +430,28 @@ function CashFlowPage() {
                           ))}
                         </select>
                       </Field>
+                      <Field
+                        label={direction === "in" ? "Data do lançamento" : "Data do vencimento"}
+                      >
+                        <input
+                          name="due_date"
+                          type="date"
+                          defaultValue={editing?.due_date ?? today()}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Tipo">
+                        <select
+                          name="direction"
+                          value={direction}
+                          onChange={(e) => setDirection(e.target.value as "in" | "out")}
+                          className={control}
+                        >
+                          <option value="in">Entrada</option>
+                          <option value="out">Saída</option>
+                        </select>
+                      </Field>
                       <Field label="Descrição">
                         <input
                           name="description"
@@ -411,42 +462,40 @@ function CashFlowPage() {
                         />
                       </Field>
                       <Field label="Categoria">
-                        <input
-                          name="category"
-                          defaultValue={editing?.category}
-                          required
-                          maxLength={100}
-                          placeholder="Ex.: Vendas, aluguel, folha"
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Tipo">
                         <select
-                          name="direction"
-                          defaultValue={editing?.direction ?? "in"}
+                          name="category"
+                          defaultValue={editing?.category ?? ""}
+                          required
                           className={control}
                         >
-                          <option value="in">Entrada</option>
-                          <option value="out">Saída</option>
+                          <option value="" disabled>
+                            Selecione uma categoria
+                          </option>
+                          {Array.from(new Set(categories.map((c) => c.name))).map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
                         </select>
+                        {!categories.length && (
+                          <span>Cadastre uma categoria em System Parameters.</span>
+                        )}
                       </Field>
                       <Field label="Valor na moeda da conta">
                         <input
                           name="amount"
-                          type="number"
-                          min="0.01"
-                          max="999999999999.99"
-                          step="0.01"
-                          defaultValue={editing?.amount}
-                          required
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Vencimento">
-                        <input
-                          name="due_date"
-                          type="date"
-                          defaultValue={editing?.due_date ?? today()}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder={new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: selectedCurrency,
+                          }).format(0)}
+                          value={formattedAmount}
+                          onChange={(e) =>
+                            setAmountCents(
+                              e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14),
+                            )
+                          }
                           required
                           className={control}
                         />
@@ -725,6 +774,9 @@ function CashFlowPage() {
                               className="text-brand underline"
                               onClick={() => {
                                 setEditing(t);
+                                setDirection(t.direction);
+                                setEntryAccount(t.account_id);
+                                setAmountCents(String(Math.round(t.amount * 100)));
                                 setStatus(t.status);
                                 setForm("transaction");
                                 setError("");

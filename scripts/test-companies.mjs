@@ -109,6 +109,9 @@ try {
   await connection.query(
     readFileSync(new URL("../database/006_system_parameters.sql", import.meta.url), "utf8"),
   );
+  if (existsSync(new URL("../database/007_cash_categories.sql", import.meta.url))) {
+    await connection.query(readFileSync(new URL("../database/007_cash_categories.sql", import.meta.url),"utf8"));
+  }
   const companies = await import("../src/lib/companies.server.ts");
   const accounting = await import("../src/lib/accounting.server.ts");
   const adminService = await import("../src/lib/admin.server.ts");
@@ -297,6 +300,7 @@ try {
     opening_balance: 0,
   });
   const bank = (await cash.load(a)).accounts[0];
+  if (cash.writeCategory) await cash.writeCategory({companyId:a,name:'Sales',company_id:a});
   await assert.rejects(
     cash.saveTransaction({
       companyId: b,
