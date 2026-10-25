@@ -79,12 +79,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {
     const user = await getSession();
-    if (!user && !["/", "/cadastro", "/cadastro/"].includes(location.pathname))
-      throw redirect({ to: "/" });
-    if (
-      user &&
-      !["/", "/cadastro", "/cadastro/", "/cash-flow", "/cash-flow/"].includes(location.pathname)
-    )
+    const pathname = location.pathname.replace(/\/+$/, "") || "/";
+    const publicRoutes = ["/", "/cadastro"];
+    const workspaceRoutes = ["/cash-flow", "/access", "/users", "/audit-log"];
+    if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
+    if (user && !publicRoutes.includes(pathname) && !workspaceRoutes.includes(pathname))
       throw redirect({ to: "/cash-flow" });
     return { user };
   },

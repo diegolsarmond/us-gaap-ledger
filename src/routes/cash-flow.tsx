@@ -197,16 +197,18 @@ function CashFlowPage() {
       "fluxo_caixa_" + currency + "_" + start + "_" + end,
       [
         "Período",
+        "Saldo anterior",
         "Entradas",
         "Saídas",
         "Saldos iniciais cadastrados",
-        "Variação",
+        "Movimentação líquida",
         "Saldo final",
         "Moeda",
         "Visão",
       ],
       report.periods.map((p) => [
         p.label,
+        p.openingBalance,
         p.inflows,
         p.outflows,
         p.adjustments,
@@ -607,14 +609,20 @@ function CashFlowPage() {
                   </button>
                 }
               >
+                <p className="px-4 py-3 text-xs text-ink3">
+                  Saldo final = saldo anterior + saldos iniciais cadastrados + entradas − saídas.
+                  Saldos iniciais cadastrados são incorporados na data de abertura de cada conta.
+                  A movimentação líquida corresponde às entradas menos as saídas.
+                </p>
                 <Table>
                   <thead>
                     <tr>
                       <Th>Período</Th>
+                      <Th align="right">Saldo anterior</Th>
                       <Th align="right">Entradas</Th>
                       <Th align="right">Saídas</Th>
-                      <Th align="right">Saldos iniciais</Th>
-                      <Th align="right">Variação</Th>
+                      <Th align="right">Saldos iniciais cadastrados</Th>
+                      <Th align="right">Movimentação líquida</Th>
                       <Th align="right">Saldo final</Th>
                     </tr>
                   </thead>
@@ -625,6 +633,7 @@ function CashFlowPage() {
                           {interval === "weekly" ? "Semana de " : ""}
                           {p.label}
                         </Td>
+                        <Td align="right">{money(p.openingBalance)}</Td>
                         <Td align="right">{money(p.inflows)}</Td>
                         <Td align="right">{money(p.outflows)}</Td>
                         <Td align="right">{money(p.adjustments)}</Td>

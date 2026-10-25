@@ -1,6 +1,6 @@
 import { db } from "./db.server";
 import { readSession } from "./auth.server";
-import { randomBytes, scryptSync } from "node:crypto";
+import { randomBytes, randomInt, scryptSync } from "node:crypto";
 import type { z } from "zod";
 import type {
   profileSchema,
@@ -131,6 +131,43 @@ export async function saveUser(data: z.infer<typeof userSchema>) {
     client.release();
   }
   return { ok: true };
+}
+export async function resetPassword(id: string) {
+  const { user } = await authorize("manage_users");
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghijkmnopqrstuvwxyz",
+    "23456789",
+    "!@#$%&*?+-=",
+  ];
+  const alphabet = groups.join("");
+  const characters = groups.map((group) => group[randomInt(group.length)]);
+  while (characters.length < 20) characters.push(alphabet[randomInt(alphabet.length)]);
+  for (let i = characters.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [characters[i], characters[j]] = [characters[j], characters[i]];
+  }
+  const password = characters.join("");
+  const salt = randomBytes(16).toString("hex");
+  const hash = `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);
+    const result = await client.query(
+      "UPDATE app_users SET password_hash=$1 WHERE id=$2 RETURNING id",
+      [hash, id],
+    );
+    if (!result.rowCount) throw new Error("Usuário não encontrado.");
+    await client.query("DELETE FROM app_sessions WHERE user_id=$1", [id]);
+    await client.query("COMMIT");
+    return { password };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 export async function loadAudit(page: number) {
   await authorize("view_audit");

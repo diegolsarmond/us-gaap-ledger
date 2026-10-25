@@ -44,9 +44,15 @@ export function summarize(
 ) {
   const cents = (n: number) => Math.round(n * 100);
   const signed = (t: CashTransaction) => cents(t.amount) * (t.direction === "in" ? 1 : -1);
-  const eligible = transactions.filter(
-    (t) => t.status === "paid" || (projected && t.status === "planned"),
-  );
+  const accountDates = new Map(accounts.map((a) => [a.id, a.opening_date]));
+  const eligible = transactions.filter((t) => {
+    const openingDate = accountDates.get(t.account_id);
+    return (
+      openingDate !== undefined &&
+      (t.paid_date ?? t.due_date) >= openingDate &&
+      (t.status === "paid" || (projected && t.status === "planned"))
+    );
+  });
   const effectiveDate = (t: CashTransaction) => t.paid_date ?? t.due_date;
   let balance =
     accounts
@@ -56,6 +62,7 @@ export function summarize(
   const opening = balance;
   const periods: {
     label: string;
+    openingBalance: number;
     inflows: number;
     outflows: number;
     adjustments: number;
@@ -81,7 +88,15 @@ export function summarize(
             : date.slice(0, 4);
     let row = periods.at(-1);
     if (!row || row.label !== label) {
-      row = { label, inflows: 0, outflows: 0, adjustments: 0, net: 0, balance: 0 };
+      row = {
+        label,
+        openingBalance: balance,
+        inflows: 0,
+        outflows: 0,
+        adjustments: 0,
+        net: 0,
+        balance: 0,
+      };
       periods.push(row);
     }
     const adjustments = accounts
@@ -105,6 +120,7 @@ export function summarize(
     opening: opening / 100,
     periods: periods.map((p) => ({
       ...p,
+      openingBalance: p.openingBalance / 100,
       inflows: p.inflows / 100,
       outflows: p.outflows / 100,
       adjustments: p.adjustments / 100,

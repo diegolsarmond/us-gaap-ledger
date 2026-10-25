@@ -37,3 +37,25 @@ test('validação rejeita datas inexistentes, valor inválido e pagamento incons
  assert.equal(transactionSchema.safeParse(valid).success,true);
  for(const changes of [{amount:0},{amount:1.111},{status:'paid',paid_date:null},{status:'planned',paid_date:'2026-10-03'}]) assert.equal(transactionSchema.safeParse({...valid,...changes}).success,false);
 });
+
+test('cada linha reconcilia saldo anterior, abertura de contas e movimentações',()=>{
+ const accounts=[account,{...account,id:'b',opening_date:'2026-10-05',opening_balance:50}];
+ const entries=[entry(),entry({account_id:'b',paid_date:'2026-10-06',direction:'out',amount:20})];
+ for(const interval of ['daily','weekly','monthly','quarterly','yearly']) {
+  const report=summarize(accounts,entries,'2026-10-02','2026-11-01',interval,false);
+  let previous=report.opening;
+  for(const row of report.periods) {
+   assert.equal(row.openingBalance,previous);
+   assert.equal(Math.round(row.balance*100),Math.round(row.openingBalance*100)+Math.round(row.adjustments*100)+Math.round(row.inflows*100)-Math.round(row.outflows*100));
+   previous=row.balance;
+  }
+  assert.equal(previous,140.1);
+ }
+});
+
+test('lançamentos de contas fora da seleção ou anteriores à abertura não afetam saldos',()=>{
+ const report=summarize([account],[entry({account_id:'other'}),entry({paid_date:'2026-09-30'})],'2026-10-01','2026-10-31','monthly',false);
+ assert.equal(report.opening,0);
+ assert.equal(report.periods[0].inflows,0);
+ assert.equal(report.periods[0].balance,100);
+});

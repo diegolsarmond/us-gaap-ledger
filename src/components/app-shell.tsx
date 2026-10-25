@@ -1,20 +1,11 @@
 import { SignOutButton } from "@/components/sign-out-button";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useAccounting, type UserRole } from "@/lib/accounting-store";
 import { Badge } from "@/components/ui-kit";
 import { useModal } from "@/components/modal-provider";
-import {
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-  BookOpen,
-  HelpCircle,
-  Menu,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal, Menu, X } from "lucide-react";
 import { CurrencyRateTicker } from "@/components/currency-rate-ticker";
-import { ModuleTutorialModal } from "@/components/module-tutorial-modal";
 
 interface NavGroup {
   label: string;
@@ -103,38 +94,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [autoOpenTutorial, setAutoOpenTutorial] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("quantum_auto_open_tutorial");
-      return saved !== null ? saved === "true" : true;
-    } catch {
-      return true;
-    }
-  });
-
-  const handleToggleAutoOpen = (enabled: boolean) => {
-    setAutoOpenTutorial(enabled);
-    try {
-      localStorage.setItem("quantum_auto_open_tutorial", String(enabled));
-    } catch {}
-  };
-
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const prevPathRef = useRef<string>(path);
 
   // Fecha o menu móvel ao navegar
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [path]);
-
-  // Abre automaticamente o tutorial do módulo ao navegar entre rotas
-  useEffect(() => {
-    if (autoOpenTutorial && prevPathRef.current !== path) {
-      setTutorialOpen(true);
-    }
-    prevPathRef.current = path;
-  }, [path, autoOpenTutorial]);
 
   // Client portal filter: Only allowed to view designated reports and statement uploads
   const filteredNavGroups = navGroups
@@ -216,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Renderizador do conteúdo da barra de navegação (compartilhado entre desktop e mobile drawer)
   const renderNavContent = (onItemClick?: () => void) => (
     <>
-      <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain">
         {filteredNavGroups.map((g) => {
           const isCollapsible = g.isCollapsible;
 
@@ -254,7 +219,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                         key={i.to}
                         to={i.to}
                         onClick={() => {
-                          if (autoOpenTutorial) setTutorialOpen(true);
                           onItemClick?.();
                         }}
                         activeOptions={{ exact: i.to === "/parameters" }}
@@ -292,7 +256,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={i.to}
                   to={i.to}
                   onClick={() => {
-                    if (autoOpenTutorial) setTutorialOpen(true);
                     onItemClick?.();
                   }}
                   activeOptions={{ exact: i.to === "/" }}
@@ -346,24 +309,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* US GAAP CPA Disclaimer & Quick Tutorial Shortcut */}
-      <div className="px-3 pb-3 space-y-2 text-[9.5px] leading-tight text-ink3">
-        <button
-          type="button"
-          onClick={() => {
-            setTutorialOpen(true);
-            onItemClick?.();
-          }}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md bg-brand/10 hover:bg-brand/15 text-brand text-[11.5px] font-semibold transition-colors cursor-pointer border border-brand/20 shadow-2xs"
-        >
-          <BookOpen className="size-3.5" />
-          <span>Guia & Tutoriais</span>
-        </button>
-        <p>
+      <footer className="shrink-0 border-t border-line/70 p-3 space-y-3">
+        <p className="truncate text-[12px] font-semibold text-ink" title={userPersona.name}>
+          {userPersona.name}
+        </p>
+        <SignOutButton />
+        <p className="text-[9.5px] leading-tight text-ink3">
           US GAAP Operational Model. Financial policies and year-end statements require approval by
           a qualified U.S. CPA.
         </p>
-      </div>
+      </footer>
     </>
   );
 
@@ -463,24 +418,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          {/* Lado Direito: Ações (Tutorial, Persona, Tenant, FX Ticker) */}
+          {/* Lado Direito: Ações (Tenant, FX Ticker) */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Botão de Tutorial Contextual do Módulo */}
-            <button
-              type="button"
-              onClick={() => setTutorialOpen(true)}
-              className="flex items-center gap-1 sm:gap-1.5 rounded-lg border border-brand/30 bg-brand/10 hover:bg-brand/15 px-2 sm:px-2.5 py-1.5 text-brand text-[11.5px] sm:text-[12px] font-semibold transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
-              title="Abrir tutorial explicativo deste módulo com diagrama em setas"
-            >
-              <HelpCircle className="size-3.5 text-brand shrink-0" />
-              <span className="hidden md:inline">Tutorial</span>
-              <span className="rounded bg-brand/20 px-1 py-0.2 font-mono text-[9px] font-bold">
-                {autoOpenTutorial ? "AUTO" : "GUIA"}
-              </span>
-            </button>
-
-            <SignOutButton />
-
             {/* Tenant / Company Switcher */}
             <div className="relative">
               <button
@@ -565,15 +504,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </footer>
       </main>
-
-      {/* Modal de Tutoriais Explicativos com Setas */}
-      <ModuleTutorialModal
-        isOpen={tutorialOpen}
-        onClose={() => setTutorialOpen(false)}
-        currentPath={path}
-        autoOpenOnNavigate={autoOpenTutorial}
-        onToggleAutoOpen={handleToggleAutoOpen}
-      />
     </div>
   );
 }

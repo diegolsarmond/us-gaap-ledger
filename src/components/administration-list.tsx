@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { loadAdministration, updateProfile, updateUser } from "@/lib/admin";
+import { loadAdministration, updateProfile, updateUser, resetUserPassword } from "@/lib/admin";
 import type { Profile, ManagedUser } from "@/lib/admin-model";
 import { PageTitle, Panel, Table, Th, Td, Badge } from "./ui-kit";
 const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";
@@ -19,6 +19,32 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
+  const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [copied, setCopied] = useState(false);
+  async function resetPassword() {
+    if (!resetTarget || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      const result = await resetUserPassword({ data: { id: resetTarget.id } });
+      setGeneratedPassword(result.password);
+      setCopied(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível redefinir a senha.");
+    } finally {
+      setPending(false);
+    }
+  }
+  async function copyPassword() {
+    try {
+      await navigator.clipboard.writeText(generatedPassword);
+      setCopied(true);
+      setError("");
+    } catch {
+      setError("Não foi possível copiar. Selecione a senha e copie manualmente.");
+    }
+  }
   const users = kind === "users";
   const allowed = users
     ? query.data?.permissions.manage_users
@@ -179,6 +205,22 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       >
                         Editar
                       </button>
+                      {"email" in r && (
+                        <button
+                          disabled={pending}
+                          className="ml-3 text-brand underline disabled:opacity-40"
+                          onClick={() => {
+                            setResetTarget(r);
+                            setGeneratedPassword("");
+                            setCopied(false);
+                            setEditing(null);
+                            setError("");
+                            setNotice("");
+                          }}
+                        >
+                          Redefinir senha
+                        </button>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -190,6 +232,60 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
               </tbody>
             </Table>
           </Panel>
+          {resetTarget && (
+            <Panel title={`Redefinir senha · ${resetTarget.name}`}>
+              <div className="space-y-3 p-4">
+                <p className="text-sm text-ink2">{resetTarget.email}</p>
+                {generatedPassword ? (
+                  <>
+                    <p role="status" className="text-sm text-up">
+                      Senha redefinida com sucesso. Copie antes de fechar.
+                    </p>
+                    <label className="block text-xs">
+                      Nova senha forte
+                      <input
+                        aria-label="Nova senha forte"
+                        className={`${control} font-mono`}
+                        readOnly
+                        value={generatedPassword}
+                        onFocus={(event) => event.target.select()}
+                      />
+                    </label>
+                    <button type="button" className={button} onClick={() => void copyPassword()}>
+                      {copied ? "Senha copiada!" : "Copiar senha"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm">
+                      Uma senha forte de 20 caracteres será gerada. A senha atual será substituída e
+                      as sessões deste usuário serão encerradas.
+                    </p>
+                    <button
+                      type="button"
+                      className={button}
+                      disabled={pending}
+                      onClick={() => void resetPassword()}
+                    >
+                      {pending ? "Redefinindo…" : "Confirmar redefinição"}
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  disabled={pending}
+                  className="ml-3 text-sm text-ink2"
+                  onClick={() => {
+                    setResetTarget(null);
+                    setGeneratedPassword("");
+                    setCopied(false);
+                  }}
+                >
+                  {generatedPassword ? "Fechar" : "Cancelar"}
+                </button>
+              </div>
+            </Panel>
+          )}
           {editing && (
             <Panel title={editing === "new" ? "Novo registro" : "Editar registro"}>
               <form

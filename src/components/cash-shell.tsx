@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
-import { LockKeyhole, Menu, X, SlidersHorizontal, HelpCircle, BookOpen } from "lucide-react";
+import { LockKeyhole, Menu, X, SlidersHorizontal } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { CurrencyRateTicker } from "./currency-rate-ticker";
 const groups = [
@@ -58,8 +58,6 @@ export function CashShell({
   user: { name: string; email: string };
 }) {
   const [open, setOpen] = useState(false);
-  const [tutorial, setTutorial] = useState(false);
-  const [workspace, setWorkspace] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const initials = user.name
     .split(/\s+/)
@@ -84,7 +82,7 @@ export function CashShell({
     <>
       <nav
         aria-label="Módulos"
-        className="flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain"
+        className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain"
       >
         {groups.map((g) => (
           <div
@@ -136,20 +134,25 @@ export function CashShell({
           </div>
         ))}
       </nav>
-      <div className="mx-3 mb-3 rounded-lg bg-ink/[0.03] p-2.5 text-[11px] text-ink3 ring-1 ring-line/70">
-        Fluxo de caixa, configurações e auditoria disponíveis.
-        <br />
-        Demais módulos indisponíveis nesta etapa.
-      </div>
-      <div className="px-3 pb-3">
-        <button
-          onClick={() => setTutorial(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-brand/20 bg-brand/10 px-2 py-1.5 text-[11.5px] font-semibold text-brand shadow-2xs"
-        >
-          <BookOpen className="size-3.5" />
-          Guia & Tutoriais
-        </button>
-      </div>
+      <footer className="shrink-0 border-t border-line/70 p-3 space-y-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div
+            className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-xs font-semibold text-brand"
+            aria-hidden="true"
+          >
+            {initials}
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-[12px] font-semibold text-ink" title={user.name}>
+              {user.name}
+            </p>
+            <p className="mt-1 truncate text-[11px] text-ink3" title={user.email}>
+              {user.email}
+            </p>
+          </div>
+        </div>
+        <SignOutButton />
+      </footer>
     </>
   );
   return (
@@ -213,49 +216,6 @@ export function CashShell({
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setTutorial(true)}
-              className="flex items-center gap-1 sm:gap-1.5 rounded-lg border border-brand/30 bg-brand/10 hover:bg-brand/15 px-2 sm:px-2.5 py-1.5 text-brand text-[11.5px] sm:text-[12px] font-semibold transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
-              title="Abrir tutorial explicativo deste módulo"
-            >
-              <HelpCircle className="size-3.5 text-brand shrink-0" />
-              <span className="hidden md:inline">Tutorial</span>
-              <span className="rounded bg-brand/20 px-1 py-0.2 font-mono text-[9px] font-bold">
-                GUIA
-              </span>
-            </button>
-            <SignOutButton />
-            <div className="relative">
-              <button
-                type="button"
-                aria-expanded={workspace}
-                onClick={() => setWorkspace(!workspace)}
-                className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-white/80 px-2 sm:px-2.5 py-1.5 text-left ring-1 ring-line transition-colors hover:bg-white shadow-2xs cursor-pointer"
-                title={`Workspace: ${user.name}`}
-              >
-                <div className="grid size-6 place-items-center rounded bg-brand/10 font-mono text-[10px] font-semibold text-brand shrink-0">
-                  {initials}
-                </div>
-                <div className="leading-tight hidden sm:block">
-                  <p className="text-[12px] font-medium text-ink truncate max-w-[95px] md:max-w-40">
-                    {user.name}
-                  </p>
-                  <p className="text-[10px] text-ink3 truncate">Workspace pessoal</p>
-                </div>
-                <span className="ml-0.5 sm:ml-1 text-[10px] text-ink3">▾</span>
-              </button>
-              {workspace && (
-                <div className="absolute right-0 top-11 z-30 w-72 max-w-[calc(100vw-24px)] rounded-lg bg-white p-3 text-xs shadow-lg ring-1 ring-line">
-                  <p className="font-semibold">{user.name}</p>
-                  <p className="mt-1 text-ink3">{user.email}</p>
-                  <p className="mt-3 text-ink3">
-                    Dados de caixa vinculados ao seu usuário. O cadastro de empresas ainda não está
-                    disponível.
-                  </p>
-                </div>
-              )}
-            </div>
             <CurrencyRateTicker baseCurrency="USD" />
           </div>
         </header>
@@ -271,35 +231,6 @@ export function CashShell({
           </span>
         </footer>
       </div>
-      {tutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cash-guide"
-            className="frost w-full max-w-lg space-y-4 p-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 id="cash-guide" className="font-semibold">
-                Guia · Fluxo de caixa
-              </h2>
-              <button aria-label="Fechar guia" onClick={() => setTutorial(false)}>
-                <X className="size-5" />
-              </button>
-            </div>
-            <ol className="list-decimal space-y-3 pl-5 text-sm">
-              <li>Cadastre uma conta com moeda, data e saldo inicial.</li>
-              <li>Registre entradas e saídas com vencimento e categoria.</li>
-              <li>Ao receber ou pagar, edite para Realizado e informe a data efetiva.</li>
-              <li>
-                Selecione o período, agrupamento e visão. A projeção usa somente valores
-                cadastrados.
-              </li>
-              <li>Exporte o resumo em CSV.</li>
-            </ol>
-          </section>
-        </div>
-      )}
     </div>
   );
 }
