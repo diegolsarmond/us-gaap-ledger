@@ -43,8 +43,8 @@ function JournalsPage() {
   const [lines, setLines] = useState<
     { accountCode: string; debit: string; credit: string; memo: string }[]
   >([
-    { accountCode: "1000", debit: "2500.00", credit: "0.00", memo: "" },
-    { accountCode: "4000", debit: "0.00", credit: "2500.00", memo: "" },
+    { accountCode: "", debit: "", credit: "", memo: "" },
+    { accountCode: "", debit: "", credit: "", memo: "" },
   ]);
   const [overrideReason, setOverrideReason] = useState("");
 

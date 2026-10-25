@@ -1,3 +1,4 @@
+import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type CurrencyParam } from "@/lib/parameters-context";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/parameters/currencies")({
 
 function CurrenciesPage() {
   const modal = useModal();
+  const parameterScope = useParameterScope();
   const { activeCompany, currencies, addCurrency, updateCurrency, deleteCurrency, userPersona } =
     useAccounting();
 
@@ -53,6 +55,7 @@ function CurrenciesPage() {
   const [convertFromCode, setConvertFromCode] = useState<string>("EUR");
 
   const openCreateModal = () => {
+    parameterScope.reset();
     setEditingCode(null);
     setCode("");
     setName("");
@@ -64,6 +67,7 @@ function CurrenciesPage() {
   };
 
   const openEditModal = (curr: CurrencyParam) => {
+    parameterScope.reset(curr);
     setEditingCode(curr.code);
     setCode(curr.code);
     setName(curr.name);
@@ -109,6 +113,7 @@ function CurrenciesPage() {
 
       if (editingCode) {
         await updateCurrency(editingCode, {
+          ...parameterScope.value,
           name: name.trim(),
           symbol: symbol.trim() || "$",
           exchangeRateToUsd: rateNum,
@@ -122,6 +127,7 @@ function CurrenciesPage() {
         });
       } else {
         await addCurrency({
+          ...parameterScope.value,
           code: isoCode,
           name: name.trim(),
           symbol: symbol.trim() || "$",
@@ -181,7 +187,7 @@ function CurrenciesPage() {
     try {
       if (curr.isBaseCurrency) return;
       const nextStatus = curr.status === "Active" ? "Inactive" : "Active";
-      await updateCurrency(curr.code, { status: nextStatus });
+      await updateCurrency(curr.code, {
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -363,6 +369,7 @@ function CurrenciesPage() {
               <Th>Papel</Th>
               <Th>Status</Th>
               <Th>Atualizado</Th>
+              <Th>Escopo / Empresas</Th>
               <Th className="text-right">Ações</Th>
             </tr>
           </thead>
@@ -414,6 +421,7 @@ function CurrenciesPage() {
                   </button>
                 </Td>
                 <Td className="text-[11px] text-ink3 font-mono">{c.lastUpdated}</Td>
+                <Td><ParameterScopeLabel value={c} /></Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
@@ -445,7 +453,7 @@ function CurrenciesPage() {
       {/* Modal Form */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
               {editingCode ? `Editar Moeda ${editingCode}` : "Cadastrar Nova Moeda"}
             </h2>
@@ -454,6 +462,7 @@ function CurrenciesPage() {
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
+              <ParameterScopeField control={parameterScope} />
               <div>
                 <label className="block text-[11.5px] font-semibold text-ink2 mb-1">
                   Código ISO (3 Letras) *

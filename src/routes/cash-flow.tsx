@@ -45,11 +45,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function EntryFormContainer({
   modal,
   title,
+  companyName,
   onClose,
   children,
 }: {
   modal: boolean;
   title: string;
+  companyName: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -64,8 +66,9 @@ function EntryFormContainer({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Use Tab para navegar pelos campos e Enter para salvar.
+          <DialogDescription className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2">
+            <span className="block text-xs font-medium text-ink2">Empresa</span>
+            <span className="block text-lg font-bold text-brand">{companyName}</span>
           </DialogDescription>
         </DialogHeader>
         {children}
@@ -289,6 +292,7 @@ function CashFlowPage() {
           {form && (
             <EntryFormContainer
               modal={form === "transaction"}
+              companyName={activeCompany!.name}
               onClose={() => {
                 if (!pending) {
                   setForm(null);

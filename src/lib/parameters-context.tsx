@@ -1,6 +1,6 @@
 import { useCompanies } from "@/components/company-context";
 import React, { createContext, useContext, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { loadParameters, mutateParameter } from "./parameters";
 import type { ParameterDomain } from "./parameters-model";
 import type * as Models from "./accounting-store";
@@ -40,6 +40,7 @@ export function useAccounting() {
   return value;
 }
 export function ParametersProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const { companies: companyRows, activeCompany, selectCompany } = useCompanies();
   const query = useQuery({
     queryKey: ["parameters", activeCompany?.id],
@@ -113,7 +114,7 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
               value,
             },
           });
-          await query.refetch();
+          await queryClient.invalidateQueries({ queryKey: ["parameters"] });
         } catch (e) {
           setError(e instanceof Error ? e.message : "Falha ao salvar.");
           throw e;
@@ -123,6 +124,11 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
       };
   return (
     <Context.Provider value={{ ...data, ...methods, activeCompany } as any}>
+      <p className="mb-3 text-sm text-ink3">
+        Parâmetros globais são compartilhados com todas as empresas. Parâmetros específicos podem
+        ser vinculados a uma ou mais empresas. Selecione uma empresa para consultar os parâmetros
+        aplicáveis.
+      </p>
       <div className="mb-5 flex items-center gap-3">
         <label htmlFor="parameter-company">Empresa</label>
         <select

@@ -1,3 +1,4 @@
+import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type TaxJurisdictionParam } from "@/lib/parameters-context";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/parameters/tax-jurisdictions")({
 
 function TaxJurisdictionsPage() {
   const modal = useModal();
+  const parameterScope = useParameterScope();
   const {
     activeCompany,
     taxJurisdictions,
@@ -51,6 +53,7 @@ function TaxJurisdictionsPage() {
   const liabilityAccounts = accounts.filter((a) => a.type === "Liability");
 
   const openCreateModal = () => {
+    parameterScope.reset();
     setEditingId(null);
     setCode("");
     setState(activeCompany.state || "FL");
@@ -64,6 +67,7 @@ function TaxJurisdictionsPage() {
   };
 
   const openEditModal = (tax: TaxJurisdictionParam) => {
+    parameterScope.reset(tax);
     setEditingId(tax.id);
     setCode(tax.code);
     setState(tax.state);
@@ -102,6 +106,7 @@ function TaxJurisdictionsPage() {
 
       if (editingId) {
         await updateTaxJurisdiction(editingId, {
+          ...parameterScope.value,
           code: cleanCode,
           state: state.toUpperCase(),
           name: name.trim(),
@@ -118,6 +123,7 @@ function TaxJurisdictionsPage() {
         });
       } else {
         await addTaxJurisdiction({
+          ...parameterScope.value,
           code: cleanCode,
           state: state.toUpperCase(),
           name: name.trim(),
@@ -166,7 +172,7 @@ function TaxJurisdictionsPage() {
   const handleToggleStatus = async (tax: TaxJurisdictionParam) => {
     try {
       const nextStatus = tax.status === "Active" ? "Inactive" : "Active";
-      await updateTaxJurisdiction(tax.id, { status: nextStatus });
+      await updateTaxJurisdiction(tax.id, {
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -311,6 +317,7 @@ function TaxJurisdictionsPage() {
               <Th>Conta de Passivo</Th>
               <Th>Periodicidade</Th>
               <Th>Status</Th>
+              <Th>Escopo / Empresas</Th>
               <Th className="text-right">Ações</Th>
             </tr>
           </thead>
@@ -340,6 +347,7 @@ function TaxJurisdictionsPage() {
                     </Badge>
                   </button>
                 </Td>
+                <Td><ParameterScopeLabel value={t} /></Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
@@ -369,7 +377,7 @@ function TaxJurisdictionsPage() {
       {/* Modal Form */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
               {editingId ? "Editar Jurisdição Fiscal" : "Nova Jurisdição Fiscal"}
             </h2>
@@ -378,6 +386,7 @@ function TaxJurisdictionsPage() {
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
+              <ParameterScopeField control={parameterScope} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">

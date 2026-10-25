@@ -1,3 +1,4 @@
+import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type ExpenseCategoryParam } from "@/lib/parameters-context";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/parameters/expense-categories")({
 
 function ExpenseCategoriesPage() {
   const modal = useModal();
+  const parameterScope = useParameterScope();
   const {
     activeCompany,
     expenseCategories,
@@ -50,6 +52,7 @@ function ExpenseCategoriesPage() {
   );
 
   const openCreateModal = () => {
+    parameterScope.reset();
     setEditingId(null);
     setCode("");
     setName("");
@@ -61,6 +64,7 @@ function ExpenseCategoriesPage() {
   };
 
   const openEditModal = (cat: ExpenseCategoryParam) => {
+    parameterScope.reset(cat);
     setEditingId(cat.id);
     setCode(cat.code);
     setName(cat.name);
@@ -87,6 +91,7 @@ function ExpenseCategoriesPage() {
 
       if (editingId) {
         await updateExpenseCategory(editingId, {
+          ...parameterScope.value,
           code: cleanCode,
           name: name.trim(),
           glAccountCode,
@@ -101,6 +106,7 @@ function ExpenseCategoriesPage() {
         });
       } else {
         await addExpenseCategory({
+          ...parameterScope.value,
           code: cleanCode,
           name: name.trim(),
           glAccountCode,
@@ -147,7 +153,7 @@ function ExpenseCategoriesPage() {
   const handleToggleStatus = async (cat: ExpenseCategoryParam) => {
     try {
       const nextStatus = cat.status === "Active" ? "Inactive" : "Active";
-      await updateExpenseCategory(cat.id, { status: nextStatus });
+      await updateExpenseCategory(cat.id, {
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -292,6 +298,7 @@ function ExpenseCategoriesPage() {
               <Th>Dedutibilidade Fiscal (IRS)</Th>
               <Th>Descrição</Th>
               <Th>Status</Th>
+              <Th>Escopo / Empresas</Th>
               <Th className="text-right">Ações</Th>
             </tr>
           </thead>
@@ -338,7 +345,8 @@ function ExpenseCategoriesPage() {
                       </Badge>
                     </button>
                   </Td>
-                  <Td className="text-right">
+                  <Td><ParameterScopeLabel value={c} /></Td>
+                <Td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
@@ -368,7 +376,7 @@ function ExpenseCategoriesPage() {
       {/* Modal Form */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
               {editingId ? "Editar Categoria de Despesa" : "Nova Categoria de Despesa"}
             </h2>
@@ -377,6 +385,7 @@ function ExpenseCategoriesPage() {
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
+              <ParameterScopeField control={parameterScope} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">

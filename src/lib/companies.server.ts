@@ -38,6 +38,14 @@ export async function saveCompany(data: z.infer<typeof companySchema>) {
     } else {
       const r = await client.query("INSERT INTO companies(data,active) VALUES($1,$2) RETURNING id", [JSON.stringify(data),data.active]);
       id = r.rows[0].id;
+      // Newly created companies inherit parameters explicitly shared globally.
+      for (const domain of ["currencies", "taxjurisdictions", "paymentterms", "costcenters", "expensecategories", "fiscalperiods"]) {
+        await client.query(`INSERT INTO ledger_${domain}(company_id,id,position,data)
+          SELECT $1, id, row_number() OVER (ORDER BY id)::integer - 1, data FROM (
+            SELECT DISTINCT ON (data->>'sharedId') id,data FROM ledger_${domain}
+            WHERE data->>'scope'='global' ORDER BY data->>'sharedId',company_id
+          ) shared`, [id]);
+      }
       // A profile restricted to selected companies must retain access to a company it creates.
       await client.query("INSERT INTO profile_companies(profile_id,company_id) SELECT profile_id,$2 FROM app_users WHERE id=$1 ON CONFLICT DO NOTHING", [user.id,id]);
     }

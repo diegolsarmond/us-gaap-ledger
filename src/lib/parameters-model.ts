@@ -1,6 +1,16 @@
 import { z } from "zod";
 const text = z.string().trim().min(1).max(200);
-const base = { code: text, name: text, status: z.enum(["Active", "Inactive"]) };
+export const parameterScopeFields = {
+  scope: z.enum(["global", "companies"]).optional(),
+  companyIds: z.array(z.string().uuid()).max(1000).optional(),
+  sharedId: z.string().uuid().optional(),
+};
+const base = {
+  ...parameterScopeFields,
+  code: text,
+  name: text,
+  status: z.enum(["Active", "Inactive"]),
+};
 const date = z.string().date();
 export const parameterSchemas = {
   currencies: z
@@ -62,6 +72,7 @@ export const parameterSchemas = {
   fiscalPeriods: z
     .object({
       id: text,
+      ...parameterScopeFields,
       periodCode: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
       fiscalYear: text,
       startDate: date,

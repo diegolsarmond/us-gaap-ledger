@@ -1,17 +1,128 @@
-import { authorizeCompany } from "./companies.server";
-import { load, execute } from "./accounting.server";
+import { authorizeCompany, setActor } from "./companies.server";
+import { load, readState, validateState } from "./accounting.server";
 import { parameterSchemas, type mutationSchema } from "./parameters-model";
+import { db } from "./db.server";
 import type { z } from "zod";
-export async function listParameterCompanies(){return (await (await import('./companies.server')).listCompanies()).companies.filter(c=>c.active);}
-export async function readParameters(companyId:string){
- const auth=await authorizeCompany(companyId);
- const data=await load(companyId);
- return {...data.state,revision:data.revision,userPersona:{name:auth.user.name,canClosePeriod:auth.permissions.close_periods,canManageUsers:auth.permissions.manage_users},canWrite:auth.permissions.write_accounting};
+export async function listParameterCompanies() {
+  return (await (await import("./companies.server")).listCompanies()).companies.filter(
+    (c) => c.active,
+  );
 }
-export async function writeParameter(input:z.infer<typeof mutationSchema>){
- const suffix={currencies:'Currency',taxJurisdictions:'TaxJurisdiction',paymentTerms:'PaymentTerm',costCenters:'CostCenter',expenseCategories:'ExpenseCategory',fiscalPeriods:'FiscalPeriod'}[input.domain];
- const value=input.operation==='delete'?undefined:parameterSchemas[input.domain].parse(input.value);
- const command=(input.operation==='create'?'add':input.operation)+suffix;
- await execute({companyId:input.companyId,revision:input.revision,command,args:input.operation==='create'?[value]:input.operation==='delete'?[input.id]:[input.id,value]});
- return {ok:true};
+export async function readParameters(companyId: string) {
+  const auth = await authorizeCompany(companyId);
+  const data = await load(companyId);
+  return {
+    ...data.state,
+    revision: data.revision,
+    userPersona: {
+      name: auth.user.name,
+      canClosePeriod: auth.permissions.close_periods,
+      canManageUsers: auth.permissions.manage_users,
+    },
+    canWrite: auth.permissions.write_accounting,
+  };
+}
+export async function writeParameter(input: z.infer<typeof mutationSchema>) {
+  const value =
+    input.operation === "delete" ? undefined : parameterSchemas[input.domain].parse(input.value);
+  const permission = input.domain === "fiscalPeriods" ? "close_periods" : "write_accounting";
+  const client = await db().connect();
+  const table = `ledger_${input.domain.toLowerCase()}`;
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(input.companyId, permission, client);
+    await setActor(client, auth.user.id);
+    const revision = await client.query("SELECT revision FROM companies WHERE id=$1 FOR UPDATE", [
+      input.companyId,
+    ]);
+    if (revision.rows[0].revision !== input.revision)
+      throw new Error(
+        "Os dados foram alterados em outra sessão. Atualize a página e tente novamente.",
+      );
+    const source = await client.query(`SELECT data FROM ${table} WHERE company_id=$1 AND id=$2`, [
+      input.companyId,
+      input.id,
+    ]);
+    const old = source.rows[0]?.data;
+    if (input.operation !== "create" && !old)
+      throw new Error("Parâmetro não encontrado. Atualize a página.");
+    const sharedId = old?.sharedId ?? crypto.randomUUID();
+    const scope = value?.scope ?? old?.scope ?? "companies";
+    const all = await client.query("SELECT id FROM companies WHERE active ORDER BY id");
+    const targets: string[] =
+      input.operation === "delete"
+        ? []
+        : scope === "global"
+          ? all.rows.map((r) => r["id"])
+          : [...new Set(value?.companyIds ?? old?.companyIds ?? [input.companyId])];
+    if (input.operation !== "delete" && !targets.length)
+      throw new Error("Selecione pelo menos uma empresa.");
+    const linked = old?.sharedId
+      ? await client.query(`SELECT company_id FROM ${table} WHERE data->>'sharedId'=$1`, [sharedId])
+      : { rows: old ? [{ company_id: input.companyId }] : [] };
+    const affected = [...new Set([...targets, ...linked.rows.map((r) => r.company_id)])].sort();
+    for (const companyId of affected) {
+      await authorizeCompany(companyId, permission, client);
+      await client.query("SELECT revision FROM companies WHERE id=$1 FOR UPDATE", [companyId]);
+    }
+    for (const companyId of affected) {
+      const state = await readState(companyId, client);
+      const rows = state[input.domain] as unknown as Record<string, any>[];
+      const existing = rows.find(
+        (r) =>
+          r["sharedId"] === sharedId ||
+          (companyId === input.companyId &&
+            (input.domain === "currencies" ? r["code"] : r["id"]) === input.id),
+      );
+      const remaining = rows.filter((r) => r !== existing);
+      if (targets.includes(companyId) && value) {
+        const next: Record<string, any> = {
+          ...value,
+          sharedId,
+          scope,
+          companyIds: scope === "global" ? [] : targets,
+        };
+        next["id"] =
+          existing?.["id"] ?? (companyId === input.companyId ? input.id : crypto.randomUUID());
+        if (input.domain === "fiscalPeriods") {
+          next["closedBy"] = next["status"] === "Open" ? undefined : auth.user.name;
+          next["closingDate"] =
+            next["status"] === "Open" ? undefined : new Date().toISOString().slice(0, 10);
+        }
+        remaining.push(next);
+      }
+      (state[input.domain] as unknown[]) = remaining;
+      const refs = validateState(state);
+      await client.query("DELETE FROM ledger_references WHERE company_id=$1", [companyId]);
+      for (const r of refs)
+        await client.query(
+          "INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,project_id,statement_id) VALUES($1,$2,$3,$4,$5,$6)",
+          [companyId, r.source_domain, r.source_id, r.account_id, r.project_id, r.statement_id],
+        );
+      await client.query(`DELETE FROM ${table} WHERE company_id=$1`, [companyId]);
+      for (const [position, row] of remaining.entries())
+        await client.query(
+          `INSERT INTO ${table}(company_id,id,position,data) VALUES($1,$2,$3,$4)`,
+          [
+            companyId,
+            input.domain === "currencies" ? row["code"] : row["id"],
+            position,
+            JSON.stringify(row),
+          ],
+        );
+      await client.query("UPDATE companies SET revision=revision+1 WHERE id=$1", [companyId]);
+      await client.query(
+        "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,$4,$5,$6)",
+        [auth.user.id, auth.user.name, input.operation, input.domain, input.id, companyId],
+      );
+    }
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

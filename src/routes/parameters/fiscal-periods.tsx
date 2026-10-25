@@ -1,3 +1,8 @@
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type FiscalPeriodParam } from "@/lib/parameters-context";
@@ -30,6 +35,7 @@ export const Route = createFileRoute("/parameters/fiscal-periods")({
 
 function FiscalPeriodsPage() {
   const modal = useModal();
+  const parameterScope = useParameterScope();
   const {
     activeCompany,
     fiscalPeriods,
@@ -55,6 +61,7 @@ function FiscalPeriodsPage() {
   const [notes, setNotes] = useState("");
 
   const openCreateModal = () => {
+    parameterScope.reset();
     setEditingId(null);
     setPeriodCode("");
     setFiscalYear(`FY${new Date().getFullYear()}`);
@@ -66,6 +73,7 @@ function FiscalPeriodsPage() {
   };
 
   const openEditModal = (p: FiscalPeriodParam) => {
+    parameterScope.reset(p);
     setEditingId(p.id);
     setPeriodCode(p.periodCode);
     setFiscalYear(p.fiscalYear);
@@ -102,6 +110,7 @@ function FiscalPeriodsPage() {
 
       if (editingId) {
         await updateFiscalPeriod(editingId, {
+          ...parameterScope.value,
           periodCode: cleanCode,
           fiscalYear: fiscalYear.trim(),
           startDate,
@@ -116,6 +125,7 @@ function FiscalPeriodsPage() {
         });
       } else {
         await addFiscalPeriod({
+          ...parameterScope.value,
           periodCode: cleanCode,
           fiscalYear: fiscalYear.trim(),
           startDate,
@@ -158,6 +168,7 @@ function FiscalPeriodsPage() {
         });
         if (confirmLock) {
           await updateFiscalPeriod(p.id, {
+            ...parameterScope.value,
             status: "Locked",
             closedBy: userPersona.name,
             closingDate: new Date().toISOString().split("T")[0]!,
@@ -176,6 +187,7 @@ function FiscalPeriodsPage() {
         });
         if (reason) {
           await updateFiscalPeriod(p.id, {
+            ...parameterScope.value,
             status: "Open",
             notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
           });
@@ -183,6 +195,7 @@ function FiscalPeriodsPage() {
       } else {
         // Soft-Close -> Locked
         await updateFiscalPeriod(p.id, {
+          ...parameterScope.value,
           status: "Locked",
           closedBy: userPersona.name,
           closingDate: new Date().toISOString().split("T")[0]!,
@@ -385,6 +398,7 @@ function FiscalPeriodsPage() {
               <Th>Fechado Por</Th>
               <Th>Data Fechamento</Th>
               <Th>Notas de Auditoria</Th>
+              <Th>Escopo / Empresas</Th>
               <Th className="text-right">Ações</Th>
             </tr>
           </thead>
@@ -446,6 +460,9 @@ function FiscalPeriodsPage() {
                   <Td className="text-[12px] text-ink2">{p.closedBy || "—"}</Td>
                   <Td className="font-mono text-[11px] text-ink3">{p.closingDate || "—"}</Td>
                   <Td className="text-[11.5px] text-ink3 max-w-xs truncate">{p.notes || "—"}</Td>
+                  <Td>
+                    <ParameterScopeLabel value={p} />
+                  </Td>
                   <Td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
@@ -479,7 +496,7 @@ function FiscalPeriodsPage() {
       {/* Modal Form */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
             <h2 className="text-[16px] font-bold text-ink">
               {editingId ? `Editar Período ${periodCode}` : "Novo Período Fiscal"}
             </h2>
@@ -488,6 +505,7 @@ function FiscalPeriodsPage() {
             </p>
 
             <form onSubmit={handleSave} className="mt-4 space-y-3.5">
+              <ParameterScopeField control={parameterScope} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11.5px] font-semibold text-ink2 mb-1">

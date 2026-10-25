@@ -13,7 +13,7 @@ export function CompanyProvider({children}:{children:ReactNode}) {
  const activeCompany=companies.find(c=>c.active&&c.id===selected)??companies.find(c=>c.active)??null;
  if(query.isPending) return <p className="p-6" role="status">Carregando empresas…</p>;
  if(query.isError) return <div className="p-6" role="alert">Não foi possível carregar as empresas. Verifique as migrações 004 e 005. <button onClick={()=>void query.refetch()}>Tentar novamente</button></div>;
- const selectCompany=(id:string)=>{if(!companies.some(c=>c.id===id&&c.active))return;setSelected(id);localStorage.setItem('ledger_active_company',id);};
+ const selectCompany=(id:string)=>{setSelected(id);localStorage.setItem('ledger_active_company',id);};
  return <Context.Provider value={{companies,activeCompany,selectCompany,permissions:query.data!.permissions,user:query.data!.user,refresh:()=>query.refetch()}}>{children}</Context.Provider>;
 }
 export function useCompanies(){const value=useContext(Context);if(!value)throw new Error('CompanyProvider ausente');return value;}
