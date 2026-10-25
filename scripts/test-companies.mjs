@@ -181,6 +181,114 @@ try {
     }),
   );
   assert.equal((await accounting.load(b)).state.accounts.length, 0);
+  for (const [code, type, balanceType] of [
+    ["1100", "Asset", "Debit"],
+    ["2000", "Liability", "Credit"],
+    ["6100", "Operating Expense", "Debit"],
+    ["1300", "Asset", "Debit"],
+    ["5000", "COGS", "Debit"],
+    ["4100", "Revenue", "Credit"],
+    ["2200", "Liability", "Credit"],
+    ["6300", "Other Expense", "Debit"],
+  ]) {
+    await command("addAccount", [{ code, name: code, description: "", type, balanceType }]);
+  }
+  await command("createProject", [
+    {
+      code: "P1",
+      name: "Project",
+      clientName: "Customer",
+      budget: 0,
+      contractValue: 100,
+      startDate: "2026-10-01",
+      endDate: "2026-10-31",
+      status: "Active",
+      notes: "",
+    },
+  ]);
+  const project = (await accounting.load(a)).state.projects[0];
+  await command("addInventoryItem", [
+    {
+      sku: "SKU1",
+      name: "Product",
+      type: "Product",
+      qtyOnHand: 0,
+      unitCost: 10,
+      unitPrice: 20,
+      valuationMethod: "FIFO",
+    },
+  ]);
+  const purchased = await command("createBill", [
+    {
+      vendorName: "Vendor",
+      billNumber: "V1",
+      date: "2026-10-01",
+      dueDate: "2026-10-31",
+      currency: "EUR",
+      fxRate: 1.1,
+      foreignAmount: 100,
+      items: [
+        {
+          id: "item1",
+          description: "Purchase",
+          accountCode: "1300",
+          isInventory: true,
+          sku: "SKU1",
+          qty: 10,
+          amount: 110,
+          projectId: project.id,
+        },
+      ],
+    },
+  ]);
+  await command("payBill", [purchased.result.billId, "2026-10-02", 1.2]);
+  const issued = await command("createInvoice", [
+    {
+      customerName: "Customer",
+      date: "2026-10-02",
+      dueDate: "2026-10-31",
+      kind: "Product",
+      items: [
+        {
+          id: "line1",
+          description: "Sale",
+          sku: "SKU1",
+          isProduct: true,
+          qty: 2,
+          unitPrice: 20,
+          taxable: false,
+        },
+      ],
+      subtotal: 40,
+      taxRate: 0,
+      taxAmount: 0,
+      total: 40,
+      taxExempt: true,
+      projectId: project.id,
+    },
+  ]);
+  await command("recordInvoicePayment", [issued.result.invoiceId, "2026-10-03"]);
+  await command("importStatement", [
+    {
+      name: "bank.csv",
+      type: "CSV",
+      accountCode: "1000",
+      content: "date,description,amount\n2026-10-04,Sale,12.50",
+    },
+  ]);
+  const staged = (await accounting.load(a)).state.stagingRows[0];
+  await command("classifyStagingRow", [staged.id, "4000"]);
+  const live = (await accounting.load(a)).state;
+  assert.equal(live.inventory[0].qtyOnHand, 8);
+  assert.equal(live.invoices[0].status, "Paid");
+  assert.equal(live.bills[0].status, "Paid");
+  assert.equal(live.bills[0].usdAmount, 110);
+  assert.equal(live.stagingRows[0].status, "Classified");
+  assert(live.statements[0].content.includes("Sale"));
+  assert.equal((await accounting.load(b)).state.invoices.length, 0);
+  console.log(
+    "PASS: projetos, estoque, faturas, recebimentos, contas a pagar, câmbio e classificação de extrato CSV.",
+  );
   await cash.saveAccount({
     companyId: a,
     name: "Bank",

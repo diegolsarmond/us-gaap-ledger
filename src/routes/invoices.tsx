@@ -96,78 +96,86 @@ function InvoicesPage() {
   };
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
+    try {
+      e.preventDefault();
 
-    if (!customerName.trim()) {
-      await modal.showAlert({
-        title: "Campo Obrigatório",
-        message: "Por favor informe a Razão Social / Nome Legal do Cliente.",
-        tone: "warning",
+      if (!customerName.trim()) {
+        await modal.showAlert({
+          title: "Campo Obrigatório",
+          message: "Por favor informe a Razão Social / Nome Legal do Cliente.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      const invoiceLines: InvoiceItem[] = formItems.map((it, idx) => ({
+        id: `it-${Date.now()}-${idx}`,
+        description: it.description,
+        sku: it.sku,
+        isProduct: kind === "Product",
+        qty: Number(it.qty) || 1,
+        unitPrice: Number(it.unitPrice) || 0,
+        taxable: !taxExempt,
+      }));
+
+      const result = await createInvoice({
+        customerName: customerName.trim(),
+        customerEin: customerEin.trim() || undefined,
+        date,
+        dueDate,
+        kind,
+        items: invoiceLines,
+        subtotal,
+        taxRate: effectiveTaxRate,
+        taxAmount,
+        total: totalAmount,
+        taxExempt,
+        projectId: projectId || undefined,
       });
-      return;
-    }
 
-    const invoiceLines: InvoiceItem[] = formItems.map((it, idx) => ({
-      id: `it-${Date.now()}-${idx}`,
-      description: it.description,
-      sku: it.sku,
-      isProduct: kind === "Product",
-      qty: Number(it.qty) || 1,
-      unitPrice: Number(it.unitPrice) || 0,
-      taxable: !taxExempt,
-    }));
-
-    const result = await createInvoice({
-      customerName: customerName.trim(),
-      customerEin: customerEin.trim() || undefined,
-      date,
-      dueDate,
-      kind,
-      items: invoiceLines,
-      subtotal,
-      taxRate: effectiveTaxRate,
-      taxAmount,
-      total: totalAmount,
-      taxExempt,
-      projectId: projectId || undefined,
-    });
-
-    if (result.success) {
-      const invId = result.invoiceId;
-      setCustomerName("");
-      setCustomerEin("");
-      setView("list");
-      await modal.showAlert({
-        title: "Fatura Emitida e Contabilizada",
-        message: `Fatura ${invId} emitida com sucesso!\n\nLançamentos automáticos no Razão Geral:\n• Débito em Contas a Receber (1100): ${usd(totalAmount)}\n• Crédito em Receita Operacional (4000/4100): ${usd(subtotal)}\n• Crédito em Impostos sobre Vendas a Recolher (2200): ${usd(taxAmount)}${
-          kind === "Product" ? "\n• Baixa no Estoque (1300) e reconhecimento de CPV (5000)." : ""
-        }`,
-        tone: "success",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Erro ao Emitir Fatura",
-        message: result.error || "Não foi possível emitir a fatura.",
-        tone: "error",
-      });
+      if (result.success) {
+        const invId = result.invoiceId;
+        setCustomerName("");
+        setCustomerEin("");
+        setView("list");
+        await modal.showAlert({
+          title: "Fatura Emitida e Contabilizada",
+          message: `Fatura ${invId} emitida com sucesso!\n\nLançamentos automáticos no Razão Geral:\n• Débito em Contas a Receber (1100): ${usd(totalAmount)}\n• Crédito em Receita Operacional (4000/4100): ${usd(subtotal)}\n• Crédito em Impostos sobre Vendas a Recolher (2200): ${usd(taxAmount)}${
+            kind === "Product" ? "\n• Baixa no Estoque (1300) e reconhecimento de CPV (5000)." : ""
+          }`,
+          tone: "success",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Erro ao Emitir Fatura",
+          message: result.error || "Não foi possível emitir a fatura.",
+          tone: "error",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 
   const handleRecordPayment = async (invId: string) => {
-    const paymentDate = new Date().toISOString().split("T")[0]!;
-    const res = await recordInvoicePayment(invId, paymentDate);
-    if (!res.success) {
-      await modal.showAlert({
-        title: "Erro no Recebimento",
-        message: res.error || "Não foi possível registrar o recebimento.",
-        tone: "error",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Recebimento Confirmado",
-        message: `Recebimento da fatura ${invId} registrado com sucesso!\n\nConciliado no Razão Geral com crédito em Contas a Receber (1100) e débito em Disponibilidades / Caixa (1000).`,
-        tone: "success",
-      });
+    try {
+      const paymentDate = new Date().toISOString().split("T")[0]!;
+      const res = await recordInvoicePayment(invId, paymentDate);
+      if (!res.success) {
+        await modal.showAlert({
+          title: "Erro no Recebimento",
+          message: res.error || "Não foi possível registrar o recebimento.",
+          tone: "error",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Recebimento Confirmado",
+          message: `Recebimento da fatura ${invId} registrado com sucesso!\n\nConciliado no Razão Geral com crédito em Contas a Receber (1100) e débito em Disponibilidades / Caixa (1000).`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 

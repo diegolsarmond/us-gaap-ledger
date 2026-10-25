@@ -54,62 +54,70 @@ function InventoryPage() {
   );
 
   const handleAdjustStock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const item = inventory.find((i) => i.id === selectedItemId);
-    if (!item) return;
+    try {
+      e.preventDefault();
+      const item = inventory.find((i) => i.id === selectedItemId);
+      if (!item) return;
 
-    await adjustStock(selectedItemId, Number(qtyDelta) || 0, item.unitCost, adjustMemo);
-    setView("list");
+      await adjustStock(selectedItemId, Number(qtyDelta) || 0, item.unitCost, adjustMemo);
+      setView("list");
 
-    await modal.showAlert({
-      title: "Ajuste de Estoque Efetuado",
-      message: `Ajuste de ${qtyDelta} unidades registrado para o item SKU ${item.sku} (${item.name}).\nContra-partida automática de variação de inventário (COGS) postada no Razão Geral.`,
-      tone: "success",
-    });
+      await modal.showAlert({
+        title: "Ajuste de Estoque Efetuado",
+        message: `Ajuste de ${qtyDelta} unidades registrado para o item SKU ${item.sku} (${item.name}).\nContra-partida automática de variação de inventário (COGS) postada no Razão Geral.`,
+        tone: "success",
+      });
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
+    }
   };
 
   const handleCreateItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSku.trim() || !newName.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o SKU e o Nome do Item.",
-        tone: "warning",
+    try {
+      e.preventDefault();
+      if (!newSku.trim() || !newName.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o SKU e o Nome do Item.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      if (inventory.some((i) => i.sku.toUpperCase() === newSku.trim().toUpperCase())) {
+        await modal.showAlert({
+          title: "SKU já Existente",
+          message: `Já existe um item cadastrado com o SKU "${newSku.toUpperCase()}". Cada item deve possuir um código exclusivo.`,
+          tone: "warning",
+        });
+        return;
+      }
+
+      const skuUpper = newSku.toUpperCase().trim();
+      const nameTrim = newName.trim();
+
+      await addInventoryItem({
+        sku: skuUpper,
+        name: nameTrim,
+        type: newType,
+        qtyOnHand: newType === "Product" ? Number(newQty) || 0 : 0,
+        unitCost: Number(newCost) || 0,
+        unitPrice: Number(newPrice) || 0,
+        valuationMethod: activeCompany.costMethod,
       });
-      return;
-    }
 
-    if (inventory.some((i) => i.sku.toUpperCase() === newSku.trim().toUpperCase())) {
+      setNewSku("");
+      setNewName("");
+      setView("list");
+
       await modal.showAlert({
-        title: "SKU já Existente",
-        message: `Já existe um item cadastrado com o SKU "${newSku.toUpperCase()}". Cada item deve possuir um código exclusivo.`,
-        tone: "warning",
+        title: "Item Cadastrado no Catálogo",
+        message: `O item ${skuUpper} — "${nameTrim}" foi incluído com sucesso no catálogo de mercadorias da empresa ${activeCompany.name}.`,
+        tone: "success",
       });
-      return;
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
-
-    const skuUpper = newSku.toUpperCase().trim();
-    const nameTrim = newName.trim();
-
-    await addInventoryItem({
-      sku: skuUpper,
-      name: nameTrim,
-      type: newType,
-      qtyOnHand: newType === "Product" ? Number(newQty) || 0 : 0,
-      unitCost: Number(newCost) || 0,
-      unitPrice: Number(newPrice) || 0,
-      valuationMethod: activeCompany.costMethod,
-    });
-
-    setNewSku("");
-    setNewName("");
-    setView("list");
-
-    await modal.showAlert({
-      title: "Item Cadastrado no Catálogo",
-      message: `O item ${skuUpper} — "${nameTrim}" foi incluído com sucesso no catálogo de mercadorias da empresa ${activeCompany.name}.`,
-      tone: "success",
-    });
   };
 
   const handleExportCsv = () => {
@@ -216,7 +224,13 @@ function InventoryPage() {
                     key={method}
                     type="button"
                     disabled={userPersona.allowedReportsOnly}
-                    onClick={async () => await setCostMethod(method)}
+                    onClick={async () => {
+                      try {
+                        return await setCostMethod(method);
+                      } catch {
+                        /* Error displayed by the company provider. */
+                      }
+                    }}
                     className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition-all cursor-pointer ${
                       activeCompany.costMethod === method
                         ? "bg-brand text-white shadow-2xs"

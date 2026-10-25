@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:companies": "node --env-file-if-exists=.env scripts/test-companies.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

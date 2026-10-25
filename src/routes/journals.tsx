@@ -73,89 +73,97 @@ function JournalsPage() {
   };
 
   const handlePost = async (e: React.FormEvent) => {
-    e.preventDefault();
+    try {
+      e.preventDefault();
 
-    if (!memo.trim()) {
-      await modal.showAlert({
-        title: "Histórico Obrigatório",
-        message: "Por favor informe a descrição / histórico do lançamento contábil.",
-        tone: "warning",
+      if (!memo.trim()) {
+        await modal.showAlert({
+          title: "Histórico Obrigatório",
+          message: "Por favor informe a descrição / histórico do lançamento contábil.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      if (!isBalanced) {
+        await modal.showAlert({
+          title: "Partidas Dobradas Desbalanceadas",
+          message: `O lançamento contábil não está equilibrado.\n\nTotal Débitos: ${usd(totalDebits)}\nTotal Créditos: ${usd(totalCredits)}\nDiferença: ${usd(diff)}\n\nConforme os princípios US GAAP, o total de débitos deve ser rigorosamente idêntico ao total de créditos.`,
+          tone: "error",
+        });
+        return;
+      }
+
+      const payloadLines = lines.map((l) => ({
+        accountCode: l.accountCode,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+        memo: l.memo || memo,
+        projectId: selectedProject || undefined,
+      }));
+
+      const result = await postJournalEntry({
+        date,
+        memo,
+        sourceType: "Manual",
+        lines: payloadLines,
+        overrideReason: activeCompany.isPeriodClosed ? overrideReason : undefined,
       });
-      return;
-    }
 
-    if (!isBalanced) {
-      await modal.showAlert({
-        title: "Partidas Dobradas Desbalanceadas",
-        message: `O lançamento contábil não está equilibrado.\n\nTotal Débitos: ${usd(totalDebits)}\nTotal Créditos: ${usd(totalCredits)}\nDiferença: ${usd(diff)}\n\nConforme os princípios US GAAP, o total de débitos deve ser rigorosamente idêntico ao total de créditos.`,
-        tone: "error",
-      });
-      return;
-    }
-
-    const payloadLines = lines.map((l) => ({
-      accountCode: l.accountCode,
-      debit: Number(l.debit) || 0,
-      credit: Number(l.credit) || 0,
-      memo: l.memo || memo,
-      projectId: selectedProject || undefined,
-    }));
-
-    const result = await postJournalEntry({
-      date,
-      memo,
-      sourceType: "Manual",
-      lines: payloadLines,
-      overrideReason: activeCompany.isPeriodClosed ? overrideReason : undefined,
-    });
-
-    if (result.success) {
-      const entryId = result.entryId;
-      setMemo("");
-      setOverrideReason("");
-      setLines([
-        { accountCode: "1000", debit: "0.00", credit: "0.00", memo: "" },
-        { accountCode: "6200", debit: "0.00", credit: "0.00", memo: "" },
-      ]);
-      setView("list");
-      await modal.showAlert({
-        title: "Lançamento Contábil Postado",
-        message: `Lote de partidas dobradas ${entryId} postado com sucesso no Razão Geral!\nValor total equilibrado: ${usd(totalDebits)}.`,
-        tone: "success",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Erro ao Postar Lançamento",
-        message: result.error || "Não foi possível postar o lançamento contábil.",
-        tone: "error",
-      });
+      if (result.success) {
+        const entryId = result.entryId;
+        setMemo("");
+        setOverrideReason("");
+        setLines([
+          { accountCode: "1000", debit: "0.00", credit: "0.00", memo: "" },
+          { accountCode: "6200", debit: "0.00", credit: "0.00", memo: "" },
+        ]);
+        setView("list");
+        await modal.showAlert({
+          title: "Lançamento Contábil Postado",
+          message: `Lote de partidas dobradas ${entryId} postado com sucesso no Razão Geral!\nValor total equilibrado: ${usd(totalDebits)}.`,
+          tone: "success",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Erro ao Postar Lançamento",
+          message: result.error || "Não foi possível postar o lançamento contábil.",
+          tone: "error",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 
   const handleReverse = async (entry: JournalEntry) => {
-    const reason = await modal.showPrompt({
-      title: `Estornar Lançamento: ${entry.id}`,
-      message: `Informe a justificativa formal de auditoria para estornar o lançamento contábil ${entry.id} (${entry.memo}):`,
-      defaultValue: "Correção de classificação contábil conforme revisão do auditor.",
-      placeholder: "Motivo do estorno...",
-      confirmText: "Efetuar Estorno",
-      cancelText: "Cancelar",
-    });
-    if (!reason) return;
+    try {
+      const reason = await modal.showPrompt({
+        title: `Estornar Lançamento: ${entry.id}`,
+        message: `Informe a justificativa formal de auditoria para estornar o lançamento contábil ${entry.id} (${entry.memo}):`,
+        defaultValue: "Correção de classificação contábil conforme revisão do auditor.",
+        placeholder: "Motivo do estorno...",
+        confirmText: "Efetuar Estorno",
+        cancelText: "Cancelar",
+      });
+      if (!reason) return;
 
-    const res = await reverseJournalEntry(entry.id, reason);
-    if (!res.success) {
-      await modal.showAlert({
-        title: "Erro no Estorno",
-        message: res.error || "Não foi possível efetuar o estorno.",
-        tone: "error",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Lançamento Estornado",
-        message: `O lançamento ${entry.id} foi estornado com sucesso. Um contra-lançamento compensatório foi gerado no Razão Geral.`,
-        tone: "success",
-      });
+      const res = await reverseJournalEntry(entry.id, reason);
+      if (!res.success) {
+        await modal.showAlert({
+          title: "Erro no Estorno",
+          message: res.error || "Não foi possível efetuar o estorno.",
+          tone: "error",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Lançamento Estornado",
+          message: `O lançamento ${entry.id} foi estornado com sucesso. Um contra-lançamento compensatório foi gerado no Razão Geral.`,
+          tone: "success",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 

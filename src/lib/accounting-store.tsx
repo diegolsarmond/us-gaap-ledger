@@ -8,6 +8,7 @@ import {
 } from "./accounting-engine";
 import { commandArgs, type AccountingCommand } from "./accounting-model";
 import { loadAccounting, runAccountingCommand } from "./accounting";
+import { Link } from "@tanstack/react-router";
 export type * from "./accounting-engine";
 type AsyncContext = {
   [K in keyof AccountingContextType]: AccountingContextType[K] extends (...args: infer A) => infer R
@@ -103,6 +104,20 @@ function CompanyAccounting({
   }
   return (
     <Context.Provider value={value}>
+      {(!query.data!.state.accounts.length || !query.data!.state.fiscalPeriods.length) && (
+        <div className="mb-4 rounded-lg border border-line bg-white/80 p-3 text-[12px] text-ink2">
+          Esta empresa começa sem dados. Cadastre o{" "}
+          <Link to="/accounts" className="text-brand underline">
+            plano de contas
+          </Link>{" "}
+          e os{" "}
+          <Link to="/parameters/fiscal-periods" className="text-brand underline">
+            períodos fiscais
+          </Link>{" "}
+          antes de lançar movimentações. Os lançamentos automáticos usam os códigos de contas
+          indicados em cada módulo.
+        </div>
+      )}
       {error && (
         <p role="alert" className="mb-3 text-down">
           {error}

@@ -33,40 +33,44 @@ function AccountsPage() {
   const [newDescription, setNewDescription] = useState("");
 
   const handleCreateAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCode || !newName) return;
+    try {
+      e.preventDefault();
+      if (!newCode || !newName) return;
 
-    // Check duplicate
-    if (accounts.some((a) => a.code.trim() === newCode.trim())) {
-      await modal.showAlert({
-        title: "Código de Conta Duplicado",
-        message: `Já existe uma conta contábil registrada com o código "${newCode}". Por favor, utilize um código único no plano de contas.`,
-        tone: "warning",
+      // Check duplicate
+      if (accounts.some((a) => a.code.trim() === newCode.trim())) {
+        await modal.showAlert({
+          title: "Código de Conta Duplicado",
+          message: `Já existe uma conta contábil registrada com o código "${newCode}". Por favor, utilize um código único no plano de contas.`,
+          tone: "warning",
+        });
+        return;
+      }
+
+      await addAccount({
+        code: newCode.trim(),
+        name: newName.trim(),
+        type: newType,
+        balanceType: newBalanceType,
+        description: newDescription.trim(),
       });
-      return;
+
+      const createdCode = newCode;
+      const createdName = newName;
+
+      setNewCode("");
+      setNewName("");
+      setNewDescription("");
+      setView("list");
+
+      await modal.showAlert({
+        title: "Conta Adicionada com Sucesso",
+        message: `A conta contábil "${createdCode} — ${createdName}" foi integrada ao Plano de Contas da empresa ${activeCompany.name}.`,
+        tone: "success",
+      });
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
-
-    await addAccount({
-      code: newCode.trim(),
-      name: newName.trim(),
-      type: newType,
-      balanceType: newBalanceType,
-      description: newDescription.trim(),
-    });
-
-    const createdCode = newCode;
-    const createdName = newName;
-
-    setNewCode("");
-    setNewName("");
-    setNewDescription("");
-    setView("list");
-
-    await modal.showAlert({
-      title: "Conta Adicionada com Sucesso",
-      message: `A conta contábil "${createdCode} — ${createdName}" foi integrada ao Plano de Contas da empresa ${activeCompany.name}.`,
-      tone: "success",
-    });
   };
 
   const handleExportCsv = () => {

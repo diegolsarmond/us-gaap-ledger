@@ -43,7 +43,7 @@ function PayablesPage() {
   const [currency, setCurrency] = useState("USD");
   const [fxRateInput, setFxRateInput] = useState("1.0");
   const [foreignAmount, setForeignAmount] = useState("0");
-  const [accountCode, setAccountCode] = useState("6100");
+  const [accountCode, setAccountCode] = useState("");
   const [isInventory, setIsInventory] = useState(false);
   const [skuPurchased, setSkuPurchased] = useState("");
   const [qtyPurchased, setQtyPurchased] = useState(0);
@@ -69,55 +69,59 @@ function PayablesPage() {
   };
 
   const handleCreateBill = async (e: React.FormEvent) => {
-    e.preventDefault();
+    try {
+      e.preventDefault();
 
-    if (!vendorName.trim()) {
-      await modal.showAlert({
-        title: "Campo Obrigatório",
-        message: "Por favor informe o Nome ou Razão Social do Fornecedor.",
-        tone: "warning",
-      });
-      return;
-    }
+      if (!vendorName.trim()) {
+        await modal.showAlert({
+          title: "Campo Obrigatório",
+          message: "Por favor informe o Nome ou Razão Social do Fornecedor.",
+          tone: "warning",
+        });
+        return;
+      }
 
-    const result = await createBill({
-      vendorName: vendorName.trim(),
-      billNumber: billNumber.trim(),
-      date,
-      dueDate,
-      currency,
-      fxRate: effectiveRate,
-      foreignAmount: numForeign,
-      items: [
-        {
-          id: `bi-${Date.now()}`,
-          description: `Fatura ${billNumber} — ${vendorName}`,
-          accountCode,
-          isInventory: accountCode === "1300" && isInventory,
-          sku: accountCode === "1300" ? skuPurchased : undefined,
-          qty: accountCode === "1300" ? qtyPurchased : undefined,
-          amount: calculatedUsd,
-          projectId: projectId || undefined,
-        },
-      ],
-      projectId: projectId || undefined,
-    });
+      const result = await createBill({
+        vendorName: vendorName.trim(),
+        billNumber: billNumber.trim(),
+        date,
+        dueDate,
+        currency,
+        fxRate: effectiveRate,
+        foreignAmount: numForeign,
+        items: [
+          {
+            id: `bi-${Date.now()}`,
+            description: `Fatura ${billNumber} — ${vendorName}`,
+            accountCode,
+            isInventory: accountCode === "1300" && isInventory,
+            sku: accountCode === "1300" ? skuPurchased : undefined,
+            qty: accountCode === "1300" ? qtyPurchased : undefined,
+            amount: calculatedUsd,
+            projectId: projectId || undefined,
+          },
+        ],
+        projectId: projectId || undefined,
+      });
 
-    if (result.success) {
-      const bId = result.billId;
-      setBillNumber("");
-      setView("list");
-      await modal.showAlert({
-        title: "Fatura de Fornecedor Registrada",
-        message: `Fatura ${bId} registrada com sucesso no Contas a Pagar (AP)!\n\nLançamentos no Razão Geral:\n• Crédito em Contas a Pagar (2000): ${usd(calculatedUsd)}\n• Débito na conta ${accountCode}: ${usd(calculatedUsd)}`,
-        tone: "success",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Erro ao Registrar Título",
-        message: result.error || "Não foi possível registrar o título a pagar.",
-        tone: "error",
-      });
+      if (result.success) {
+        const bId = result.billId;
+        setBillNumber("");
+        setView("list");
+        await modal.showAlert({
+          title: "Fatura de Fornecedor Registrada",
+          message: `Fatura ${bId} registrada com sucesso no Contas a Pagar (AP)!\n\nLançamentos no Razão Geral:\n• Crédito em Contas a Pagar (2000): ${usd(calculatedUsd)}\n• Débito na conta ${accountCode}: ${usd(calculatedUsd)}`,
+          tone: "success",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Erro ao Registrar Título",
+          message: result.error || "Não foi possível registrar o título a pagar.",
+          tone: "error",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 
@@ -127,29 +131,33 @@ function PayablesPage() {
   };
 
   const handleConfirmPay = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!payingBillId) return;
+    try {
+      e.preventDefault();
+      if (!payingBillId) return;
 
-    const rate = Number(settlementRate) || undefined;
-    const res = await payBill(payingBillId, payDate, rate);
-    if (res.success) {
-      const currentBill = bills.find((b) => b.id === payingBillId);
-      setPayingBillId(null);
-      await modal.showAlert({
-        title: "Quitação de Título Efetuada",
-        message: `Título ${currentBill?.billNumber || payingBillId} liquidado com sucesso!\n\nDébito em Contas a Pagar (2000) e crédito em Caixa/Banco (1000).${
-          currentBill && currentBill.currency !== "USD"
-            ? " A variação cambial realizada (Realized FX Gain/Loss) foi calculada e postada automaticamente."
-            : ""
-        }`,
-        tone: "success",
-      });
-    } else {
-      await modal.showAlert({
-        title: "Erro na Quitação",
-        message: res.error || "Não foi possível liquidar o título.",
-        tone: "error",
-      });
+      const rate = Number(settlementRate) || undefined;
+      const res = await payBill(payingBillId, payDate, rate);
+      if (res.success) {
+        const currentBill = bills.find((b) => b.id === payingBillId);
+        setPayingBillId(null);
+        await modal.showAlert({
+          title: "Quitação de Título Efetuada",
+          message: `Título ${currentBill?.billNumber || payingBillId} liquidado com sucesso!\n\nDébito em Contas a Pagar (2000) e crédito em Caixa/Banco (1000).${
+            currentBill && currentBill.currency !== "USD"
+              ? " A variação cambial realizada (Realized FX Gain/Loss) foi calculada e postada automaticamente."
+              : ""
+          }`,
+          tone: "success",
+        });
+      } else {
+        await modal.showAlert({
+          title: "Erro na Quitação",
+          message: res.error || "Não foi possível liquidar o título.",
+          tone: "error",
+        });
+      }
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
   };
 
@@ -542,6 +550,7 @@ function PayablesPage() {
                   }}
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono"
                 >
+                  <option value="">Selecione uma conta cadastrada</option>
                   <optgroup label="Despesas Operacionais (OpEx)">
                     {accounts
                       .filter((a) => a.type === "Operating Expense" || a.type === "Other Expense")

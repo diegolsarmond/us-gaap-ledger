@@ -73,39 +73,43 @@ function ProjectsPage() {
     totalRecognizedRevenue > 0 ? (totalGrossMargin / totalRecognizedRevenue) * 100 : 0;
 
   const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !code.trim()) {
-      await modal.showAlert({
-        title: "Campos Obrigatórios",
-        message: "Por favor informe o Código e o Nome do Projeto.",
-        tone: "warning",
+    try {
+      e.preventDefault();
+      if (!name.trim() || !code.trim()) {
+        await modal.showAlert({
+          title: "Campos Obrigatórios",
+          message: "Por favor informe o Código e o Nome do Projeto.",
+          tone: "warning",
+        });
+        return;
+      }
+
+      await createProject({
+        code: code.toUpperCase().trim(),
+        name: name.trim(),
+        clientName: clientName.trim() || "Cliente Direto",
+        budget: Number(budget) || 0,
+        contractValue: Number(contractValue) || 0,
+        status,
+        startDate,
+        endDate,
+        notes: notes.trim(),
       });
-      return;
+
+      const createdCode = code.toUpperCase().trim();
+      setCode("");
+      setName("");
+      setNotes("");
+      setView("list");
+
+      await modal.showAlert({
+        title: "Projeto Registrado com Sucesso",
+        message: `O projeto ${createdCode} foi cadastrado com sucesso no módulo de Job Costing da empresa ${activeCompany.name}.`,
+        tone: "success",
+      });
+    } catch {
+      /* The company provider displays the server error and preserves the form. */
     }
-
-    await createProject({
-      code: code.toUpperCase().trim(),
-      name: name.trim(),
-      clientName: clientName.trim() || "Cliente Direto",
-      budget: Number(budget) || 0,
-      contractValue: Number(contractValue) || 0,
-      status,
-      startDate,
-      endDate,
-      notes: notes.trim(),
-    });
-
-    const createdCode = code.toUpperCase().trim();
-    setCode("");
-    setName("");
-    setNotes("");
-    setView("list");
-
-    await modal.showAlert({
-      title: "Projeto Registrado com Sucesso",
-      message: `O projeto ${createdCode} foi cadastrado com sucesso no módulo de Job Costing da empresa ${activeCompany.name}.`,
-      tone: "success",
-    });
   };
 
   const handleExportCsv = () => {

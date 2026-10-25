@@ -168,7 +168,6 @@ function FiscalPeriodsPage() {
         });
         if (confirmLock) {
           await updateFiscalPeriod(p.id, {
-            ...parameterScope.value,
             status: "Locked",
             closedBy: userPersona.name,
             closingDate: new Date().toISOString().split("T")[0]!,
@@ -187,7 +186,6 @@ function FiscalPeriodsPage() {
         });
         if (reason) {
           await updateFiscalPeriod(p.id, {
-            ...parameterScope.value,
             status: "Open",
             notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
           });
@@ -195,7 +193,6 @@ function FiscalPeriodsPage() {
       } else {
         // Soft-Close -> Locked
         await updateFiscalPeriod(p.id, {
-          ...parameterScope.value,
           status: "Locked",
           closedBy: userPersona.name,
           closingDate: new Date().toISOString().split("T")[0]!,

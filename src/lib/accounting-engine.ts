@@ -681,7 +681,12 @@ export function createAccountingEngine(
 
     let totalCogsToRelieve = 0;
     const updatedInventory = currentData.inventory.map((item) => {
-      const line = invData.items.find((i) => i.sku === item.sku && i.isProduct);
+      const matching = invData.items.filter((i) => i.sku === item.sku && i.isProduct);
+      const line = matching.length
+        ? { ...matching[0]!, qty: matching.reduce((sum, i) => sum + i.qty, 0) }
+        : undefined;
+      if (line && line.qty > item.qtyOnHand)
+        throw new Error(`Estoque insuficiente para ${item.sku}.`);
       if (!line || line.qty <= 0) return item;
 
       let neededQty = line.qty;
