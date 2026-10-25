@@ -9,7 +9,7 @@ export function SignOutButton() {
       <button
         type="button"
         disabled={pending}
-        className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink disabled:opacity-50"
+        className="rounded-lg border border-red-200/70 bg-red-50/50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:border-red-300 hover:bg-red-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-50"
         onClick={async () => {
           setPending(true);
           setError(false);

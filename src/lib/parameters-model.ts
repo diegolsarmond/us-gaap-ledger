@@ -70,7 +70,7 @@ export const parameterSchemas = {
       closingDate: z.string().optional(),
       notes: z.string().max(4000).optional(),
     })
-    .refine((v) => v.startDate <= v.endDate, "Data inicial deve anteceder a final."),
+    .refine((v) => v.startDate <= v.endDate, "The start date must be on or before the end date."),
 };
 export const domainSchema = z.enum([
   "currencies",

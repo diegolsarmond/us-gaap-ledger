@@ -95,12 +95,12 @@ export function CashShell({
   const branding = (
     <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/70 px-4">
       <img
-        src="/logo-interna.png"
-        alt="Quantum Tecnologia"
+        src="/world-business.svg"
+        alt="World Business"
         className="size-7 rounded-md object-contain shrink-0"
       />
       <div className="leading-tight">
-        <p className="text-[13px] font-semibold tracking-tight">Quantum Tecnologia</p>
+        <p className="text-[13px] font-semibold tracking-tight">World Business</p>
         <p className="text-[10px] uppercase tracking-[0.14em] text-ink3">US GAAP Multi-Tenant</p>
       </div>
     </div>
@@ -182,7 +182,9 @@ export function CashShell({
             </p>
           </div>
         </div>
-        <SignOutButton />
+        <div className="flex justify-end">
+          <SignOutButton />
+        </div>
       </footer>
     </>
   );
@@ -225,8 +227,8 @@ export function CashShell({
             </button>
             <div className="flex md:hidden items-center gap-1.5 shrink-0">
               <img
-                src="/logo-interna.png"
-                alt="Quantum"
+                src="/world-business.svg"
+                alt="World Business"
                 className="size-6 rounded-md object-contain shrink-0"
               />
             </div>

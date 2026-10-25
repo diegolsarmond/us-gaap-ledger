@@ -58,7 +58,7 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
             ? all.rows.map((r) => r["id"])
             : [...new Set(value?.companyIds ?? old?.companyIds ?? [input.companyId])];
     if (input.operation !== "delete" && !targets.length)
-      throw new Error("Selecione pelo menos uma empresa.");
+      throw new Error("Select at least one company.");
     const linked =
       input.domain !== "currencies" && old?.sharedId
         ? await client.query(`SELECT company_id FROM ${table} WHERE data->>'sharedId'=$1`, [

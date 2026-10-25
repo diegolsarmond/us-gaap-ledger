@@ -183,7 +183,7 @@ function CostCentersPage() {
 
   const handleExport = () => {
     exportToCsv(
-      `centros-de-custo-${activeCompany.id}.csv`,
+      `cost-centers-${activeCompany.id}.csv`,
       ["Code", "Name", "Manager", "Annual_Budget", "Description", "Status"],
       costCenters.map((c) => [
         c.code,

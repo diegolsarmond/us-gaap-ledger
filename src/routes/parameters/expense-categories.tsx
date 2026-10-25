@@ -179,7 +179,7 @@ function ExpenseCategoriesPage() {
 
   const handleExport = () => {
     exportToCsv(
-      `categorias-despesas-${activeCompany.id}.csv`,
+      `expense-categories-${activeCompany.id}.csv`,
       ["Code", "Name", "GL_Account", "Tax_Deductibility", "Description", "Status"],
       expenseCategories.map((c) => [
         c.code,
