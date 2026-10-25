@@ -26,6 +26,9 @@ export async function authorize(permission?: keyof Permissions) {
       manage_profiles: !!profile?.manage_profiles,
       view_audit: !!profile?.view_audit,
       write_cash: !!profile?.write_cash,
+      manage_companies: !!profile?.manage_companies,
+      write_accounting: !!profile?.write_accounting,
+      close_periods: !!profile?.close_periods,
     },
   };
 }
@@ -33,12 +36,13 @@ export async function loadAdmin() {
   const { user, permissions } = await authorize();
   const profiles =
     permissions.manage_users || permissions.manage_profiles
-      ? await db().query("SELECT * FROM access_profiles ORDER BY name")
+      ? await db().query("SELECT p.*,ARRAY(SELECT company_id FROM profile_companies WHERE profile_id=p.id) AS company_ids FROM access_profiles p ORDER BY name")
       : { rows: [] };
   const users = permissions.manage_users
     ? await db().query("SELECT id,name,email,profile_id,active FROM app_users ORDER BY name")
     : { rows: [] };
   return {
+    companies: permissions.manage_profiles ? (await db().query("SELECT id,data->>'name' AS name FROM companies ORDER BY data->>'name'")).rows as {id:string;name:string}[] : [],
     currentUserId: user.id,
     permissions,
     profiles: profiles.rows as Profile[],
@@ -58,10 +62,11 @@ export async function saveProfile(data: z.infer<typeof profileSchema>) {
       data.manage_profiles,
       data.view_audit,
       data.write_cash,
+      data.manage_companies,data.write_accounting,data.close_periods,data.all_companies,
     ];
     if (data.id) {
       const r = await client.query(
-        "UPDATE access_profiles SET name=$1,manage_users=$2,manage_profiles=$3,view_audit=$4,write_cash=$5 WHERE id=$6 AND NOT system_admin RETURNING id",
+        "UPDATE access_profiles SET name=$1,manage_users=$2,manage_profiles=$3,view_audit=$4,write_cash=$5  ,manage_companies=$6,write_accounting=$7,close_periods=$8,all_companies=$9 WHERE id=$10 AND NOT system_admin RETURNING id",
         [...values, data.id],
       );
       if (!r.rowCount) throw new Error("Perfil protegido ou não encontrado.");

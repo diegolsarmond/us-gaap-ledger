@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type FiscalPeriodParam } from "@/lib/accounting-store";
+import { useAccounting, type FiscalPeriodParam } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -77,6 +77,7 @@ function FiscalPeriodsPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    try {
     e.preventDefault();
     if (!periodCode.trim() || !startDate || !endDate) {
       await modal.showAlert({
@@ -99,7 +100,7 @@ function FiscalPeriodsPage() {
     const cleanCode = periodCode.trim();
 
     if (editingId) {
-      updateFiscalPeriod(editingId, {
+      await updateFiscalPeriod(editingId, {
         periodCode: cleanCode,
         fiscalYear: fiscalYear.trim(),
         startDate,
@@ -113,7 +114,7 @@ function FiscalPeriodsPage() {
         tone: "success",
       });
     } else {
-      addFiscalPeriod({
+      await addFiscalPeriod({
         periodCode: cleanCode,
         fiscalYear: fiscalYear.trim(),
         startDate,
@@ -129,9 +130,11 @@ function FiscalPeriodsPage() {
     }
 
     setModalOpen(false);
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleToggleStatus = async (p: FiscalPeriodParam) => {
+    try {
     if (!userPersona.canClosePeriod) {
       await modal.showAlert({
         title: "Acesso Negado",
@@ -150,7 +153,7 @@ function FiscalPeriodsPage() {
         cancelText: "Cancelar",
       });
       if (confirmLock) {
-        updateFiscalPeriod(p.id, {
+        await updateFiscalPeriod(p.id, {
           status: "Locked",
           closedBy: userPersona.name,
           closingDate: new Date().toISOString().split("T")[0]!,
@@ -166,22 +169,24 @@ function FiscalPeriodsPage() {
         cancelText: "Cancelar",
       });
       if (reason) {
-        updateFiscalPeriod(p.id, {
+        await updateFiscalPeriod(p.id, {
           status: "Open",
           notes: `Reaberto em ${new Date().toISOString().split("T")[0]}: ${reason}`,
         });
       }
     } else {
       // Soft-Close -> Locked
-      updateFiscalPeriod(p.id, {
+      await updateFiscalPeriod(p.id, {
         status: "Locked",
         closedBy: userPersona.name,
         closingDate: new Date().toISOString().split("T")[0]!,
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (p: FiscalPeriodParam) => {
+    try {
     if (!userPersona.canClosePeriod) {
       await modal.showAlert({
         title: "Acesso Negado",
@@ -209,13 +214,14 @@ function FiscalPeriodsPage() {
     });
 
     if (confirmed) {
-      deleteFiscalPeriod(p.id);
+      await deleteFiscalPeriod(p.id);
       await modal.showAlert({
         title: "Período Removido",
         message: `O período ${p.periodCode} foi excluído do calendário.`,
         tone: "success",
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const filteredPeriods = fiscalPeriods.filter((p) => {

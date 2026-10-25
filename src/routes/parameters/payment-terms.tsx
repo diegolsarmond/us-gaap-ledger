@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type PaymentTermParam } from "@/lib/accounting-store";
+import { useAccounting, type PaymentTermParam } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -79,6 +79,7 @@ function PaymentTermsPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    try {
     e.preventDefault();
     if (!code.trim() || !name.trim() || !days.trim()) {
       await modal.showAlert({
@@ -104,7 +105,7 @@ function PaymentTermsPage() {
     const cleanCode = code.trim().toUpperCase();
 
     if (editingId) {
-      updatePaymentTerm(editingId, {
+      await updatePaymentTerm(editingId, {
         code: cleanCode,
         name: name.trim(),
         days: numDays,
@@ -120,7 +121,7 @@ function PaymentTermsPage() {
         tone: "success",
       });
     } else {
-      addPaymentTerm({
+      await addPaymentTerm({
         code: cleanCode,
         name: name.trim(),
         days: numDays,
@@ -138,9 +139,11 @@ function PaymentTermsPage() {
     }
 
     setModalOpen(false);
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (term: PaymentTermParam) => {
+    try {
     const confirmed = await modal.showConfirm({
       title: `Excluir Condição de Pagamento?`,
       message: `Tem certeza que deseja remover a condição "${term.name}" (${term.code})?\n\nDocumentos financeiros já emitidos preservarão o vencimento original.`,
@@ -150,18 +153,21 @@ function PaymentTermsPage() {
     });
 
     if (confirmed) {
-      deletePaymentTerm(term.id);
+      await deletePaymentTerm(term.id);
       await modal.showAlert({
         title: "Condição Removida",
         message: `A condição de pagamento ${term.code} foi excluída.`,
         tone: "success",
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
-  const handleToggleStatus = (term: PaymentTermParam) => {
+  const handleToggleStatus = async (term: PaymentTermParam) => {
+    try {
     const nextStatus = term.status === "Active" ? "Inactive" : "Active";
-    updatePaymentTerm(term.id, { status: nextStatus });
+    await updatePaymentTerm(term.id, { status: nextStatus });
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const filteredTerms = paymentTerms.filter((t) => {

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type TaxJurisdictionParam } from "@/lib/accounting-store";
+import { useAccounting, type TaxJurisdictionParam } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -82,6 +82,7 @@ function TaxJurisdictionsPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    try {
     e.preventDefault();
     if (!code.trim() || !name.trim() || !rate.trim()) {
       await modal.showAlert({
@@ -105,7 +106,7 @@ function TaxJurisdictionsPage() {
     const cleanCode = code.trim().toUpperCase();
 
     if (editingId) {
-      updateTaxJurisdiction(editingId, {
+      await updateTaxJurisdiction(editingId, {
         code: cleanCode,
         state: state.toUpperCase(),
         name: name.trim(),
@@ -121,7 +122,7 @@ function TaxJurisdictionsPage() {
         tone: "success",
       });
     } else {
-      addTaxJurisdiction({
+      await addTaxJurisdiction({
         code: cleanCode,
         state: state.toUpperCase(),
         name: name.trim(),
@@ -139,9 +140,11 @@ function TaxJurisdictionsPage() {
     }
 
     setModalOpen(false);
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (tax: TaxJurisdictionParam) => {
+    try {
     const confirmed = await modal.showConfirm({
       title: `Excluir Jurisdição Fiscal?`,
       message: `Deseja realmente excluir a regra tributária "${tax.name}" (${tax.code})?\n\nFaturas e apurações emitidas no passado manterão o histórico inalterado.`,
@@ -151,18 +154,21 @@ function TaxJurisdictionsPage() {
     });
 
     if (confirmed) {
-      deleteTaxJurisdiction(tax.id);
+      await deleteTaxJurisdiction(tax.id);
       await modal.showAlert({
         title: "Jurisdição Removida",
         message: `A jurisdição ${tax.code} foi excluída.`,
         tone: "success",
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
-  const handleToggleStatus = (tax: TaxJurisdictionParam) => {
+  const handleToggleStatus = async (tax: TaxJurisdictionParam) => {
+    try {
     const nextStatus = tax.status === "Active" ? "Inactive" : "Active";
-    updateTaxJurisdiction(tax.id, { status: nextStatus });
+    await updateTaxJurisdiction(tax.id, { status: nextStatus });
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const filteredTaxes = taxJurisdictions.filter((t) => {
@@ -466,9 +472,6 @@ function TaxJurisdictionsPage() {
                         {a.code} - {a.name}
                       </option>
                     ))}
-                    {!liabilityAccounts.some((a) => a.code === "2200") && (
-                      <option value="2200">2200 - Sales Tax Payable</option>
-                    )}
                   </select>
                 </div>
 

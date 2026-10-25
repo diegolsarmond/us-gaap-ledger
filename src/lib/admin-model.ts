@@ -6,6 +6,11 @@ export const profileSchema = z.object({
   manage_profiles: z.boolean(),
   view_audit: z.boolean(),
   write_cash: z.boolean(),
+  manage_companies: z.boolean().default(false),
+  write_accounting: z.boolean().default(false),
+  close_periods: z.boolean().default(false),
+  all_companies: z.boolean().default(false),
+  company_ids: z.array(z.string().uuid()).max(10000).default([]),
 });
 export const userSchema = z.object({
   id: z.string().uuid().optional(),
@@ -38,4 +43,7 @@ export type Permissions = {
   manage_profiles: boolean;
   view_audit: boolean;
   write_cash: boolean;
+  manage_companies: boolean;
+  write_accounting: boolean;
+  close_periods: boolean;
 };

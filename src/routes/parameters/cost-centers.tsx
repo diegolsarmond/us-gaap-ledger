@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type CostCenterParam } from "@/lib/accounting-store";
+import { useAccounting, type CostCenterParam } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -73,6 +73,7 @@ function CostCentersPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    try {
     e.preventDefault();
     if (!code.trim() || !name.trim() || !manager.trim()) {
       await modal.showAlert({
@@ -96,7 +97,7 @@ function CostCentersPage() {
     const cleanCode = code.trim().toUpperCase();
 
     if (editingId) {
-      updateCostCenter(editingId, {
+      await updateCostCenter(editingId, {
         code: cleanCode,
         name: name.trim(),
         manager: manager.trim(),
@@ -110,7 +111,7 @@ function CostCentersPage() {
         tone: "success",
       });
     } else {
-      addCostCenter({
+      await addCostCenter({
         code: cleanCode,
         name: name.trim(),
         manager: manager.trim(),
@@ -126,9 +127,11 @@ function CostCentersPage() {
     }
 
     setModalOpen(false);
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (cc: CostCenterParam) => {
+    try {
     const confirmed = await modal.showConfirm({
       title: `Excluir Centro de Custo?`,
       message: `Deseja excluir o centro "${cc.name}" (${cc.code})?\n\nRegistros e transações alocadas anteriormente continuarão no histórico contábil.`,
@@ -138,18 +141,21 @@ function CostCentersPage() {
     });
 
     if (confirmed) {
-      deleteCostCenter(cc.id);
+      await deleteCostCenter(cc.id);
       await modal.showAlert({
         title: "Centro Removido",
         message: `O centro de custo ${cc.code} foi excluído.`,
         tone: "success",
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
-  const handleToggleStatus = (cc: CostCenterParam) => {
+  const handleToggleStatus = async (cc: CostCenterParam) => {
+    try {
     const nextStatus = cc.status === "Active" ? "Inactive" : "Active";
-    updateCostCenter(cc.id, { status: nextStatus });
+    await updateCostCenter(cc.id, { status: nextStatus });
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const filteredCostCenters = costCenters.filter((c) => {

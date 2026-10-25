@@ -16,11 +16,13 @@ import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BalanceSheetRouteImport } from './routes/balance-sheet'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
+import { Route as CompaniesRouteImport } from './routes/companies'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DreRouteImport } from './routes/dre'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as JournalsRouteImport } from './routes/journals'
+import { Route as ParametersRouteImport } from './routes/parameters'
 import { Route as PayablesRouteImport } from './routes/payables'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ReceivablesRouteImport } from './routes/receivables'
@@ -71,6 +73,11 @@ const CashFlowRoute = CashFlowRouteImport.update({
   path: '/cash-flow',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompaniesRoute = CompaniesRouteImport.update({
+  id: '/companies',
+  path: '/companies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -94,6 +101,11 @@ const InvoicesRoute = InvoicesRouteImport.update({
 const JournalsRoute = JournalsRouteImport.update({
   id: '/journals',
   path: '/journals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParametersRoute = ParametersRouteImport.update({
+  id: '/parameters',
+  path: '/parameters',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PayablesRoute = PayablesRouteImport.update({
@@ -132,41 +144,41 @@ const UsersRoute = UsersRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParametersIndexRoute = ParametersIndexRouteImport.update({
-  id: '/parameters/',
-  path: '/parameters/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => ParametersRoute,
 } as any)
 const ParametersCostCentersRoute = ParametersCostCentersRouteImport.update({
-  id: '/parameters/cost-centers',
-  path: '/parameters/cost-centers',
-  getParentRoute: () => rootRouteImport,
+  id: '/cost-centers',
+  path: '/cost-centers',
+  getParentRoute: () => ParametersRoute,
 } as any)
 const ParametersCurrenciesRoute = ParametersCurrenciesRouteImport.update({
-  id: '/parameters/currencies',
-  path: '/parameters/currencies',
-  getParentRoute: () => rootRouteImport,
+  id: '/currencies',
+  path: '/currencies',
+  getParentRoute: () => ParametersRoute,
 } as any)
 const ParametersExpenseCategoriesRoute =
   ParametersExpenseCategoriesRouteImport.update({
-    id: '/parameters/expense-categories',
-    path: '/parameters/expense-categories',
-    getParentRoute: () => rootRouteImport,
+    id: '/expense-categories',
+    path: '/expense-categories',
+    getParentRoute: () => ParametersRoute,
   } as any)
 const ParametersFiscalPeriodsRoute = ParametersFiscalPeriodsRouteImport.update({
-  id: '/parameters/fiscal-periods',
-  path: '/parameters/fiscal-periods',
-  getParentRoute: () => rootRouteImport,
+  id: '/fiscal-periods',
+  path: '/fiscal-periods',
+  getParentRoute: () => ParametersRoute,
 } as any)
 const ParametersPaymentTermsRoute = ParametersPaymentTermsRouteImport.update({
-  id: '/parameters/payment-terms',
-  path: '/parameters/payment-terms',
-  getParentRoute: () => rootRouteImport,
+  id: '/payment-terms',
+  path: '/payment-terms',
+  getParentRoute: () => ParametersRoute,
 } as any)
 const ParametersTaxJurisdictionsRoute =
   ParametersTaxJurisdictionsRouteImport.update({
-    id: '/parameters/tax-jurisdictions',
-    path: '/parameters/tax-jurisdictions',
-    getParentRoute: () => rootRouteImport,
+    id: '/tax-jurisdictions',
+    path: '/tax-jurisdictions',
+    getParentRoute: () => ParametersRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -177,11 +189,13 @@ export interface FileRoutesByFullPath {
   '/balance-sheet': typeof BalanceSheetRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
+  '/companies': typeof CompaniesRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
+  '/parameters': typeof ParametersRouteWithChildren
   '/payables': typeof PayablesRoute
   '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
@@ -205,6 +219,7 @@ export interface FileRoutesByTo {
   '/balance-sheet': typeof BalanceSheetRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
+  '/companies': typeof CompaniesRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
@@ -234,11 +249,13 @@ export interface FileRoutesById {
   '/balance-sheet': typeof BalanceSheetRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
+  '/companies': typeof CompaniesRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
+  '/parameters': typeof ParametersRouteWithChildren
   '/payables': typeof PayablesRoute
   '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
@@ -264,11 +281,13 @@ export interface FileRouteTypes {
     | '/balance-sheet'
     | '/cadastro'
     | '/cash-flow'
+    | '/companies'
     | '/dashboard'
     | '/dre'
     | '/inventory'
     | '/invoices'
     | '/journals'
+    | '/parameters'
     | '/payables'
     | '/projects'
     | '/receivables'
@@ -292,6 +311,7 @@ export interface FileRouteTypes {
     | '/balance-sheet'
     | '/cadastro'
     | '/cash-flow'
+    | '/companies'
     | '/dashboard'
     | '/dre'
     | '/inventory'
@@ -320,11 +340,13 @@ export interface FileRouteTypes {
     | '/balance-sheet'
     | '/cadastro'
     | '/cash-flow'
+    | '/companies'
     | '/dashboard'
     | '/dre'
     | '/inventory'
     | '/invoices'
     | '/journals'
+    | '/parameters'
     | '/payables'
     | '/projects'
     | '/receivables'
@@ -349,11 +371,13 @@ export interface RootRouteChildren {
   BalanceSheetRoute: typeof BalanceSheetRoute
   CadastroRoute: typeof CadastroRoute
   CashFlowRoute: typeof CashFlowRoute
+  CompaniesRoute: typeof CompaniesRoute
   DashboardRoute: typeof DashboardRoute
   DreRoute: typeof DreRoute
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
   JournalsRoute: typeof JournalsRoute
+  ParametersRoute: typeof ParametersRouteWithChildren
   PayablesRoute: typeof PayablesRoute
   ProjectsRoute: typeof ProjectsRoute
   ReceivablesRoute: typeof ReceivablesRoute
@@ -361,13 +385,6 @@ export interface RootRouteChildren {
   TaxesRoute: typeof TaxesRoute
   TrialBalanceRoute: typeof TrialBalanceRoute
   UsersRoute: typeof UsersRoute
-  ParametersCostCentersRoute: typeof ParametersCostCentersRoute
-  ParametersCurrenciesRoute: typeof ParametersCurrenciesRoute
-  ParametersExpenseCategoriesRoute: typeof ParametersExpenseCategoriesRoute
-  ParametersFiscalPeriodsRoute: typeof ParametersFiscalPeriodsRoute
-  ParametersPaymentTermsRoute: typeof ParametersPaymentTermsRoute
-  ParametersTaxJurisdictionsRoute: typeof ParametersTaxJurisdictionsRoute
-  ParametersIndexRoute: typeof ParametersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -421,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CashFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/companies': {
+      id: '/companies'
+      path: '/companies'
+      fullPath: '/companies'
+      preLoaderRoute: typeof CompaniesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -454,6 +478,13 @@ declare module '@tanstack/react-router' {
       path: '/journals'
       fullPath: '/journals'
       preLoaderRoute: typeof JournalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parameters': {
+      id: '/parameters'
+      path: '/parameters'
+      fullPath: '/parameters'
+      preLoaderRoute: typeof ParametersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payables': {
@@ -507,55 +538,79 @@ declare module '@tanstack/react-router' {
     }
     '/parameters/': {
       id: '/parameters/'
-      path: '/parameters'
+      path: '/'
       fullPath: '/parameters/'
       preLoaderRoute: typeof ParametersIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/cost-centers': {
       id: '/parameters/cost-centers'
-      path: '/parameters/cost-centers'
+      path: '/cost-centers'
       fullPath: '/parameters/cost-centers'
       preLoaderRoute: typeof ParametersCostCentersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/currencies': {
       id: '/parameters/currencies'
-      path: '/parameters/currencies'
+      path: '/currencies'
       fullPath: '/parameters/currencies'
       preLoaderRoute: typeof ParametersCurrenciesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/expense-categories': {
       id: '/parameters/expense-categories'
-      path: '/parameters/expense-categories'
+      path: '/expense-categories'
       fullPath: '/parameters/expense-categories'
       preLoaderRoute: typeof ParametersExpenseCategoriesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/fiscal-periods': {
       id: '/parameters/fiscal-periods'
-      path: '/parameters/fiscal-periods'
+      path: '/fiscal-periods'
       fullPath: '/parameters/fiscal-periods'
       preLoaderRoute: typeof ParametersFiscalPeriodsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/payment-terms': {
       id: '/parameters/payment-terms'
-      path: '/parameters/payment-terms'
+      path: '/payment-terms'
       fullPath: '/parameters/payment-terms'
       preLoaderRoute: typeof ParametersPaymentTermsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
     '/parameters/tax-jurisdictions': {
       id: '/parameters/tax-jurisdictions'
-      path: '/parameters/tax-jurisdictions'
+      path: '/tax-jurisdictions'
       fullPath: '/parameters/tax-jurisdictions'
       preLoaderRoute: typeof ParametersTaxJurisdictionsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ParametersRoute
     }
   }
 }
+
+interface ParametersRouteChildren {
+  ParametersCostCentersRoute: typeof ParametersCostCentersRoute
+  ParametersCurrenciesRoute: typeof ParametersCurrenciesRoute
+  ParametersExpenseCategoriesRoute: typeof ParametersExpenseCategoriesRoute
+  ParametersFiscalPeriodsRoute: typeof ParametersFiscalPeriodsRoute
+  ParametersPaymentTermsRoute: typeof ParametersPaymentTermsRoute
+  ParametersTaxJurisdictionsRoute: typeof ParametersTaxJurisdictionsRoute
+  ParametersIndexRoute: typeof ParametersIndexRoute
+}
+
+const ParametersRouteChildren: ParametersRouteChildren = {
+  ParametersCostCentersRoute: ParametersCostCentersRoute,
+  ParametersCurrenciesRoute: ParametersCurrenciesRoute,
+  ParametersExpenseCategoriesRoute: ParametersExpenseCategoriesRoute,
+  ParametersFiscalPeriodsRoute: ParametersFiscalPeriodsRoute,
+  ParametersPaymentTermsRoute: ParametersPaymentTermsRoute,
+  ParametersTaxJurisdictionsRoute: ParametersTaxJurisdictionsRoute,
+  ParametersIndexRoute: ParametersIndexRoute,
+}
+
+const ParametersRouteWithChildren = ParametersRoute._addFileChildren(
+  ParametersRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -565,11 +620,13 @@ const rootRouteChildren: RootRouteChildren = {
   BalanceSheetRoute: BalanceSheetRoute,
   CadastroRoute: CadastroRoute,
   CashFlowRoute: CashFlowRoute,
+  CompaniesRoute: CompaniesRoute,
   DashboardRoute: DashboardRoute,
   DreRoute: DreRoute,
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
   JournalsRoute: JournalsRoute,
+  ParametersRoute: ParametersRouteWithChildren,
   PayablesRoute: PayablesRoute,
   ProjectsRoute: ProjectsRoute,
   ReceivablesRoute: ReceivablesRoute,
@@ -577,13 +634,6 @@ const rootRouteChildren: RootRouteChildren = {
   TaxesRoute: TaxesRoute,
   TrialBalanceRoute: TrialBalanceRoute,
   UsersRoute: UsersRoute,
-  ParametersCostCentersRoute: ParametersCostCentersRoute,
-  ParametersCurrenciesRoute: ParametersCurrenciesRoute,
-  ParametersExpenseCategoriesRoute: ParametersExpenseCategoriesRoute,
-  ParametersFiscalPeriodsRoute: ParametersFiscalPeriodsRoute,
-  ParametersPaymentTermsRoute: ParametersPaymentTermsRoute,
-  ParametersTaxJurisdictionsRoute: ParametersTaxJurisdictionsRoute,
-  ParametersIndexRoute: ParametersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

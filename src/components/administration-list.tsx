@@ -10,6 +10,9 @@ const permissions = {
   manage_profiles: "Gerenciar perfis",
   view_audit: "Consultar auditoria",
   write_cash: "Alterar fluxo de caixa",
+  manage_companies: "Gerenciar empresas",
+  write_accounting: "Operar módulos contábeis",
+  close_periods: "Gerenciar e encerrar períodos",
 } as const;
 export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
   const query = useQuery({ queryKey: ["administration"], queryFn: () => loadAdministration() });
@@ -79,9 +82,16 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
             manage_profiles: f.get("manage_profiles") === "on",
             view_audit: f.get("view_audit") === "on",
             write_cash: f.get("write_cash") === "on",
+            manage_companies: f.get("manage_companies") === "on",
+            write_accounting: f.get("write_accounting") === "on",
+            close_periods: f.get("close_periods") === "on",
+            all_companies: f.get("all_companies") === "on",
+            company_ids: f.getAll("company_ids").map(String),
           },
         });
       await client.invalidateQueries({ queryKey: ["administration"] });
+      await client.invalidateQueries({ queryKey: ["companies"] });
+      await client.invalidateQueries({ queryKey: ["accounting"] });
       setEditing(null);
       setNotice("Alterações salvas e registradas na auditoria.");
     } catch (e) {
@@ -366,6 +376,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                   </>
                 ) : (
                   <ul className="divide-y divide-line">
+                    <li className="py-3"><label><input type="checkbox" name="all_companies" defaultChecked={editing !== "new" && "all_companies" in editing && editing.all_companies} /> Acesso a todas as empresas (inclusive futuras)</label><p className="text-xs">Se desmarcado, somente as empresas selecionadas abaixo serão acessíveis.</p>{query.data?.companies.map(c => <label key={c.id} className="block"><input type="checkbox" name="company_ids" value={c.id} defaultChecked={editing !== "new" && "company_ids" in editing && editing.company_ids.includes(c.id)} /> {c.name}</label>)}</li>
                     {Object.entries(permissions).map(([key, label]) => (
                       <li key={key} className="py-3">
                         <label className="flex items-center justify-between text-sm">

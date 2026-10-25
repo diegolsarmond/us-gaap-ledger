@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { useAccounting } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -37,7 +37,7 @@ function ParametersIndexPage() {
     costCenters,
     expenseCategories,
     fiscalPeriods,
-    resetParametersToDefault,
+
     userPersona,
   } = useAccounting();
 
@@ -49,36 +49,6 @@ function ParametersIndexPage() {
   const activeCostCentersCount = costCenters.filter((c) => c.status === "Active").length;
   const activeCategoriesCount = expenseCategories.filter((e) => e.status === "Active").length;
   const openPeriodsCount = fiscalPeriods.filter((f) => f.status === "Open").length;
-
-  const handleResetDefaults = async () => {
-    if (!userPersona.canClosePeriod && !userPersona.canManageUsers) {
-      await modal.showAlert({
-        title: "Acesso Negado",
-        message: "Apenas administradores ou contadores responsáveis podem restaurar configurações padrão.",
-        tone: "error",
-      });
-      return;
-    }
-
-    const confirmed = await modal.showConfirm({
-      title: "Restaurar Parâmetros Padrão",
-      message: `Deseja restaurar todos os parâmetros da empresa "${activeCompany.name}" para os padrões recomendados de mercado?\n\nConfigurações customizadas adicionadas serão substituídas pela matriz de referência US GAAP.`,
-      tone: "warning",
-      confirmText: "Sim, Restaurar Padrões",
-      cancelText: "Cancelar",
-    });
-
-    if (confirmed) {
-      setResetting(true);
-      resetParametersToDefault();
-      setResetting(false);
-      await modal.showAlert({
-        title: "Parâmetros Restaurados",
-        message: "Os parâmetros e tabelas de referência foram restabelecidos com êxito.",
-        tone: "success",
-      });
-    }
-  };
 
   const modules = [
     {
@@ -163,17 +133,7 @@ function ParametersIndexPage() {
           title="Parâmetros & Configurações de Módulos"
           description={`Governança de parâmetros contábeis e operacionais para ${activeCompany.name} (${activeCompany.entity} - ${activeCompany.state})`}
         />
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={handleResetDefaults}
-            disabled={resetting}
-            className="flex items-center gap-1.5 rounded-lg border border-line bg-white/80 px-3 py-2 text-[12px] font-semibold text-ink2 transition-colors hover:bg-white hover:text-ink shadow-2xs cursor-pointer"
-          >
-            <RotateCcw className="size-3.5 text-ink3" />
-            <span>Restaurar Padrões Recomendados</span>
-          </button>
-        </div>
+
       </div>
 
       {/* KPI Overview Bar */}

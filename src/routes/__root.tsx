@@ -14,6 +14,9 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AccountingProvider } from "@/lib/accounting-store";
+import { CompanyProvider, useCompanies } from "@/components/company-context";
+import { ModalProvider } from "@/components/modal-provider";
 import { CashShell } from "@/components/cash-shell";
 
 function NotFoundComponent() {
@@ -83,9 +86,78 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const publicRoutes = ["/", "/cadastro"];
     const workspaceRoutes = ["/cash-flow", "/access", "/users", "/audit-log"];
     if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
-    if (user && !publicRoutes.includes(pathname) && !workspaceRoutes.includes(pathname))
+    if (user && !publicRoutes.includes(pathname) && !workspaceRoutes.includes(pathname) && !pathname.startsWith("/parameters"))
       throw redirect({ to: "/cash-flow" });
     return { user };
+  },
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "World Business · Contabilidade US GAAP" },
+      {
+        name: "description",
+        content:
+          "Sistema contábil US GAAP multi-cliente: lançamentos, faturas, estoque, relatórios e multimoeda.",
+      },
+      { property: "og:title", content: "World Business · Contabilidade US GAAP" },
+      {
+        property: "og:description",
+        content:
+          "Sistema contábil US GAAP multi-cliente: lançamentos, faturas, estoque, relatórios e multimoeda.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+    links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+      },
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+    ],
+  }),
+
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
+
+function RootShell({ children }: { children: ReactNode }) {
+  return (
+    <html lang="pt-BR">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+function RootComponent() {
+  const { queryClient, user } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === "/" || pathname === "/cadastro" || pathname === "/cadastro/" || !user) return <Outlet />;
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CompanyProvider><ModalProvider><CashShell user={user}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </CashShell>
+    </QueryClientProvider>
+  );
+}    return { user };
   },
   head: () => ({
     meta: [
@@ -154,4 +226,12 @@ function RootComponent() {
       </CashShell>
     </QueryClientProvider>
   );
+}
+
+function CompanyRoutes({pathname}:{pathname:string}) {
+ const {activeCompany}=useCompanies();
+ if(['/companies','/users','/access','/audit-log'].some(p=>pathname===p||pathname===p+'/')) return <Outlet key={pathname + (activeCompany?.id??'')} />;
+ if(!activeCompany) return <div className="p-5">Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.</div>;
+ if(pathname==='/cash-flow'||pathname==='/cash-flow/') return <Outlet key={activeCompany.id} />;
+ return <AccountingProvider key={activeCompany.id}><Outlet key={activeCompany.id} /></AccountingProvider>;
 }

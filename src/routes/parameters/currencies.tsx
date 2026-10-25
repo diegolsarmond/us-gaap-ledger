@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type CurrencyParam } from "@/lib/accounting-store";
+import { useAccounting, type CurrencyParam } from "@/lib/parameters-context";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
@@ -81,6 +81,7 @@ function CurrenciesPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    try {
     e.preventDefault();
     if (!code.trim() || !name.trim() || !exchangeRate.trim()) {
       await modal.showAlert({
@@ -113,7 +114,7 @@ function CurrenciesPage() {
     }
 
     if (editingCode) {
-      updateCurrency(editingCode, {
+      await updateCurrency(editingCode, {
         name: name.trim(),
         symbol: symbol.trim() || "$",
         exchangeRateToUsd: rateNum,
@@ -126,7 +127,7 @@ function CurrenciesPage() {
         tone: "success",
       });
     } else {
-      addCurrency({
+      await addCurrency({
         code: isoCode,
         name: name.trim(),
         symbol: symbol.trim() || "$",
@@ -144,9 +145,11 @@ function CurrenciesPage() {
     }
 
     setModalOpen(false);
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   const handleDelete = async (curr: CurrencyParam) => {
+    try {
     if (curr.isBaseCurrency || curr.code === "USD") {
       await modal.showAlert({
         title: "Operação Bloqueada",
@@ -165,19 +168,22 @@ function CurrenciesPage() {
     });
 
     if (confirmed) {
-      deleteCurrency(curr.code);
+      await deleteCurrency(curr.code);
       await modal.showAlert({
         title: "Moeda Removida",
         message: `A moeda ${curr.code} foi excluída dos parâmetros.`,
         tone: "success",
       });
     }
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
-  const handleToggleStatus = (curr: CurrencyParam) => {
+  const handleToggleStatus = async (curr: CurrencyParam) => {
+    try {
     if (curr.isBaseCurrency) return;
     const nextStatus = curr.status === "Active" ? "Inactive" : "Active";
-    updateCurrency(curr.code, { status: nextStatus });
+    await updateCurrency(curr.code, { status: nextStatus });
+    } catch { /* Persistence error is displayed by ParametersProvider. */ }
   };
 
   // Filtered List
