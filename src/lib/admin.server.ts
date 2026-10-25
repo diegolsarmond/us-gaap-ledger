@@ -12,6 +12,7 @@ import type {
 } from "./admin-model";
 export async function authorize(permission?: keyof Permissions) {
   const user = await readSession();
+  if (user?.must_change_password) throw new Error("Altere sua senha antes de acessar o sistema.");
   if (!user) throw new Error("Sessão expirada. Entre novamente.");
   const result = await db().query(
     "SELECT p.* FROM app_users u LEFT JOIN access_profiles p ON p.id=u.profile_id WHERE u.id=$1 AND u.active=true",
@@ -187,7 +188,7 @@ export async function resetPassword(id: string) {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);
     const result = await client.query(
-      "UPDATE app_users SET password_hash=$1 WHERE id=$2 RETURNING id",
+      "UPDATE app_users SET password_hash=$1,must_change_password=true WHERE id=$2 RETURNING id",
       [hash, id],
     );
     if (!result.rowCount) throw new Error("Usuário não encontrado.");

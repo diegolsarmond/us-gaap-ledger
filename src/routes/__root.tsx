@@ -85,6 +85,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const user = await getSession();
     const pathname = location.pathname.replace(/\/+$/, "") || "/";
     const publicRoutes = ["/", "/cadastro"];
+    if (user?.must_change_password && pathname !== "/") throw redirect({ to: "/" });
     if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
     if (user && !publicRoutes.includes(pathname) && !isModuleAvailable(pathname))
       throw redirect({ to: "/cash-flow" });

@@ -65,3 +65,7 @@ UPDATE app_users SET active = false WHERE email = 'usuario@empresa.com';
 DELETE FROM app_sessions WHERE user_id IN (SELECT id FROM app_users WHERE email = 'usuario@empresa.com');
 COMMIT;
 ```
+
+## Troca obrigatória de senha e logins
+
+Execute `database/009_required_password_change.sql` após as migrações anteriores. Redefinições administrativas exigem nova senha no próximo login. Logins bem-sucedidos são registrados na auditoria como `LOGIN`.

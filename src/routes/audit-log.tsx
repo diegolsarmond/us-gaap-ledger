@@ -6,13 +6,13 @@ import { getAuditEvents } from "@/lib/admin";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
 export const Route = createFileRoute("/audit-log")({ component: AuditPage });
 function AuditPage() {
-  const {activeCompany}=useCompanies();
+  const { activeCompany } = useCompanies();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
   const query = useQuery({
-    queryKey: ["system-audit", activeCompany?.id,page],
-    queryFn: () => getAuditEvents({ data: { page,companyId:activeCompany?.id } }),
+    queryKey: ["system-audit", activeCompany?.id, page],
+    queryFn: () => getAuditEvents({ data: { page, companyId: activeCompany?.id } }),
   });
   const rows =
     query.data?.events.filter(
@@ -24,7 +24,7 @@ function AuditPage() {
     <div className="space-y-4">
       <PageTitle
         title="Auditoria · Logs de ações"
-        description="Histórico de alterações de usuários, perfis, contas e lançamentos. Datas no horário local."
+        description="Histórico de logins e alterações de usuários, perfis, contas e lançamentos. Datas no horário local."
       />
       {query.isPending && <p role="status">Carregando logs…</p>}
       {query.isError && (
@@ -51,6 +51,7 @@ function AuditPage() {
           className="rounded-md border border-line bg-white p-2 text-sm"
         >
           <option value="">Todas as ações</option>
+          <option value="LOGIN">Login</option>
           <option value="INSERT">Criação</option>
           <option value="UPDATE">Alteração</option>
           <option value="DELETE">Exclusão</option>
@@ -77,8 +78,9 @@ function AuditPage() {
                   <Td>{new Date(r.occurred_at).toLocaleString("pt-BR")}</Td>
                   <Td>{r.actor_name}</Td>
                   <Td>
-                    {{ INSERT: "Criação", UPDATE: "Alteração", DELETE: "Exclusão" }[r.action] ??
-                      r.action}
+                    {{ LOGIN: "Login", INSERT: "Criação", UPDATE: "Alteração", DELETE: "Exclusão" }[
+                      r.action
+                    ] ?? r.action}
                   </Td>
                   <Td>
                     {r.entity}

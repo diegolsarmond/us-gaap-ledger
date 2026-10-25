@@ -9,11 +9,15 @@ export async function readSession() {
   const token = getCookie(cookie);
   if (!token) return null;
   const result = await db().query(
-    `SELECT u.id, u.email, u.name FROM app_sessions s JOIN app_users u ON u.id = s.user_id
+    `SELECT u.id, u.email, u.name, u.must_change_password FROM app_sessions s JOIN app_users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true`,
     [digest(token)],
   );
-  return (result.rows[0] as { id: string; email: string; name: string } | undefined) ?? null;
+  return (
+    (result.rows[0] as
+      { id: string; email: string; name: string; must_change_password: boolean } | undefined) ??
+    null
+  );
 }
 
 export async function signIn(email: string, password: string) {
@@ -29,7 +33,7 @@ export async function signIn(email: string, password: string) {
     [key],
   );
   if (attempts.rows[0].attempts > 10)
-    return { error: "Muitas tentativas. Aguarde 15 minutos e tente novamente." };
+    return { error: "Too many attempts. Wait 15 minutes and try again." };
   const result = await connection.query(
     "SELECT * FROM app_users WHERE email = $1 AND active = true",
     [key],
@@ -39,17 +43,40 @@ export async function signIn(email: string, password: string) {
   const candidate = scryptSync(password, salt, 64);
   const stored = Buffer.from(hash, "hex");
   if (!user || stored.length !== candidate.length || !timingSafeEqual(candidate, stored)) {
-    return { error: "E-mail ou senha inválidos." };
+    return { error: "Invalid email or password." };
   }
-  const previous = getCookie(cookie);
-  if (previous)
-    await connection.query("DELETE FROM app_sessions WHERE token_hash = $1", [digest(previous)]);
+  const client = await connection.connect();
   const token = randomBytes(32).toString("hex");
-  await connection.query("DELETE FROM app_sessions WHERE expires_at <= now()");
-  await connection.query(
-    "INSERT INTO app_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '8 hours')",
-    [user.id, digest(token)],
-  );
+  try {
+    await client.query("BEGIN");
+    const current = await client.query(
+      "SELECT password_hash FROM app_users WHERE id=$1 AND active=true FOR UPDATE",
+      [user.id],
+    );
+    if (current.rows[0]?.password_hash !== user.password_hash) {
+      await client.query("ROLLBACK");
+      return { error: "A senha foi alterada. Entre novamente." };
+    }
+    const previous = getCookie(cookie);
+    if (previous)
+      await client.query("DELETE FROM app_sessions WHERE token_hash = $1", [digest(previous)]);
+    await client.query("DELETE FROM app_sessions WHERE expires_at <= now()");
+    await client.query(
+      "INSERT INTO app_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '8 hours')",
+      [user.id, digest(token)],
+    );
+    await client.query(
+      "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id) VALUES($1,$2,'LOGIN','app_users',$3)",
+      [user.id, user.name, user.id],
+    );
+    await client.query("DELETE FROM login_attempts WHERE email=$1", [key]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
   setCookie(cookie, token, {
     httpOnly: true,
     secure: process.env["NODE_ENV"] === "production",
@@ -57,7 +84,6 @@ export async function signIn(email: string, password: string) {
     path: "/",
     maxAge: 8 * 60 * 60,
   });
-  await connection.query("DELETE FROM login_attempts WHERE email = $1", [key]);
   return { error: null };
 }
 
@@ -77,4 +103,41 @@ export async function registerUser(name: string, email: string, password: string
   );
   if (!result.rowCount) return { error: "Já existe um usuário com este e-mail." };
   return { error: null };
+}
+
+export async function changeRequiredPassword(password: string) {
+  const user = await readSession();
+  if (!user) throw new Error("Sessão expirada. Entre novamente.");
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      "SELECT password_hash,must_change_password FROM app_users WHERE id=$1 AND active=true FOR UPDATE",
+      [user.id],
+    );
+    const current = result.rows[0];
+    if (!current?.must_change_password || !(await readSession()))
+      throw new Error("Sessão inválida. Entre novamente.");
+    const [oldSalt, oldHash] = current.password_hash.split(":");
+    if (timingSafeEqual(scryptSync(password, oldSalt, 64), Buffer.from(oldHash, "hex")))
+      throw new Error("A nova senha deve ser diferente da senha temporária.");
+    const salt = randomBytes(16).toString("hex");
+    const hash = salt + ":" + scryptSync(password, salt, 64).toString("hex");
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);
+    await client.query(
+      "UPDATE app_users SET password_hash=$1,must_change_password=false WHERE id=$2",
+      [hash, user.id],
+    );
+    await client.query("DELETE FROM app_sessions WHERE user_id=$1 AND token_hash<>$2", [
+      user.id,
+      digest(getCookie(cookie)!),
+    ]);
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }

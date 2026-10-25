@@ -269,7 +269,8 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                   <>
                     <p className="text-sm">
                       Uma senha forte de 20 caracteres será gerada. A senha atual será substituída e
-                      as sessões deste usuário serão encerradas.
+                      as sessões deste usuário serão encerradas. Ele deverá alterar a senha no
+                      próximo login.
                     </p>
                     <button
                       type="button"

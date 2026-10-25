@@ -36,3 +36,19 @@ export const register = createServerFn({ method: "POST" })
     const { registerUser } = await import("./auth.server");
     return registerUser(data.name, data.email, data.password);
   });
+
+export const changePassword = createServerFn({ method: "POST" })
+  .validator(
+    z
+      .object({
+        password: z.string().min(12).max(256),
+        confirmPassword: z.string().min(12).max(256),
+      })
+      .refine((data) => data.password === data.confirmPassword, {
+        message: "As senhas não coincidem.",
+        path: ["confirmPassword"],
+      }),
+  )
+  .handler(async ({ data }) =>
+    (await import("./auth.server")).changeRequiredPassword(data.password),
+  );
