@@ -89,7 +89,16 @@ function AccountsPage() {
     exportToCsv(`${activeCompany.id}_chart_of_accounts`, headers, rows);
   };
 
-  const categories = ["ALL", "Asset", "Liability", "Equity", "Revenue", "COGS", "Operating Expense", "Other Expense"];
+  const categories = [
+    "ALL",
+    "Asset",
+    "Liability",
+    "Equity",
+    "Revenue",
+    "COGS",
+    "Operating Expense",
+    "Other Expense",
+  ];
 
   const filteredAccounts = accounts.filter((a) => {
     const matchesSearch =
@@ -231,9 +240,10 @@ function AccountsPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP Classification Standard: 1000s = Assets, 2000s = Liabilities, 3000s = Equity,
-                4000s = Revenue, 5000s = Cost of Goods Sold, 6000s = Operating & Administrative
-                Expenses. Sub-accounts inherit the normal balance polarity of their master group.
+                US GAAP Classification Standard: 1000s = Assets, 2000s = Liabilities, 3000s =
+                Equity, 4000s = Revenue, 5000s = Cost of Goods Sold, 6000s = Operating &
+                Administrative Expenses. Sub-accounts inherit the normal balance polarity of their
+                master group.
               </Note>
             </div>
           </Panel>
@@ -280,7 +290,8 @@ function AccountsPage() {
                     className="w-full rounded-md bg-canvas px-3 py-2 font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
                   />
                   <p className="mt-1 text-[10.5px] text-ink3">
-                    Recomendado: 1000s (Ativo), 2000s (Passivo), 3000s (Patrimônio), 4000s (Receita), 5000s (CPV), 6000s (Despesas).
+                    Recomendado: 1000s (Ativo), 2000s (Passivo), 3000s (Patrimônio), 4000s
+                    (Receita), 5000s (CPV), 6000s (Despesas).
                   </p>
                 </div>
 
@@ -331,12 +342,22 @@ function AccountsPage() {
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                 >
                   <option value="Asset">Asset — Ativo Circulante / Não Circulante (1000s)</option>
-                  <option value="Liability">Liability — Passivo Circulante / Não Circulante (2000s)</option>
-                  <option value="Equity">Equity — Patrimônio Líquido e Capital Social (3000s)</option>
+                  <option value="Liability">
+                    Liability — Passivo Circulante / Não Circulante (2000s)
+                  </option>
+                  <option value="Equity">
+                    Equity — Patrimônio Líquido e Capital Social (3000s)
+                  </option>
                   <option value="Revenue">Revenue — Receita Operacional / Vendas (4000s)</option>
-                  <option value="COGS">COGS — Custo das Mercadorias / Serviços Vendidos (5000s)</option>
-                  <option value="Operating Expense">Operating Expense — Despesas Operacionais / SG&A (6000s)</option>
-                  <option value="Other Expense">Other Expense — Outras Despesas e Tributos (6300s)</option>
+                  <option value="COGS">
+                    COGS — Custo das Mercadorias / Serviços Vendidos (5000s)
+                  </option>
+                  <option value="Operating Expense">
+                    Operating Expense — Despesas Operacionais / SG&A (6000s)
+                  </option>
+                  <option value="Other Expense">
+                    Other Expense — Outras Despesas e Tributos (6300s)
+                  </option>
                 </select>
               </div>
 

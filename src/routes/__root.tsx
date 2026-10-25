@@ -86,11 +86,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const pathname = location.pathname.replace(/\/+$/, "") || "/";
     const publicRoutes = ["/", "/cadastro"];
     if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
-    if (
-      user &&
-      !publicRoutes.includes(pathname) &&
-      !isModuleAvailable(pathname)
-    )
+    if (user && !publicRoutes.includes(pathname) && !isModuleAvailable(pathname))
       throw redirect({ to: "/cash-flow" });
     return { user };
   },

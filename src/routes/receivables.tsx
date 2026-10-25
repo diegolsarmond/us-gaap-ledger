@@ -18,7 +18,7 @@ function ReceivablesPage() {
 
   const openInvoices = invoices.filter((i) => i.status !== "Paid");
 
-  // Calculate Aging Buckets based on current date 
+  // Calculate Aging Buckets based on current date
   const refDate = Date.now();
 
   const categorized = openInvoices.map((inv) => {

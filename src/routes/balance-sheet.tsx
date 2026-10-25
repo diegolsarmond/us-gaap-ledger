@@ -16,7 +16,7 @@ export const Route = createFileRoute("/balance-sheet")({
 
 function BalanceSheetPage() {
   const { activeCompany, accountBalances, netIncome } = useAccounting();
-  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0,10));
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Assets
   const cashOperating = accountBalances["1000"]?.net || 0;

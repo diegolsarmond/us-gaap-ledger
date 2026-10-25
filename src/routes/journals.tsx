@@ -37,7 +37,7 @@ function JournalsPage() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
   // New Journal Form State
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [memo, setMemo] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [lines, setLines] = useState<
@@ -242,7 +242,8 @@ function JournalsPage() {
                 Aviso: O período contábil {activeCompany.activePeriod} está Bloqueado (Closed).
               </span>
               <span>
-                Lançamentos manuais requerem perfil de Administrador e justificativa formal de auditoria.
+                Lançamentos manuais requerem perfil de Administrador e justificativa formal de
+                auditoria.
               </span>
             </div>
           )}
@@ -330,7 +331,10 @@ function JournalsPage() {
                             <Badge tone={j.status === "Posted" ? "up" : "down"}>{j.status}</Badge>
                           </Td>
                           <Td align="center">
-                            <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className="flex items-center justify-center gap-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <button
                                 type="button"
                                 onClick={() => setSelectedEntry(isSelected ? null : j)}
@@ -400,7 +404,10 @@ function JournalsPage() {
                             <span className="font-mono font-semibold text-brand">
                               {l.accountCode}
                             </span>{" "}
-                            · <span className="text-ink font-medium">{acctObj ? acctObj.name : "Conta"}</span>
+                            ·{" "}
+                            <span className="text-ink font-medium">
+                              {acctObj ? acctObj.name : "Conta"}
+                            </span>
                           </Td>
                           <Td className="text-ink3 text-[11.5px]">{l.memo || "—"}</Td>
                           <Td align="right" className="font-mono font-medium text-ink">

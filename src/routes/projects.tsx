@@ -32,8 +32,8 @@ function ProjectsPage() {
   const [budget, setBudget] = useState("0");
   const [contractValue, setContractValue] = useState("0");
   const [status, setStatus] = useState<"Active" | "Completed" | "On Hold">("Active");
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0,10));
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0,10));
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
 
   // Calculate project metrics
@@ -272,7 +272,9 @@ function ProjectsPage() {
                         className="border-b border-line/40 last:border-0 hover:bg-black/[0.01] transition-colors"
                       >
                         <Td className="font-medium text-ink">
-                          <p className="font-mono text-[11.5px] text-brand font-semibold">{p.code}</p>
+                          <p className="font-mono text-[11.5px] text-brand font-semibold">
+                            {p.code}
+                          </p>
                           <p className="text-[12px] truncate max-w-[220px]">{p.name}</p>
                         </Td>
                         <Td className="text-ink2 text-[12px] font-medium">{p.clientName}</Td>
@@ -286,7 +288,13 @@ function ProjectsPage() {
                           {usd(p.actualCosts)}
                         </Td>
                         <Td align="right" className="font-mono font-medium text-[12px]">
-                          <span className={p.grossMargin >= 0 ? "text-up font-semibold" : "text-down font-semibold"}>
+                          <span
+                            className={
+                              p.grossMargin >= 0
+                                ? "text-up font-semibold"
+                                : "text-down font-semibold"
+                            }
+                          >
                             {usd(p.grossMargin)}
                           </span>
                           <span className="block text-[10.5px] text-ink3 font-sans">
@@ -329,7 +337,8 @@ function ProjectsPage() {
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
                 US GAAP Milestone & Cost-to-Cost Recognition: Transações vinculadas a um projeto
-                agregam em tempo real nos demonstrativos de margem bruta, sem necessidade de planilhas manuais.
+                agregam em tempo real nos demonstrativos de margem bruta, sem necessidade de
+                planilhas manuais.
               </Note>
             </div>
           </Panel>
@@ -351,7 +360,8 @@ function ProjectsPage() {
               <div>
                 <h1 className="text-[16px] font-semibold text-ink">Cadastrar Novo Projeto</h1>
                 <p className="text-[12px] text-ink3">
-                  Configuração de centro de custo e alocação de receitas/despesas para {activeCompany.name}
+                  Configuração de centro de custo e alocação de receitas/despesas para{" "}
+                  {activeCompany.name}
                 </p>
               </div>
             </div>

@@ -5,21 +5,217 @@ import { useCompanies } from "@/components/company-context";
 import { saveCompany } from "@/lib/companies";
 import { companySchema, US_STATES, formatEin, type Company } from "@/lib/company-model";
 import { PageTitle, Panel } from "@/components/ui-kit";
-export const Route=createFileRoute('/companies')({component:CompaniesPage});
-const control='w-full rounded border border-line p-2 text-sm bg-white';
-function CompaniesPage(){
- const {companies,permissions,refresh,selectCompany}=useCompanies();
- const client=useQueryClient();
- const [editing,setEditing]=useState<Company|'new'|null>(null),[error,setError]=useState(''),[pending,setPending]=useState(false),[search,setSearch]=useState('');
- async function submit(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();if(pending)return;setPending(true);setError('');
-  const f=new FormData(e.currentTarget);
-  try{
-   const raw=Object.fromEntries(f);
-   const data=companySchema.parse({...raw,...(editing&&editing!=='new'?{id:editing.id}:{}),active:f.get('active')==='on',fiscalYearEndMonth:Number(f.get('fiscalYearEndMonth'))});
-   const result=await saveCompany({data});await refresh();await client.invalidateQueries({queryKey:['accounting']});if(editing==='new'&&data.active)selectCompany(result.id);setEditing(null);
-  }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar.');}finally{setPending(false);}
- }
- const value=(key:keyof Company)=>editing&&editing!=='new'?String(editing[key]??''):'';
- return <div className="space-y-4"><PageTitle title="Empresas" description="Empresas dos Estados Unidos · moeda-base USD" actions={permissions.manage_companies?<button className="bg-brand text-white rounded px-3 py-2" onClick={()=>{setEditing('new');setError('');}}>Nova empresa</button>:undefined}/>{error&&<p role="alert" className="text-down">{error}</p>}<input aria-label="Buscar empresas" className={control} placeholder="Buscar por nome ou EIN" value={search} onChange={e=>setSearch(e.target.value)}/><Panel title="Empresas cadastradas"><div className="divide-y divide-line">{companies.filter(c=>`${c.name} ${c.ein}`.toLowerCase().includes(search.toLowerCase())).map(c=><div key={c.id} className="p-4 flex justify-between gap-3"><div><p className="font-medium">{c.name}</p><p className="text-xs text-ink3">{c.entity} · {c.state} · {formatEin(c.ein)} · {c.active?'Ativa':'Inativa'}</p></div>{permissions.manage_companies&&<button className="text-brand" onClick={()=>{setEditing(c);setError('');}}>Editar</button>}</div>)}{!companies.length&&<p className="p-4">Nenhuma empresa cadastrada ou autorizada.</p>}</div></Panel>{editing&&permissions.manage_companies&&<Panel title={editing==='new'?'Nova empresa':'Editar empresa'}><form key={editing==='new'?'new':editing.id} onSubmit={submit} className="p-4 grid sm:grid-cols-2 gap-4"><fieldset disabled={pending} className="contents">{[['name','Nome legal',true],['tradeName','Nome comercial / DBA',false],['ein','EIN (opcional)',false],['address','Endereço',false],['city','Cidade',false],['zip','ZIP Code',false],['phone','Telefone',false],['email','E-mail',false]].map(([name,label,required])=><label key={String(name)} className="text-sm">{label}<input name={String(name)} required={Boolean(required)} maxLength={name==='name'||name==='tradeName'?200:name==='address'?300:120} type={name==='email'?'email':'text'} defaultValue={value(name as keyof Company)} className={control}/></label>)}<label className="text-sm">Tipo jurídico<select name="entity" className={control} defaultValue={value('entity')||'LLC'}>{companySchema.shape.entity.options.map(v=><option key={v}>{v}</option>)}</select></label><label className="text-sm">Classificação tributária federal<select name="federalTaxClassification" className={control} defaultValue={value('federalTaxClassification')||'Unspecified'}>{companySchema.shape.federalTaxClassification._def.innerType.options.map(v=><option key={v}>{v}</option>)}</select></label>{[['state','Estado de constituição',true],['addressState','Estado do endereço',false]].map(([name,label,required])=><label key={String(name)} className="text-sm">{label}<select name={String(name)} required={Boolean(required)} defaultValue={value(name as keyof Company)} className={control}><option value="">Selecione</option>{US_STATES.map(v=><option key={v}>{v}</option>)}</select></label>)}<label className="text-sm">Regime contábil<select name="basis" className={control} defaultValue={value('basis')||'Accrual'}><option value="Accrual">Competência (Accrual)</option><option value="Cash">Caixa (Cash)</option></select></label><label className="text-sm">Mês de encerramento do exercício<select name="fiscalYearEndMonth" className={control} defaultValue={value('fiscalYearEndMonth')||'12'}>{Array.from({length:12},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><label className="text-sm"><input type="checkbox" name="active" defaultChecked={editing==='new'||editing.active}/> Empresa ativa</label><p className="text-xs text-ink3">EIN validado apenas pelo formato. Uma nova empresa começa sem contas, parâmetros, saldos ou transações.</p><div className="flex gap-4"><button disabled={pending} className="bg-brand text-white rounded px-3 py-2">{pending?'Salvando…':'Salvar'}</button><button type="button" disabled={pending} onClick={()=>setEditing(null)}>Cancelar</button></div></fieldset></form></Panel>}</div>;
+export const Route = createFileRoute("/companies")({ component: CompaniesPage });
+const control = "w-full rounded border border-line p-2 text-sm bg-white";
+function CompaniesPage() {
+  const { companies, permissions, refresh, selectCompany } = useCompanies();
+  const client = useQueryClient();
+  const [editing, setEditing] = useState<Company | "new" | null>(null),
+    [error, setError] = useState(""),
+    [pending, setPending] = useState(false),
+    [search, setSearch] = useState("");
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (pending) return;
+    setPending(true);
+    setError("");
+    const f = new FormData(e.currentTarget);
+    try {
+      const raw = Object.fromEntries(f);
+      const data = companySchema.parse({
+        ...raw,
+        ...(editing && editing !== "new" ? { id: editing.id } : {}),
+        active: f.get("active") === "on",
+        fiscalYearEndMonth: Number(f.get("fiscalYearEndMonth")),
+      });
+      const result = await saveCompany({ data });
+      await refresh();
+      await client.invalidateQueries({ queryKey: ["accounting"] });
+      if (editing === "new" && data.active) selectCompany(result.id);
+      setEditing(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+    } finally {
+      setPending(false);
+    }
+  }
+  const value = (key: keyof Company) =>
+    editing && editing !== "new" ? String(editing[key] ?? "") : "";
+  return (
+    <div className="space-y-4">
+      <PageTitle
+        title="Empresas"
+        description="Empresas dos Estados Unidos · moeda-base USD"
+        actions={
+          permissions.manage_companies ? (
+            <button
+              className="bg-brand text-white rounded px-3 py-2"
+              onClick={() => {
+                setEditing("new");
+                setError("");
+              }}
+            >
+              Nova empresa
+            </button>
+          ) : undefined
+        }
+      />
+      {error && (
+        <p role="alert" className="text-down">
+          {error}
+        </p>
+      )}
+      <input
+        aria-label="Buscar empresas"
+        className={control}
+        placeholder="Buscar por nome ou EIN"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      <Panel title="Empresas cadastradas">
+        <div className="divide-y divide-line">
+          {companies
+            .filter((c) => `${c.name} ${c.ein}`.toLowerCase().includes(search.toLowerCase()))
+            .map((c) => (
+              <div key={c.id} className="p-4 flex justify-between gap-3">
+                <div>
+                  <p className="font-medium">{c.name}</p>
+                  <p className="text-xs text-ink3">
+                    {c.entity} · {c.state} · {formatEin(c.ein)} · {c.active ? "Ativa" : "Inativa"}
+                  </p>
+                </div>
+                {permissions.manage_companies && (
+                  <button
+                    className="text-brand"
+                    onClick={() => {
+                      setEditing(c);
+                      setError("");
+                    }}
+                  >
+                    Editar
+                  </button>
+                )}
+              </div>
+            ))}
+          {!companies.length && <p className="p-4">Nenhuma empresa cadastrada ou autorizada.</p>}
+        </div>
+      </Panel>
+      {editing && permissions.manage_companies && (
+        <Panel title={editing === "new" ? "Nova empresa" : "Editar empresa"}>
+          <form
+            key={editing === "new" ? "new" : editing.id}
+            onSubmit={submit}
+            className="p-4 grid sm:grid-cols-2 gap-4"
+          >
+            <fieldset disabled={pending} className="contents">
+              {[
+                ["name", "Nome legal", true],
+                ["tradeName", "Nome comercial / DBA", false],
+                ["ein", "EIN (opcional)", false],
+                ["address", "Endereço", false],
+                ["city", "Cidade", false],
+                ["zip", "ZIP Code", false],
+                ["phone", "Telefone", false],
+                ["email", "E-mail", false],
+              ].map(([name, label, required]) => (
+                <label key={String(name)} className="text-sm">
+                  {label}
+                  <input
+                    name={String(name)}
+                    required={Boolean(required)}
+                    maxLength={
+                      name === "name" || name === "tradeName" ? 200 : name === "address" ? 300 : 120
+                    }
+                    type={name === "email" ? "email" : "text"}
+                    defaultValue={value(name as keyof Company)}
+                    className={control}
+                  />
+                </label>
+              ))}
+              <label className="text-sm">
+                Tipo jurídico
+                <select name="entity" className={control} defaultValue={value("entity") || "LLC"}>
+                  {companySchema.shape.entity.options.map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Classificação tributária federal
+                <select
+                  name="federalTaxClassification"
+                  className={control}
+                  defaultValue={value("federalTaxClassification") || "Unspecified"}
+                >
+                  {companySchema.shape.federalTaxClassification._def.innerType.options.map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              {[
+                ["state", "Estado de constituição", true],
+                ["addressState", "Estado do endereço", false],
+              ].map(([name, label, required]) => (
+                <label key={String(name)} className="text-sm">
+                  {label}
+                  <select
+                    name={String(name)}
+                    required={Boolean(required)}
+                    defaultValue={value(name as keyof Company)}
+                    className={control}
+                  >
+                    <option value="">Selecione</option>
+                    {US_STATES.map((v) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <label className="text-sm">
+                Regime contábil
+                <select name="basis" className={control} defaultValue={value("basis") || "Accrual"}>
+                  <option value="Accrual">Competência (Accrual)</option>
+                  <option value="Cash">Caixa (Cash)</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                Mês de encerramento do exercício
+                <select
+                  name="fiscalYearEndMonth"
+                  className={control}
+                  defaultValue={value("fiscalYearEndMonth") || "12"}
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <input
+                  type="checkbox"
+                  name="active"
+                  defaultChecked={editing === "new" || editing.active}
+                />{" "}
+                Empresa ativa
+              </label>
+              <p className="text-xs text-ink3">
+                EIN validado apenas pelo formato. Uma nova empresa começa sem contas, parâmetros,
+                saldos ou transações.
+              </p>
+              <div className="flex gap-4">
+                <button disabled={pending} className="bg-brand text-white rounded px-3 py-2">
+                  {pending ? "Salvando…" : "Salvar"}
+                </button>
+                <button type="button" disabled={pending} onClick={() => setEditing(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </Panel>
+      )}
+    </div>
+  );
 }

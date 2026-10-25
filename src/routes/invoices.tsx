@@ -36,8 +36,8 @@ function InvoicesPage() {
   // Invoice creation form state
   const [customerName, setCustomerName] = useState("");
   const [customerEin, setCustomerEin] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
-  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [kind, setKind] = useState<"Product" | "Service">("Product");
   const [projectId, setProjectId] = useState("");
   const [taxExempt, setTaxExempt] = useState(false);
@@ -60,10 +60,7 @@ function InvoicesPage() {
   const totalPaid = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0);
 
   const handleAddItemRow = () => {
-    setFormItems([
-      ...formItems,
-      { sku: "", description: "", qty: 1, unitPrice: 0 },
-    ]);
+    setFormItems([...formItems, { sku: "", description: "", qty: 1, unitPrice: 0 }]);
   };
 
   const handleUpdateItem = (
@@ -298,7 +295,11 @@ function InvoicesPage() {
           <Panel
             title="Invoices Register"
             subtitle={`${filteredInvoices.length} de ${invoices.length} faturas emitidas`}
-            aside={<span className="text-[11.5px] text-ink3">State Sales Tax by Customer Jurisdiction</span>}
+            aside={
+              <span className="text-[11.5px] text-ink3">
+                State Sales Tax by Customer Jurisdiction
+              </span>
+            }
           >
             <div className="overflow-x-auto">
               <Table>
@@ -387,8 +388,9 @@ function InvoicesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP: Faturas emitidas debitam Contas a Receber (1100) e creditam Receita (4000/4100).
-                A apropriação dos impostos é mantida no Passivo (2200) até o efetivo recolhimento.
+                US GAAP: Faturas emitidas debitam Contas a Receber (1100) e creditam Receita
+                (4000/4100). A apropriação dos impostos é mantida no Passivo (2200) até o efetivo
+                recolhimento.
               </Note>
             </div>
           </Panel>
@@ -541,7 +543,9 @@ function InvoicesPage() {
                     >
                       <div className="col-span-12 sm:col-span-5">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          {kind === "Product" ? "Item do Catálogo de Estoque" : "Descrição do Serviço"}
+                          {kind === "Product"
+                            ? "Item do Catálogo de Estoque"
+                            : "Descrição do Serviço"}
                         </label>
                         {kind === "Product" ? (
                           <select
@@ -631,7 +635,9 @@ function InvoicesPage() {
 
                     {!taxExempt && (
                       <div className="flex items-center justify-between gap-3 pt-2">
-                        <span className="text-[12px] text-ink2">Alíquota Estadual / Municipal (%):</span>
+                        <span className="text-[12px] text-ink2">
+                          Alíquota Estadual / Municipal (%):
+                        </span>
                         <div className="flex items-center gap-1">
                           <input
                             type="number"
@@ -654,7 +660,9 @@ function InvoicesPage() {
                       <span>{usd(subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink3 font-sans">Impostos Calculados ({effectiveTaxRate}%):</span>
+                      <span className="text-ink3 font-sans">
+                        Impostos Calculados ({effectiveTaxRate}%):
+                      </span>
                       <span>{usd(taxAmount)}</span>
                     </div>
                     <div className="flex justify-between border-t border-line/60 pt-2 font-semibold text-[14px]">

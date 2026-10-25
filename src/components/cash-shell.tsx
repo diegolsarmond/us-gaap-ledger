@@ -48,7 +48,27 @@ const groups = [
   },
 ];
 const menuRoutes: Record<string, string> = {
-  "Dashboard":"/dashboard", "Invoices & AR":"/invoices", "Bills & AP":"/payables", "Inventory Catalog":"/inventory", "Projects & Margin":"/projects", "Journal Entries":"/journals", "Chart of Accounts":"/accounts", "Trial Balance":"/trial-balance", "Income Statement (P&L)":"/dre", "Balance Sheet":"/balance-sheet", "Sales Tax Summary":"/taxes", "AR Aging Position":"/receivables", "Bank Feeds & Staging":"/statements", "Empresas":"/companies", "Modules Overview":"/parameters", "Currencies & FX Rates":"/parameters/currencies", "Tax Jurisdictions":"/parameters/tax-jurisdictions", "Payment Terms":"/parameters/payment-terms", "Cost Centers":"/parameters/cost-centers", "Expense Categories":"/parameters/expense-categories", "Fiscal Periods":"/parameters/fiscal-periods",
+  Dashboard: "/dashboard",
+  "Invoices & AR": "/invoices",
+  "Bills & AP": "/payables",
+  "Inventory Catalog": "/inventory",
+  "Projects & Margin": "/projects",
+  "Journal Entries": "/journals",
+  "Chart of Accounts": "/accounts",
+  "Trial Balance": "/trial-balance",
+  "Income Statement (P&L)": "/dre",
+  "Balance Sheet": "/balance-sheet",
+  "Sales Tax Summary": "/taxes",
+  "AR Aging Position": "/receivables",
+  "Bank Feeds & Staging": "/statements",
+  Empresas: "/companies",
+  "Modules Overview": "/parameters",
+  "Currencies & FX Rates": "/parameters/currencies",
+  "Tax Jurisdictions": "/parameters/tax-jurisdictions",
+  "Payment Terms": "/parameters/payment-terms",
+  "Cost Centers": "/parameters/cost-centers",
+  "Expense Categories": "/parameters/expense-categories",
+  "Fiscal Periods": "/parameters/fiscal-periods",
   "Cash Flow & Forecast": "/cash-flow",
   "Perfis de acesso": "/access",
   Usuários: "/users",
@@ -61,7 +81,7 @@ export function CashShell({
   children: ReactNode;
   user: { name: string; email: string };
 }) {
-  const {permissions,activeCompany}=useCompanies();
+  const { permissions, activeCompany } = useCompanies();
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const initials = user.name
@@ -104,38 +124,42 @@ export function CashShell({
               )}
               {g.label}
             </p>
-            {g.items.filter(label=>label!=="Usuários"||permissions.manage_users).filter(label=>label!=="Perfis de acesso"||permissions.manage_profiles).filter(label=>label!=="Logs de ações"||permissions.view_audit).map((label) =>
-              menuRoutes[label] && isModuleAvailable(menuRoutes[label]) ? (
-                <Link
-                  key={label}
-                  to={menuRoutes[label]}
-                  activeOptions={{ exact: true }}
-                  activeProps={{
-                    className:
-                      "mt-0.5 flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-[12.5px] font-semibold text-ink ring-1 ring-line shadow-2xs",
-                  }}
-                  onClick={() => setOpen(false)}
-                  className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-ink2 transition-colors hover:bg-white/60 hover:text-ink"
-                >
-                  <span
-                    className={`size-1.5 rounded-full ${path === menuRoutes[label] ? "bg-brand" : "bg-line"}`}
-                  />
-                  {label}
-                </Link>
-              ) : (
-                <button
-                  key={label}
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Módulo indisponível nesta etapa"
-                  className="mt-0.5 flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink3 opacity-50"
-                >
-                  <LockKeyhole className="size-3 shrink-0" />
-                  {label}
-                </button>
-              ),
-            )}
+            {g.items
+              .filter((label) => label !== "Usuários" || permissions.manage_users)
+              .filter((label) => label !== "Perfis de acesso" || permissions.manage_profiles)
+              .filter((label) => label !== "Logs de ações" || permissions.view_audit)
+              .map((label) =>
+                menuRoutes[label] && isModuleAvailable(menuRoutes[label]) ? (
+                  <Link
+                    key={label}
+                    to={menuRoutes[label]}
+                    activeOptions={{ exact: true }}
+                    activeProps={{
+                      className:
+                        "mt-0.5 flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-[12.5px] font-semibold text-ink ring-1 ring-line shadow-2xs",
+                    }}
+                    onClick={() => setOpen(false)}
+                    className="mt-0.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] text-ink2 transition-colors hover:bg-white/60 hover:text-ink"
+                  >
+                    <span
+                      className={`size-1.5 rounded-full ${path === menuRoutes[label] ? "bg-brand" : "bg-line"}`}
+                    />
+                    {label}
+                  </Link>
+                ) : (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Módulo indisponível nesta etapa"
+                    className="mt-0.5 flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink3 opacity-50"
+                  >
+                    <LockKeyhole className="size-3 shrink-0" />
+                    {label}
+                  </button>
+                ),
+              )}
           </div>
         ))}
       </nav>

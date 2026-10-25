@@ -1,4 +1,8 @@
-import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type ExpenseCategoryParam } from "@/lib/parameters-context";
@@ -153,7 +157,7 @@ function ExpenseCategoriesPage() {
   const handleToggleStatus = async (cat: ExpenseCategoryParam) => {
     try {
       const nextStatus = cat.status === "Active" ? "Inactive" : "Active";
-      await updateExpenseCategory(cat.id, {
+      await updateExpenseCategory(cat.id, { status: nextStatus });
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -345,8 +349,10 @@ function ExpenseCategoriesPage() {
                       </Badge>
                     </button>
                   </Td>
-                  <Td><ParameterScopeLabel value={c} /></Td>
-                <Td className="text-right">
+                  <Td>
+                    <ParameterScopeLabel value={c} />
+                  </Td>
+                  <Td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"

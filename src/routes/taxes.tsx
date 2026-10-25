@@ -41,7 +41,8 @@ function TaxesPage() {
   const handleRemitPayment = async (taxId: string) => {
     const fileName = await modal.showPrompt({
       title: "Recolhimento de Imposto (Remittance)",
-      message: "Informe o número do comprovante ou nome do arquivo de confirmação de pagamento junto ao órgão fiscal (ex: Florida DOR / IRS):",
+      message:
+        "Informe o número do comprovante ou nome do arquivo de confirmação de pagamento junto ao órgão fiscal (ex: Florida DOR / IRS):",
       defaultValue: `Receipt_FL_DOR_Confirmation_${Date.now()}.pdf`,
       placeholder: "Comprovante_Recolhimento.pdf",
       confirmText: "Confirmar Recolhimento",
@@ -52,7 +53,9 @@ function TaxesPage() {
     await recordTaxRemittance(taxId, fileName);
     await modal.showAlert({
       title: "Pagamento de Imposto Registrado",
-      message: "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable (2200)\n• Crédito: Cash / Banco (1000)\n\nComprovante anexado: " + fileName,
+      message:
+        "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable (2200)\n• Crédito: Cash / Banco (1000)\n\nComprovante anexado: " +
+        fileName,
       tone: "success",
     });
   };

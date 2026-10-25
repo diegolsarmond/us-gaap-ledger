@@ -1,9 +1,9 @@
 import { db } from "./db.server";
 import { authorizeCompany } from "./companies.server";
 import type { CashAccount, CashTransaction, CashData } from "./cash-flow-model";
-export async function load(companyId:string): Promise<CashData> {
+export async function load(companyId: string): Promise<CashData> {
   await authorizeCompany(companyId);
-  const id=companyId;
+  const id = companyId;
   const [accounts, transactions] = await Promise.all([
     db().query(
       "SELECT id, name, currency, opening_date::text, opening_balance::float8 FROM cash_accounts WHERE company_id=$1 ORDER BY name",
@@ -16,15 +16,17 @@ export async function load(companyId:string): Promise<CashData> {
   ]);
   return { accounts: accounts.rows, transactions: transactions.rows };
 }
-export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string | undefined;companyId:string }) {
-  const auth=await authorizeCompany(data.companyId,"write_cash");
-  const id=data.companyId;
+export async function saveAccount(
+  data: Omit<CashAccount, "id"> & { id?: string | undefined; companyId: string },
+) {
+  const auth = await authorizeCompany(data.companyId, "write_cash");
+  const id = data.companyId;
   const client = await db().connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(803003)");
-    await authorizeCompany(id,"write_cash",client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)",[auth.user.id]);
+    await authorizeCompany(id, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
     if (data.id) {
       const account = await client.query(
         "SELECT currency FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
@@ -60,27 +62,74 @@ export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string 
   }
   return { ok: true };
 }
-export async function saveTransaction(data: Omit<CashTransaction,"id"> & {id?:string|undefined;companyId:string}) {
- const client=await db().connect();
- try {
-  await client.query("BEGIN");await client.query("SELECT pg_advisory_xact_lock(803003)");
-  const auth=await authorizeCompany(data.companyId,"write_cash",client);
-  await client.query("SELECT set_config('app.actor_id',$1,true)",[auth.user.id]);
-  const account=await client.query("SELECT opening_date::text FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",[data.account_id,data.companyId]);
-  if(!account.rowCount)throw new Error("Conta não pertence à empresa.");
-  if(data.due_date<account.rows[0].opening_date||(data.paid_date&&data.paid_date<account.rows[0].opening_date))throw new Error("As datas devem ser iguais ou posteriores à abertura da conta.");
-  const values=[data.companyId,data.account_id,data.description,data.category,data.direction,data.amount,data.due_date,data.paid_date,data.status];
-  if(data.id){const r=await client.query("UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9 WHERE company_id=$1 AND id=$10",[...values,data.id]);if(!r.rowCount)throw new Error("Lançamento não encontrado.");}
-  else await client.query("INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",[...values,auth.user.id]);
-  await client.query("COMMIT");return {ok:true};
- }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+export async function saveTransaction(
+  data: Omit<CashTransaction, "id"> & { id?: string | undefined; companyId: string },
+) {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(data.companyId, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    const account = await client.query(
+      "SELECT opening_date::text FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
+      [data.account_id, data.companyId],
+    );
+    if (!account.rowCount) throw new Error("Conta não pertence à empresa.");
+    if (
+      data.due_date < account.rows[0].opening_date ||
+      (data.paid_date && data.paid_date < account.rows[0].opening_date)
+    )
+      throw new Error("As datas devem ser iguais ou posteriores à abertura da conta.");
+    const values = [
+      data.companyId,
+      data.account_id,
+      data.description,
+      data.category,
+      data.direction,
+      data.amount,
+      data.due_date,
+      data.paid_date,
+      data.status,
+    ];
+    if (data.id) {
+      const r = await client.query(
+        "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9 WHERE company_id=$1 AND id=$10",
+        [...values, data.id],
+      );
+      if (!r.rowCount) throw new Error("Lançamento não encontrado.");
+    } else
+      await client.query(
+        "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+        [...values, auth.user.id],
+      );
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
-export async function removeTransaction(transactionId:string,companyId:string){
- const client=await db().connect();
- try{
-  await client.query("BEGIN");await client.query("SELECT pg_advisory_xact_lock(803003)");
-  const auth=await authorizeCompany(companyId,"write_cash",client);await client.query("SELECT set_config('app.actor_id',$1,true)",[auth.user.id]);
-  const r=await client.query("DELETE FROM cash_transactions WHERE id=$1 AND company_id=$2",[transactionId,companyId]);if(!r.rowCount)throw new Error("Lançamento não encontrado.");
-  await client.query("COMMIT");return {ok:true};
- }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+export async function removeTransaction(transactionId: string, companyId: string) {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(companyId, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    const r = await client.query("DELETE FROM cash_transactions WHERE id=$1 AND company_id=$2", [
+      transactionId,
+      companyId,
+    ]);
+    if (!r.rowCount) throw new Error("Lançamento não encontrado.");
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

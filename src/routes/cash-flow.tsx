@@ -77,10 +77,13 @@ function EntryFormContainer({
   );
 }
 function CashFlowPage() {
-  const {activeCompany}=useCompanies();
-  const companyId=activeCompany!.id;
+  const { activeCompany } = useCompanies();
+  const companyId = activeCompany!.id;
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: ["cash-flow",companyId], queryFn: () => loadCashData({data:{companyId}}) });
+  const query = useQuery({
+    queryKey: ["cash-flow", companyId],
+    queryFn: () => loadCashData({ data: { companyId } }),
+  });
   const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
   const [end, setEnd] = useState(today);
   const [interval, setInterval] = useState<Interval>("daily");
@@ -747,7 +750,8 @@ function CashFlowPage() {
                                   className="text-red-700 underline"
                                   onClick={() =>
                                     void mutate(
-                                      () => deleteCashTransaction({ data: { id: t.id,companyId } }),
+                                      () =>
+                                        deleteCashTransaction({ data: { id: t.id, companyId } }),
                                       "Lançamento excluído.",
                                     )
                                   }

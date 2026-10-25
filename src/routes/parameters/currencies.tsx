@@ -1,4 +1,8 @@
-import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type CurrencyParam } from "@/lib/parameters-context";
@@ -187,7 +191,7 @@ function CurrenciesPage() {
     try {
       if (curr.isBaseCurrency) return;
       const nextStatus = curr.status === "Active" ? "Inactive" : "Active";
-      await updateCurrency(curr.code, {
+      await updateCurrency(curr.code, { status: nextStatus });
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -421,7 +425,9 @@ function CurrenciesPage() {
                   </button>
                 </Td>
                 <Td className="text-[11px] text-ink3 font-mono">{c.lastUpdated}</Td>
-                <Td><ParameterScopeLabel value={c} /></Td>
+                <Td>
+                  <ParameterScopeLabel value={c} />
+                </Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button

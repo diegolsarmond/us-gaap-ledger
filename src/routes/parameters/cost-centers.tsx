@@ -1,4 +1,8 @@
-import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type CostCenterParam } from "@/lib/parameters-context";
@@ -159,7 +163,7 @@ function CostCentersPage() {
   const handleToggleStatus = async (cc: CostCenterParam) => {
     try {
       const nextStatus = cc.status === "Active" ? "Inactive" : "Active";
-      await updateCostCenter(cc.id, {
+      await updateCostCenter(cc.id, { status: nextStatus });
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -324,7 +328,9 @@ function CostCentersPage() {
                     </Badge>
                   </button>
                 </Td>
-                <Td><ParameterScopeLabel value={c} /></Td>
+                <Td>
+                  <ParameterScopeLabel value={c} />
+                </Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button

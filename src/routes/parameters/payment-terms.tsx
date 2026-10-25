@@ -1,4 +1,8 @@
-import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type PaymentTermParam } from "@/lib/parameters-context";
@@ -162,7 +166,7 @@ function PaymentTermsPage() {
   const handleToggleStatus = async (term: PaymentTermParam) => {
     try {
       const nextStatus = term.status === "Active" ? "Inactive" : "Active";
-      await updatePaymentTerm(term.id, {
+      await updatePaymentTerm(term.id, { status: nextStatus });
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -356,7 +360,9 @@ function PaymentTermsPage() {
                     </Badge>
                   </button>
                 </Td>
-                <Td><ParameterScopeLabel value={t} /></Td>
+                <Td>
+                  <ParameterScopeLabel value={t} />
+                </Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button

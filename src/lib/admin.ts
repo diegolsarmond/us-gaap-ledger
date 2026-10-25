@@ -14,5 +14,12 @@ export const resetUserPassword = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data }) => (await import("./admin.server")).resetPassword(data.id));
 export const getAuditEvents = createServerFn({ method: "GET" })
-  .validator(z.object({ page: z.number().int().min(1).max(100000),companyId:z.string().uuid().optional() }))
-  .handler(async ({ data }) => (await import("./admin.server")).loadAudit(data.page,data.companyId));
+  .validator(
+    z.object({
+      page: z.number().int().min(1).max(100000),
+      companyId: z.string().uuid().optional(),
+    }),
+  )
+  .handler(async ({ data }) =>
+    (await import("./admin.server")).loadAudit(data.page, data.companyId),
+  );

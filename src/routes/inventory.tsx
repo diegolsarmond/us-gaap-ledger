@@ -352,9 +352,12 @@ function InventoryPage() {
                 Voltar para o Catálogo
               </button>
               <div>
-                <h1 className="text-[16px] font-semibold text-ink">Cadastrar Novo Item no Catálogo</h1>
+                <h1 className="text-[16px] font-semibold text-ink">
+                  Cadastrar Novo Item no Catálogo
+                </h1>
                 <p className="text-[12px] text-ink3">
-                  Adição de produto físico com controle de lotes ou serviço faturável para {activeCompany.name}
+                  Adição de produto físico com controle de lotes ou serviço faturável para{" "}
+                  {activeCompany.name}
                 </p>
               </div>
             </div>
@@ -491,7 +494,8 @@ function InventoryPage() {
               <div>
                 <h1 className="text-[16px] font-semibold text-ink">Ajuste Físico de Estoque</h1>
                 <p className="text-[12px] text-ink3">
-                  Registro de variações de contagem física, perdas ou sobras com contra-partida contábil
+                  Registro de variações de contagem física, perdas ou sobras com contra-partida
+                  contábil
                 </p>
               </div>
             </div>
@@ -515,7 +519,8 @@ function InventoryPage() {
                     .filter((i) => i.type === "Product")
                     .map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.sku} — {item.name} (Atual: {item.qtyOnHand} unidades · Custo: {usd(item.unitCost)})
+                        {item.sku} — {item.name} (Atual: {item.qtyOnHand} unidades · Custo:{" "}
+                        {usd(item.unitCost)})
                       </option>
                     ))}
                 </select>
@@ -534,7 +539,8 @@ function InventoryPage() {
                   className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand shadow-inner"
                 />
                 <p className="mt-1 text-[11px] text-ink3">
-                  Use números negativos para perdas, avarias ou quebras. Use números positivos para sobras encontradas na contagem.
+                  Use números negativos para perdas, avarias ou quebras. Use números positivos para
+                  sobras encontradas na contagem.
                 </p>
               </div>
 

@@ -376,7 +376,36 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                   </>
                 ) : (
                   <ul className="divide-y divide-line">
-                    <li className="py-3"><label><input type="checkbox" name="all_companies" defaultChecked={editing !== "new" && "all_companies" in editing && editing.all_companies} /> Acesso a todas as empresas (inclusive futuras)</label><p className="text-xs">Se desmarcado, somente as empresas selecionadas abaixo serão acessíveis.</p>{query.data?.companies.map(c => <label key={c.id} className="block"><input type="checkbox" name="company_ids" value={c.id} defaultChecked={editing !== "new" && "company_ids" in editing && editing.company_ids.includes(c.id)} /> {c.name}</label>)}</li>
+                    <li className="py-3">
+                      <label>
+                        <input
+                          type="checkbox"
+                          name="all_companies"
+                          defaultChecked={
+                            editing !== "new" && "all_companies" in editing && editing.all_companies
+                          }
+                        />{" "}
+                        Acesso a todas as empresas (inclusive futuras)
+                      </label>
+                      <p className="text-xs">
+                        Se desmarcado, somente as empresas selecionadas abaixo serão acessíveis.
+                      </p>
+                      {query.data?.companies.map((c) => (
+                        <label key={c.id} className="block">
+                          <input
+                            type="checkbox"
+                            name="company_ids"
+                            value={c.id}
+                            defaultChecked={
+                              editing !== "new" &&
+                              "company_ids" in editing &&
+                              editing.company_ids.includes(c.id)
+                            }
+                          />{" "}
+                          {c.name}
+                        </label>
+                      ))}
+                    </li>
                     {Object.entries(permissions).map(([key, label]) => (
                       <li key={key} className="py-3">
                         <label className="flex items-center justify-between text-sm">

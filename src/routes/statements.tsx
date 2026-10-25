@@ -32,22 +32,43 @@ function StatementsPage() {
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [fileType, setFileType] = useState<"CSV" | "OFX" | "PDF">("CSV");
   const [customFileName, setCustomFileName] = useState("");
-  const [content,setContent]=useState("");
-  const [preview,setPreview]=useState<ReturnType<typeof parseStatementCsv>>([]);
-  const [error,setError]=useState("");
+  const [content, setContent] = useState("");
+  const [preview, setPreview] = useState<ReturnType<typeof parseStatementCsv>>([]);
+  const [error, setError] = useState("");
   const [classifiedTargetAccount, setClassifiedTargetAccount] = useState<Record<string, string>>(
     {},
   );
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    try { await importStatement({name:customFileName,type:"CSV",accountCode:selectedAccount,content});setContent("");setPreview([]);setCustomFileName("");setError("");await modal.showAlert({title:"Extrato importado",message:"Transações disponíveis para classificação.",tone:"success"}); } catch(e){setError(e instanceof Error?e.message:"Falha ao importar.");}
+    try {
+      await importStatement({
+        name: customFileName,
+        type: "CSV",
+        accountCode: selectedAccount,
+        content,
+      });
+      setContent("");
+      setPreview([]);
+      setCustomFileName("");
+      setError("");
+      await modal.showAlert({
+        title: "Extrato importado",
+        message: "Transações disponíveis para classificação.",
+        tone: "success",
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao importar.");
+    }
   };
 
   const handleClassify = (rowId: string, defaultAccount: string) => {
     const targetAcct = classifiedTargetAccount[rowId] || defaultAccount;
-    if(!targetAcct){setError("Selecione a conta de classificação.");return;}
-    void classifyStagingRow(rowId,targetAcct).catch(e=>setError(e.message));
+    if (!targetAcct) {
+      setError("Selecione a conta de classificação.");
+      return;
+    }
+    void classifyStagingRow(rowId, targetAcct).catch((e) => setError(e.message));
   };
 
   return (
@@ -134,7 +155,14 @@ function StatementsPage() {
                   onChange={(e) => setSelectedAccount(e.target.value)}
                   className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                 >
-                  <option value="">Selecione uma conta cadastrada</option>{accounts.filter(a=>a.type==="Asset"||a.type==="Liability").map(a=><option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}
+                  <option value="">Selecione uma conta cadastrada</option>
+                  {accounts
+                    .filter((a) => a.type === "Asset" || a.type === "Liability")
+                    .map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {a.code} · {a.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -148,9 +176,13 @@ function StatementsPage() {
                     onChange={(e) => setFileType(e.target.value as "CSV" | "OFX" | "PDF")}
                     className="mt-1 w-full rounded bg-white px-2.5 py-1.5 text-[12px] ring-1 ring-line outline-none"
                   >
-                    <option disabled value="OFX">OFX / QFX (Open Financial)</option>
+                    <option disabled value="OFX">
+                      OFX / QFX (Open Financial)
+                    </option>
                     <option value="CSV">CSV (Tabular Transactions)</option>
-                    <option disabled value="PDF">PDF (Original e-Statement)</option>
+                    <option disabled value="PDF">
+                      PDF (Original e-Statement)
+                    </option>
                   </select>
                 </div>
                 <div>
@@ -167,11 +199,53 @@ function StatementsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 text-sm"><p>CSV de até 2 MB, cabeçalho: date,description,amount. Datas YYYY-MM-DD; valores negativos para saídas. OFX e PDF indisponíveis.</p><input aria-label="Arquivo CSV" type="file" accept=".csv,text/csv" onChange={async e=>{try{const file=e.target.files?.[0];setContent("");setPreview([]);if(!file)return;if(file.size>2000000)throw new Error("Limite de 2 MB.");const text=await file.text();const rows=parseStatementCsv(text);setContent(text);setPreview(rows);setCustomFileName(file.name);setError("");}catch(e){setError(e instanceof Error?e.message:"CSV inválido.");}}}/>{error&&<p role="alert" className="text-down">{error}</p>}{preview.length>0&&<div><p>Prévia: {preview.length} transações</p>{preview.slice(0,5).map((r,i)=><p key={i}>{r.date} · {r.description} · {r.amount}</p>)}</div>}</div>
+              <div className="space-y-2 text-sm">
+                <p>
+                  CSV de até 2 MB, cabeçalho: date,description,amount. Datas YYYY-MM-DD; valores
+                  negativos para saídas. OFX e PDF indisponíveis.
+                </p>
+                <input
+                  aria-label="Arquivo CSV"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={async (e) => {
+                    try {
+                      const file = e.target.files?.[0];
+                      setContent("");
+                      setPreview([]);
+                      if (!file) return;
+                      if (file.size > 2000000) throw new Error("Limite de 2 MB.");
+                      const text = await file.text();
+                      const rows = parseStatementCsv(text);
+                      setContent(text);
+                      setPreview(rows);
+                      setCustomFileName(file.name);
+                      setError("");
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "CSV inválido.");
+                    }
+                  }}
+                />
+                {error && (
+                  <p role="alert" className="text-down">
+                    {error}
+                  </p>
+                )}
+                {preview.length > 0 && (
+                  <div>
+                    <p>Prévia: {preview.length} transações</p>
+                    {preview.slice(0, 5).map((r, i) => (
+                      <p key={i}>
+                        {r.date} · {r.description} · {r.amount}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button
                 type="submit"
-                disabled={!content||!selectedAccount||userPersona.allowedReportsOnly}
+                disabled={!content || !selectedAccount || userPersona.allowedReportsOnly}
                 className="w-full rounded-md bg-brand py-2 text-[12px] font-semibold text-primary-foreground hover:opacity-95 shadow-2xs"
               >
                 Upload & Load Staging Feed

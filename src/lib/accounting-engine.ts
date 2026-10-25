@@ -192,7 +192,11 @@ export interface AuditLogEntry {
   overrideReason?: string | undefined;
 }
 
-export interface ParameterScope { scope?: "global" | "companies"; companyIds?: string[]; sharedId?: string; }
+export interface ParameterScope {
+  scope?: "global" | "companies";
+  companyIds?: string[];
+  sharedId?: string;
+}
 
 export interface CurrencyParam extends ParameterScope {
   code: string;
@@ -279,7 +283,26 @@ export interface CompanyState {
   expenseCategories: ExpenseCategoryParam[];
   fiscalPeriods: FiscalPeriodParam[];
 }
-export function createInitialCompanyData(_companyId?: string): CompanyState { return {accounts: [],journals: [],inventory: [],projects: [],invoices: [],bills: [],statements: [],stagingRows: [],taxes: [],auditLogs: [],currencies: [],taxJurisdictions: [],paymentTerms: [],costCenters: [],expenseCategories: [],fiscalPeriods: []}; }
+export function createInitialCompanyData(_companyId?: string): CompanyState {
+  return {
+    accounts: [],
+    journals: [],
+    inventory: [],
+    projects: [],
+    invoices: [],
+    bills: [],
+    statements: [],
+    stagingRows: [],
+    taxes: [],
+    auditLogs: [],
+    currencies: [],
+    taxJurisdictions: [],
+    paymentTerms: [],
+    costCenters: [],
+    expenseCategories: [],
+    fiscalPeriods: [],
+  };
+}
 
 export interface AccountingContextType {
   activeCompany: ClientCompany;
@@ -314,9 +337,10 @@ export interface AccountingContextType {
     reason: string,
   ) => { success: boolean; error?: string | undefined };
 
-  togglePeriodLock: (
-    reason?: string | undefined,
-  ) => { success: boolean; error?: string | undefined };
+  togglePeriodLock: (reason?: string | undefined) => {
+    success: boolean;
+    error?: string | undefined;
+  };
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, "id" | "costLots">) => void;
@@ -414,15 +438,23 @@ export interface AccountingContextType {
   totalInventoryValuation: number;
 }
 
-export function createAccountingEngine(currentData: CompanyState, initialCompany: ClientCompany, userPersona: UserPersona) {
- let activeCompany = {...initialCompany};
- let nextData = structuredClone(currentData);
- const currentRole = userPersona.role;
- const companies = [activeCompany];
- const setActiveCompanyId = (_id: string) => {};
- const setCurrentRole = (_role: UserRole) => {};
- const setCompanies = (updater: (items: ClientCompany[]) => ClientCompany[]) => { activeCompany = updater([activeCompany])[0]!; };
- const updateCompanyData = (updater: (prev: CompanyState) => CompanyState) => { nextData = updater(nextData); };
+export function createAccountingEngine(
+  currentData: CompanyState,
+  initialCompany: ClientCompany,
+  userPersona: UserPersona,
+) {
+  let activeCompany = { ...initialCompany };
+  let nextData = structuredClone(currentData);
+  const currentRole = userPersona.role;
+  const companies = [activeCompany];
+  const setActiveCompanyId = (_id: string) => {};
+  const setCurrentRole = (_role: UserRole) => {};
+  const setCompanies = (updater: (items: ClientCompany[]) => ClientCompany[]) => {
+    activeCompany = updater([activeCompany])[0]!;
+  };
+  const updateCompanyData = (updater: (prev: CompanyState) => CompanyState) => {
+    nextData = updater(nextData);
+  };
   const addAuditLog = (
     action: string,
     targetType: string,
@@ -469,8 +501,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       };
     }
 
-    const period = currentData.fiscalPeriods.find(p => p.startDate <= date && p.endDate >= date);
-    if (!period) return {success:false,error:"Cadastre um período fiscal que inclua a data do lançamento."};
+    const period = currentData.fiscalPeriods.find((p) => p.startDate <= date && p.endDate >= date);
+    if (!period)
+      return {
+        success: false,
+        error: "Cadastre um período fiscal que inclua a data do lançamento.",
+      };
     if (activeCompany.isPeriodClosed || period.status === "Locked") {
       if (!userPersona.canClosePeriod) {
         return {
@@ -486,17 +522,29 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       }
     }
 
-    if (!lines.length || lines.length < 2) return {success:false,error:"Informe pelo menos duas linhas."};
+    if (!lines.length || lines.length < 2)
+      return { success: false, error: "Informe pelo menos duas linhas." };
     for (const line of lines) {
-      if (!currentData.accounts.some(a => a.code === line.accountCode)) return {success:false,error:`Cadastre a conta contábil ${line.accountCode} antes de operar.`};
-      if (!Number.isFinite(line.debit) || !Number.isFinite(line.credit) || line.debit < 0 || line.credit < 0 || (line.debit > 0 && line.credit > 0)) return {success:false,error:"Débito/crédito inválido."};
+      if (!currentData.accounts.some((a) => a.code === line.accountCode))
+        return {
+          success: false,
+          error: `Cadastre a conta contábil ${line.accountCode} antes de operar.`,
+        };
+      if (
+        !Number.isFinite(line.debit) ||
+        !Number.isFinite(line.credit) ||
+        line.debit < 0 ||
+        line.credit < 0 ||
+        (line.debit > 0 && line.credit > 0)
+      )
+        return { success: false, error: "Débito/crédito inválido." };
     }
     const totalDebit =
       Math.round(lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) * 100) / 100;
     const totalCredit =
       Math.round(lines.reduce((s, l) => s + (Number(l.credit) || 0), 0) * 100) / 100;
 
-    if(totalDebit<=0)return {success:false,error:"Informe um valor positivo."};
+    if (totalDebit <= 0) return { success: false, error: "Informe um valor positivo." };
     if (Math.abs(totalDebit - totalCredit) > 0.005) {
       return {
         success: false,
@@ -552,9 +600,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     if (target.status === "Reversed")
       return { success: false, error: "Entry has already been reversed." };
 
-    const reversalDate=new Date().toISOString().slice(0,10);
-    const period=currentData.fiscalPeriods.find(p=>p.startDate<=reversalDate&&p.endDate>=reversalDate);
-    if(!period||period.status!=="Open"||activeCompany.isPeriodClosed)return {success:false,error:"Abra um período fiscal para a data do estorno."};
+    const reversalDate = new Date().toISOString().slice(0, 10);
+    const period = currentData.fiscalPeriods.find(
+      (p) => p.startDate <= reversalDate && p.endDate >= reversalDate,
+    );
+    if (!period || period.status !== "Open" || activeCompany.isPeriodClosed)
+      return { success: false, error: "Abra um período fiscal para a data do estorno." };
     const revId = `REV-${target.id}`;
     const reversedLines: JournalLine[] = target.lines.map((l, idx) => ({
       id: `rev-jl-${Date.now()}-${idx}`,
@@ -792,7 +843,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     if (!userPersona.canCreateJournals) return { success: false, error: "Unauthorized." };
 
     const billId = `BILL-${new Date().getFullYear().toString().substr(2)}${String(currentData.bills.length + 1).padStart(3, "0")}`;
-    const usdAmount = Math.round((billData.foreignAmount * billData.fxRate) * 100) / 100;
+    const usdAmount = Math.round(billData.foreignAmount * billData.fxRate * 100) / 100;
 
     const newBill: Bill = {
       ...billData,
@@ -883,8 +934,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     if (bill.status === "Paid") return { success: false, error: "Bill is already paid." };
 
     const effectiveSettlementRate = settlementFxRate || bill.fxRate;
-    const actualCashPaidUsd =
-      Math.round((bill.foreignAmount * effectiveSettlementRate) * 100) / 100;
+    const actualCashPaidUsd = Math.round(bill.foreignAmount * effectiveSettlementRate * 100) / 100;
     const originalApUsd = bill.usdAmount;
     const diff = Math.round((originalApUsd - actualCashPaidUsd) * 100) / 100;
 
@@ -1083,20 +1133,54 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     );
   };
 
-  const importStatement = ({name, accountCode, content}: {name: string; type: "CSV" | "OFX" | "PDF"; accountCode: string; content: string}) => {
+  const importStatement = ({
+    name,
+    accountCode,
+    content,
+  }: {
+    name: string;
+    type: "CSV" | "OFX" | "PDF";
+    accountCode: string;
+    content: string;
+  }) => {
     const parsed = parseStatementCsv(content);
-    if (!currentData.accounts.some(a => a.code === accountCode)) throw new Error("Cadastre e selecione a conta bancária no plano de contas.");
+    if (!currentData.accounts.some((a) => a.code === accountCode))
+      throw new Error("Cadastre e selecione a conta bancária no plano de contas.");
     const fileId = crypto.randomUUID();
-    const newFile: BankStatementFile = { id: fileId, fileName: name, fileType: "CSV", accountCode, rowsCount: parsed.length, uploadedAt: new Date().toISOString(), uploadedBy: userPersona.name, status: "Pending Review", content };
-    updateCompanyData(prev => ({...prev, statements: [newFile,...prev.statements], stagingRows: [...parsed.map(row => ({...row, id: crypto.randomUUID(), fileId, suggestedAccount: "", status: "Pending" as const})),...prev.stagingRows]}));
-    addAuditLog("IMPORT_STATEMENT", "BankStatementFile",fileId,"Imported CSV: " + name);
+    const newFile: BankStatementFile = {
+      id: fileId,
+      fileName: name,
+      fileType: "CSV",
+      accountCode,
+      rowsCount: parsed.length,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: userPersona.name,
+      status: "Pending Review",
+      content,
+    };
+    updateCompanyData((prev) => ({
+      ...prev,
+      statements: [newFile, ...prev.statements],
+      stagingRows: [
+        ...parsed.map((row) => ({
+          ...row,
+          id: crypto.randomUUID(),
+          fileId,
+          suggestedAccount: "",
+          status: "Pending" as const,
+        })),
+        ...prev.stagingRows,
+      ],
+    }));
+    addAuditLog("IMPORT_STATEMENT", "BankStatementFile", fileId, "Imported CSV: " + name);
   };
 
   const classifyStagingRow = (rowId: string, targetAccountCode: string) => {
     const row = currentData.stagingRows.find((r) => r.id === rowId);
     if (!row || row.status !== "Pending") throw new Error("Linha indisponível para classificação.");
 
-    if(targetAccountCode===currentData.statements.find(s=>s.id===row.fileId)?.accountCode)throw new Error("Selecione uma contrapartida diferente da conta bancária.");
+    if (targetAccountCode === currentData.statements.find((s) => s.id === row.fileId)?.accountCode)
+      throw new Error("Selecione uma contrapartida diferente da conta bancária.");
     const isOutflow = row.amount < 0;
     const absAmount = Math.abs(row.amount);
     const jeLines = [
@@ -1107,7 +1191,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
         memo: row.description,
       },
       {
-        accountCode: currentData.statements.find(s => s.id === row.fileId)!.accountCode,
+        accountCode: currentData.statements.find((s) => s.id === row.fileId)!.accountCode,
         debit: isOutflow ? 0 : absAmount,
         credit: isOutflow ? absAmount : 0,
         memo: `Bank statement feed: ${row.description}`,
@@ -1209,17 +1293,29 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       currencies: [...(prev.currencies || []).filter((c) => c.code !== curr.code), curr],
     }));
-    addAuditLog("CREATE_CURRENCY", "CurrencyParam", curr.code, `Adicionada moeda ${curr.code} (${curr.name}) com taxa de ${curr.exchangeRateToUsd}.`);
+    addAuditLog(
+      "CREATE_CURRENCY",
+      "CurrencyParam",
+      curr.code,
+      `Adicionada moeda ${curr.code} (${curr.name}) com taxa de ${curr.exchangeRateToUsd}.`,
+    );
   };
 
   const updateCurrency = (code: string, data: Partial<CurrencyParam>) => {
     updateCompanyData((prev) => ({
       ...prev,
       currencies: (prev.currencies || []).map((c) =>
-        c.code === code ? { ...c, ...data, lastUpdated: new Date().toISOString().split("T")[0]! } : c,
+        c.code === code
+          ? { ...c, ...data, lastUpdated: new Date().toISOString().split("T")[0]! }
+          : c,
       ),
     }));
-    addAuditLog("UPDATE_CURRENCY", "CurrencyParam", code, `Atualizados parâmetros da moeda ${code}.`);
+    addAuditLog(
+      "UPDATE_CURRENCY",
+      "CurrencyParam",
+      code,
+      `Atualizados parâmetros da moeda ${code}.`,
+    );
   };
 
   const deleteCurrency = (code: string) => {
@@ -1227,7 +1323,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       currencies: (prev.currencies || []).filter((c) => c.code !== code),
     }));
-    addAuditLog("DELETE_CURRENCY", "CurrencyParam", code, `Removida moeda ${code} do catálogo de taxas.`);
+    addAuditLog(
+      "DELETE_CURRENCY",
+      "CurrencyParam",
+      code,
+      `Removida moeda ${code} do catálogo de taxas.`,
+    );
   };
 
   // Jurisdições Fiscais (Tax Jurisdictions)
@@ -1240,7 +1341,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       taxJurisdictions: [...(prev.taxJurisdictions || []), newTax],
     }));
-    addAuditLog("CREATE_TAX_JURISDICTION", "TaxJurisdictionParam", newTax.code, `Cadastrada jurisdição fiscal ${newTax.name} (${newTax.rate}%).`);
+    addAuditLog(
+      "CREATE_TAX_JURISDICTION",
+      "TaxJurisdictionParam",
+      newTax.code,
+      `Cadastrada jurisdição fiscal ${newTax.name} (${newTax.rate}%).`,
+    );
   };
 
   const updateTaxJurisdiction = (id: string, data: Partial<TaxJurisdictionParam>) => {
@@ -1250,7 +1356,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
         t.id === id ? { ...t, ...data } : t,
       ),
     }));
-    addAuditLog("UPDATE_TAX_JURISDICTION", "TaxJurisdictionParam", id, `Atualizada jurisdição fiscal ${id}.`);
+    addAuditLog(
+      "UPDATE_TAX_JURISDICTION",
+      "TaxJurisdictionParam",
+      id,
+      `Atualizada jurisdição fiscal ${id}.`,
+    );
   };
 
   const deleteTaxJurisdiction = (id: string) => {
@@ -1258,7 +1369,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       taxJurisdictions: (prev.taxJurisdictions || []).filter((t) => t.id !== id),
     }));
-    addAuditLog("DELETE_TAX_JURISDICTION", "TaxJurisdictionParam", id, `Removida jurisdição fiscal ${id}.`);
+    addAuditLog(
+      "DELETE_TAX_JURISDICTION",
+      "TaxJurisdictionParam",
+      id,
+      `Removida jurisdição fiscal ${id}.`,
+    );
   };
 
   // Prazos e Condições Comerciais (Payment Terms)
@@ -1271,17 +1387,25 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       paymentTerms: [...(prev.paymentTerms || []), newTerm],
     }));
-    addAuditLog("CREATE_PAYMENT_TERM", "PaymentTermParam", newTerm.code, `Cadastrada condição comercial ${newTerm.name} (${newTerm.days} dias).`);
+    addAuditLog(
+      "CREATE_PAYMENT_TERM",
+      "PaymentTermParam",
+      newTerm.code,
+      `Cadastrada condição comercial ${newTerm.name} (${newTerm.days} dias).`,
+    );
   };
 
   const updatePaymentTerm = (id: string, data: Partial<PaymentTermParam>) => {
     updateCompanyData((prev) => ({
       ...prev,
-      paymentTerms: (prev.paymentTerms || []).map((p) =>
-        p.id === id ? { ...p, ...data } : p,
-      ),
+      paymentTerms: (prev.paymentTerms || []).map((p) => (p.id === id ? { ...p, ...data } : p)),
     }));
-    addAuditLog("UPDATE_PAYMENT_TERM", "PaymentTermParam", id, `Atualizada condição de pagamento ${id}.`);
+    addAuditLog(
+      "UPDATE_PAYMENT_TERM",
+      "PaymentTermParam",
+      id,
+      `Atualizada condição de pagamento ${id}.`,
+    );
   };
 
   const deletePaymentTerm = (id: string) => {
@@ -1289,7 +1413,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       paymentTerms: (prev.paymentTerms || []).filter((p) => p.id !== id),
     }));
-    addAuditLog("DELETE_PAYMENT_TERM", "PaymentTermParam", id, `Removida condição comercial ${id}.`);
+    addAuditLog(
+      "DELETE_PAYMENT_TERM",
+      "PaymentTermParam",
+      id,
+      `Removida condição comercial ${id}.`,
+    );
   };
 
   // Centros de Custo (Cost Centers)
@@ -1302,15 +1431,18 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       costCenters: [...(prev.costCenters || []), newCC],
     }));
-    addAuditLog("CREATE_COST_CENTER", "CostCenterParam", newCC.code, `Cadastrado centro de custo ${newCC.code} - ${newCC.name}.`);
+    addAuditLog(
+      "CREATE_COST_CENTER",
+      "CostCenterParam",
+      newCC.code,
+      `Cadastrado centro de custo ${newCC.code} - ${newCC.name}.`,
+    );
   };
 
   const updateCostCenter = (id: string, data: Partial<CostCenterParam>) => {
     updateCompanyData((prev) => ({
       ...prev,
-      costCenters: (prev.costCenters || []).map((c) =>
-        c.id === id ? { ...c, ...data } : c,
-      ),
+      costCenters: (prev.costCenters || []).map((c) => (c.id === id ? { ...c, ...data } : c)),
     }));
     addAuditLog("UPDATE_COST_CENTER", "CostCenterParam", id, `Atualizado centro de custo ${id}.`);
   };
@@ -1333,7 +1465,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       expenseCategories: [...(prev.expenseCategories || []), newCat],
     }));
-    addAuditLog("CREATE_EXPENSE_CAT", "ExpenseCategoryParam", newCat.code, `Cadastrada categoria de despesa ${newCat.name} (Conta ${newCat.glAccountCode}).`);
+    addAuditLog(
+      "CREATE_EXPENSE_CAT",
+      "ExpenseCategoryParam",
+      newCat.code,
+      `Cadastrada categoria de despesa ${newCat.name} (Conta ${newCat.glAccountCode}).`,
+    );
   };
 
   const updateExpenseCategory = (id: string, data: Partial<ExpenseCategoryParam>) => {
@@ -1343,7 +1480,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
         e.id === id ? { ...e, ...data } : e,
       ),
     }));
-    addAuditLog("UPDATE_EXPENSE_CAT", "ExpenseCategoryParam", id, `Atualizada categoria de despesa ${id}.`);
+    addAuditLog(
+      "UPDATE_EXPENSE_CAT",
+      "ExpenseCategoryParam",
+      id,
+      `Atualizada categoria de despesa ${id}.`,
+    );
   };
 
   const deleteExpenseCategory = (id: string) => {
@@ -1351,31 +1493,58 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       ...prev,
       expenseCategories: (prev.expenseCategories || []).filter((e) => e.id !== id),
     }));
-    addAuditLog("DELETE_EXPENSE_CAT", "ExpenseCategoryParam", id, `Removida categoria de despesa ${id}.`);
+    addAuditLog(
+      "DELETE_EXPENSE_CAT",
+      "ExpenseCategoryParam",
+      id,
+      `Removida categoria de despesa ${id}.`,
+    );
   };
 
   // Períodos Fiscais (Fiscal Periods)
   const addFiscalPeriod = (period: Omit<FiscalPeriodParam, "id">) => {
     const newPeriod: FiscalPeriodParam = {
       ...period,
-      ...(period.status!=="Open"?{closedBy:userPersona.name,closingDate:new Date().toISOString().slice(0,10)}:{}),
+      ...(period.status !== "Open"
+        ? { closedBy: userPersona.name, closingDate: new Date().toISOString().slice(0, 10) }
+        : {}),
       id: `fp-${Date.now()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,
       fiscalPeriods: [...(prev.fiscalPeriods || []), newPeriod],
     }));
-    addAuditLog("CREATE_FISCAL_PERIOD", "FiscalPeriodParam", newPeriod.periodCode, `Adicionado período fiscal ${newPeriod.periodCode} (${newPeriod.status}).`);
+    addAuditLog(
+      "CREATE_FISCAL_PERIOD",
+      "FiscalPeriodParam",
+      newPeriod.periodCode,
+      `Adicionado período fiscal ${newPeriod.periodCode} (${newPeriod.status}).`,
+    );
   };
 
   const updateFiscalPeriod = (id: string, data: Partial<FiscalPeriodParam>) => {
     updateCompanyData((prev) => ({
       ...prev,
       fiscalPeriods: (prev.fiscalPeriods || []).map((p) =>
-        p.id === id ? { ...p, ...data,closedBy:data.status&&data.status!=="Open"?userPersona.name:undefined,closingDate:data.status&&data.status!=="Open"?new Date().toISOString().slice(0,10):undefined } : p,
+        p.id === id
+          ? {
+              ...p,
+              ...data,
+              closedBy: data.status && data.status !== "Open" ? userPersona.name : undefined,
+              closingDate:
+                data.status && data.status !== "Open"
+                  ? new Date().toISOString().slice(0, 10)
+                  : undefined,
+            }
+          : p,
       ),
     }));
-    addAuditLog("UPDATE_FISCAL_PERIOD", "FiscalPeriodParam", id, `Atualizado status do período fiscal ${id}.`);
+    addAuditLog(
+      "UPDATE_FISCAL_PERIOD",
+      "FiscalPeriodParam",
+      id,
+      `Atualizado status do período fiscal ${id}.`,
+    );
   };
 
   const deleteFiscalPeriod = (id: string) => {
@@ -1398,7 +1567,12 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       expenseCategories: def.expenseCategories,
       fiscalPeriods: def.fiscalPeriods,
     }));
-    addAuditLog("RESET_PARAMETERS", "CompanyParameters", activeCompany.id, `Restaurados parâmetros padrão para a empresa ${activeCompany.name}.`);
+    addAuditLog(
+      "RESET_PARAMETERS",
+      "CompanyParameters",
+      activeCompany.id,
+      `Restaurados parâmetros padrão para a empresa ${activeCompany.name}.`,
+    );
   };
 
   const { accountBalances, totalDebitSum, totalCreditSum, isLedgerBalanced } = (() => {
@@ -1460,77 +1634,81 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
   const totalAP = accountBalances["2000"]?.net || 0;
   const totalInventoryValuation = accountBalances["1300"]?.net || 0;
 
-  return { getState: () => nextData, getCompany: () => activeCompany, value: {
-        activeCompany,
-        companies,
-        setActiveCompanyId,
-        currentRole,
-        setCurrentRole,
-        userPersona,
-        accounts: currentData.accounts,
-        addAccount,
-        journals: currentData.journals,
-        postJournalEntry,
-        reverseJournalEntry,
-        togglePeriodLock,
-        inventory: currentData.inventory,
-        addInventoryItem,
-        adjustStock,
-        setCostMethod,
-        invoices: currentData.invoices,
-        createInvoice,
-        recordInvoicePayment,
-        bills: currentData.bills,
-        createBill,
-        payBill,
-        projects: currentData.projects,
-        createProject,
-        statements: currentData.statements,
-        stagingRows: currentData.stagingRows,
-        importStatement,
-        classifyStagingRow,
-        taxes: currentData.taxes,
-        recordTaxRemittance,
-        auditLogs: currentData.auditLogs,
-        currencies: currentData.currencies || [],
-        addCurrency,
-        updateCurrency,
-        deleteCurrency,
-        taxJurisdictions: currentData.taxJurisdictions || [],
-        addTaxJurisdiction,
-        updateTaxJurisdiction,
-        deleteTaxJurisdiction,
-        paymentTerms: currentData.paymentTerms || [],
-        addPaymentTerm,
-        updatePaymentTerm,
-        deletePaymentTerm,
-        costCenters: currentData.costCenters || [],
-        addCostCenter,
-        updateCostCenter,
-        deleteCostCenter,
-        expenseCategories: currentData.expenseCategories || [],
-        addExpenseCategory,
-        updateExpenseCategory,
-        deleteExpenseCategory,
-        fiscalPeriods: currentData.fiscalPeriods || [],
-        addFiscalPeriod,
-        updateFiscalPeriod,
-        deleteFiscalPeriod,
-        resetParametersToDefault,
-        accountBalances,
-        isLedgerBalanced,
-        totalDebitSum,
-        totalCreditSum,
-        netIncome,
-        totalRevenue,
-        totalCOGS,
-        grossProfit,
-        totalOpEx,
-        operatingIncome,
-        totalFXVariance,
-        cashOnHand,
-        totalAR,
-        totalAP,
-        totalInventoryValuation,
-  } };
+  return {
+    getState: () => nextData,
+    getCompany: () => activeCompany,
+    value: {
+      activeCompany,
+      companies,
+      setActiveCompanyId,
+      currentRole,
+      setCurrentRole,
+      userPersona,
+      accounts: currentData.accounts,
+      addAccount,
+      journals: currentData.journals,
+      postJournalEntry,
+      reverseJournalEntry,
+      togglePeriodLock,
+      inventory: currentData.inventory,
+      addInventoryItem,
+      adjustStock,
+      setCostMethod,
+      invoices: currentData.invoices,
+      createInvoice,
+      recordInvoicePayment,
+      bills: currentData.bills,
+      createBill,
+      payBill,
+      projects: currentData.projects,
+      createProject,
+      statements: currentData.statements,
+      stagingRows: currentData.stagingRows,
+      importStatement,
+      classifyStagingRow,
+      taxes: currentData.taxes,
+      recordTaxRemittance,
+      auditLogs: currentData.auditLogs,
+      currencies: currentData.currencies || [],
+      addCurrency,
+      updateCurrency,
+      deleteCurrency,
+      taxJurisdictions: currentData.taxJurisdictions || [],
+      addTaxJurisdiction,
+      updateTaxJurisdiction,
+      deleteTaxJurisdiction,
+      paymentTerms: currentData.paymentTerms || [],
+      addPaymentTerm,
+      updatePaymentTerm,
+      deletePaymentTerm,
+      costCenters: currentData.costCenters || [],
+      addCostCenter,
+      updateCostCenter,
+      deleteCostCenter,
+      expenseCategories: currentData.expenseCategories || [],
+      addExpenseCategory,
+      updateExpenseCategory,
+      deleteExpenseCategory,
+      fiscalPeriods: currentData.fiscalPeriods || [],
+      addFiscalPeriod,
+      updateFiscalPeriod,
+      deleteFiscalPeriod,
+      resetParametersToDefault,
+      accountBalances,
+      isLedgerBalanced,
+      totalDebitSum,
+      totalCreditSum,
+      netIncome,
+      totalRevenue,
+      totalCOGS,
+      grossProfit,
+      totalOpEx,
+      operatingIncome,
+      totalFXVariance,
+      cashOnHand,
+      totalAR,
+      totalAP,
+      totalInventoryValuation,
+    },
+  };
 }

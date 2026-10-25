@@ -38,8 +38,8 @@ function PayablesPage() {
   // Bill creation form state
   const [vendorName, setVendorName] = useState("");
   const [billNumber, setBillNumber] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
-  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [currency, setCurrency] = useState("USD");
   const [fxRateInput, setFxRateInput] = useState("1.0");
   const [foreignAmount, setForeignAmount] = useState("0");
@@ -65,7 +65,7 @@ function PayablesPage() {
   const handleCurrencyChange = (curr: string) => {
     setCurrency(curr);
     if (curr === "USD") setFxRateInput("1.0");
-    else setFxRateInput(String(currencies.find(c=>c.code===curr)?.exchangeRateToUsd??""));
+    else setFxRateInput(String(currencies.find((c) => c.code === curr)?.exchangeRateToUsd ?? ""));
   };
 
   const handleCreateBill = async (e: React.FormEvent) => {
@@ -358,9 +358,10 @@ function PayablesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP ASC 830 (Foreign Currency Matters): Títulos em moeda estrangeira são registrados
-                pela taxa spot do dia da emissão. Ao liquidar o título, qualquer variação na taxa spot
-                gera Ganho ou Perda Cambial Realizada (Realized FX Gain/Loss - conta 6300).
+                US GAAP ASC 830 (Foreign Currency Matters): Títulos em moeda estrangeira são
+                registrados pela taxa spot do dia da emissão. Ao liquidar o título, qualquer
+                variação na taxa spot gera Ganho ou Perda Cambial Realizada (Realized FX Gain/Loss -
+                conta 6300).
               </Note>
             </div>
           </Panel>
@@ -380,7 +381,9 @@ function PayablesPage() {
                 Voltar para Contas a Pagar
               </button>
               <div>
-                <h1 className="text-[16px] font-semibold text-ink">Registrar Fatura de Fornecedor</h1>
+                <h1 className="text-[16px] font-semibold text-ink">
+                  Registrar Fatura de Fornecedor
+                </h1>
                 <p className="text-[12px] text-ink3">
                   Cadastro de obrigações com fornecedores e apropriação contábil no Razão Geral (AP)
                 </p>
@@ -620,8 +623,8 @@ function PayablesPage() {
                 Liquidar Título: {selectedPayingBill.billNumber}
               </h2>
               <p className="text-[12px] text-ink3">
-                Fornecedor: {selectedPayingBill.vendorName} · Valor Original: {selectedPayingBill.currency}{" "}
-                {selectedPayingBill.foreignAmount.toLocaleString()}
+                Fornecedor: {selectedPayingBill.vendorName} · Valor Original:{" "}
+                {selectedPayingBill.currency} {selectedPayingBill.foreignAmount.toLocaleString()}
               </p>
             </div>
 
@@ -653,7 +656,8 @@ function PayablesPage() {
                     className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand"
                   />
                   <span className="block mt-1 text-[11px] text-ink3">
-                    Taxa original de emissão: {selectedPayingBill.fxRate}. A diferença apura ganho/perda cambial.
+                    Taxa original de emissão: {selectedPayingBill.fxRate}. A diferença apura
+                    ganho/perda cambial.
                   </span>
                 </div>
               )}

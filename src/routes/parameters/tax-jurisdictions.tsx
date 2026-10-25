@@ -1,4 +1,8 @@
-import { ParameterScopeField, ParameterScopeLabel, useParameterScope } from "@/components/parameter-scope";
+import {
+  ParameterScopeField,
+  ParameterScopeLabel,
+  useParameterScope,
+} from "@/components/parameter-scope";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAccounting, type TaxJurisdictionParam } from "@/lib/parameters-context";
@@ -172,7 +176,7 @@ function TaxJurisdictionsPage() {
   const handleToggleStatus = async (tax: TaxJurisdictionParam) => {
     try {
       const nextStatus = tax.status === "Active" ? "Inactive" : "Active";
-      await updateTaxJurisdiction(tax.id, {
+      await updateTaxJurisdiction(tax.id, { status: nextStatus });
     } catch {
       /* Persistence error is displayed by ParametersProvider. */
     }
@@ -347,7 +351,9 @@ function TaxJurisdictionsPage() {
                     </Badge>
                   </button>
                 </Td>
-                <Td><ParameterScopeLabel value={t} /></Td>
+                <Td>
+                  <ParameterScopeLabel value={t} />
+                </Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
