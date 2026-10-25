@@ -18,6 +18,7 @@ import { AccountingProvider } from "@/lib/accounting-store";
 import { CompanyProvider, useCompanies } from "@/components/company-context";
 import { ModalProvider } from "@/components/modal-provider";
 import { CashShell } from "@/components/cash-shell";
+import { isModuleAvailable } from "@/lib/module-availability";
 
 function NotFoundComponent() {
   return (
@@ -84,13 +85,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const user = await getSession();
     const pathname = location.pathname.replace(/\/+$/, "") || "/";
     const publicRoutes = ["/", "/cadastro"];
-    const workspaceRoutes = ["/companies", "/cash-flow", "/access", "/users", "/audit-log"];
     if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
     if (
       user &&
       !publicRoutes.includes(pathname) &&
-      !workspaceRoutes.includes(pathname) &&
-      !pathname.startsWith("/parameters")
+      !isModuleAvailable(pathname)
     )
       throw redirect({ to: "/cash-flow" });
     return { user };

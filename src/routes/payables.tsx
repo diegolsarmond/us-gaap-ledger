@@ -27,6 +27,7 @@ function PayablesPage() {
     createBill,
     payBill,
     userPersona,
+    currencies,
   } = useAccounting();
 
   // Screen View Mode
@@ -64,9 +65,7 @@ function PayablesPage() {
   const handleCurrencyChange = (curr: string) => {
     setCurrency(curr);
     if (curr === "USD") setFxRateInput("1.0");
-    else if (curr === "EUR") setFxRateInput("1.08");
-    else if (curr === "GBP") setFxRateInput("1.27");
-    else if (curr === "MXN") setFxRateInput("0.054");
+    else setFxRateInput(String(currencies.find(c=>c.code===curr)?.exchangeRateToUsd??""));
   };
 
   const handleCreateBill = async (e: React.FormEvent) => {

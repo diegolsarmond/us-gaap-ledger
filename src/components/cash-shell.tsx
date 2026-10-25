@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { LockKeyhole, Menu, X, SlidersHorizontal } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { CurrencyRateTicker } from "./currency-rate-ticker";
+import { isModuleAvailable } from "@/lib/module-availability";
 const groups = [
   {
     label: "Operations",
@@ -104,7 +105,7 @@ export function CashShell({
               {g.label}
             </p>
             {g.items.filter(label=>label!=="Usuários"||permissions.manage_users).filter(label=>label!=="Perfis de acesso"||permissions.manage_profiles).filter(label=>label!=="Logs de ações"||permissions.view_audit).map((label) =>
-              menuRoutes[label] ? (
+              menuRoutes[label] && isModuleAvailable(menuRoutes[label]) ? (
                 <Link
                   key={label}
                   to={menuRoutes[label]}

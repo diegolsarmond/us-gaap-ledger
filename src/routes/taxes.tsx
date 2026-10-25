@@ -23,7 +23,7 @@ function TaxesPage() {
   // Manual Tax Calculator
   const [calcBase, setCalcBase] = useState("0");
   const [calcStateRate, setCalcStateRate] = useState("0");
-  const [calcCountyRate, setCalcCountyRate] = useState("1.0");
+  const [calcCountyRate, setCalcCountyRate] = useState("0");
 
   const totalCalcRate = (Number(calcStateRate) || 0) + (Number(calcCountyRate) || 0);
   const calculatedTax = (Number(calcBase) || 0) * (totalCalcRate / 100);

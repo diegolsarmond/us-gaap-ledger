@@ -64,9 +64,11 @@ export function validateState(state:CompanyState) {
  }
  for(const b of state.bills) {
   ref('bills',b.id,undefined,b.projectId);
-  if(Math.abs(b.items.reduce((s,l)=>s+l.amount,0)-b.foreignAmount)>0.011) throw new Error("Total da conta a pagar inválido.");
+  if(Math.abs(b.items.reduce((s,l)=>s+l.amount,0)-b.usdAmount)>0.011) throw new Error("Total da conta a pagar inválido.");
   for(const l of b.items) { ref('bills',b.id,l.accountCode,l.projectId); if(l.isInventory&&(!l.sku||!skus.has(l.sku))) throw new Error("Estoque não pertence à empresa."); }
  }
+ for(const c of state.currencies) if(c.code==='USD' ? (!c.isBaseCurrency||c.exchangeRateToUsd!==1||c.status!=='Active') : c.isBaseCurrency)throw new Error('USD é a única moeda base, com paridade 1.');
+ for(const domain of ['paymentTerms','costCenters','expenseCategories','taxJurisdictions','projects'] as const){const codes=state[domain].map(r=>r.code);if(new Set(codes).size!==codes.length)throw new Error('Código duplicado.');}
  for(const p of [...state.expenseCategories,...state.taxJurisdictions]) ref('parameters',p.id,p.glAccountCode);
  const periods=[...state.fiscalPeriods].sort((a,b)=>a.startDate.localeCompare(b.startDate));
  for(let i=0;i<periods.length;i++) if(periods[i]!.startDate>periods[i]!.endDate||(i>0&&periods[i-1]!.endDate>=periods[i]!.startDate)) throw new Error("Períodos fiscais inválidos ou sobrepostos.");
@@ -107,7 +109,7 @@ export async function execute(input:{companyId:string;revision:number;command:st
   for(const r of refs) await client.query("INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,project_id,statement_id) VALUES($1,$2,$3,$4,$5,$6)",[input.companyId,r.source_domain,r.source_id,r.account_id,r.project_id,r.statement_id]);
   const company=engine.getCompany();
   const updated=await client.query("UPDATE companies SET revision=revision+1,cost_method=$2,period_closed=$3,active_period=$4 WHERE id=$1 RETURNING revision",[input.companyId,company.costMethod,company.isPeriodClosed,company.activePeriod]);
-  await client.query("INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,'Accounting',$4,$4::uuid)",[auth.user.id,auth.user.name,command,input.companyId]);
+  await client.query("INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,'Accounting',$4,$5)",[auth.user.id,auth.user.name,command,input.companyId,input.companyId]);
   await client.query("COMMIT");
   return {state:next,company,revision:updated.rows[0].revision as number,result:result??{success:true}};
  } catch(e) {await client.query("ROLLBACK");throw e;} finally {client.release();}

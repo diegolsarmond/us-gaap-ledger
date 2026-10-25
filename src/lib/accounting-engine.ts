@@ -788,7 +788,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     if (!userPersona.canCreateJournals) return { success: false, error: "Unauthorized." };
 
     const billId = `BILL-${new Date().getFullYear().toString().substr(2)}${String(currentData.bills.length + 1).padStart(3, "0")}`;
-    const usdAmount = Math.round((billData.foreignAmount / (billData.fxRate || 1.0)) * 100) / 100;
+    const usdAmount = Math.round((billData.foreignAmount * billData.fxRate) * 100) / 100;
 
     const newBill: Bill = {
       ...billData,
@@ -880,7 +880,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
 
     const effectiveSettlementRate = settlementFxRate || bill.fxRate;
     const actualCashPaidUsd =
-      Math.round((bill.foreignAmount / effectiveSettlementRate) * 100) / 100;
+      Math.round((bill.foreignAmount * effectiveSettlementRate) * 100) / 100;
     const originalApUsd = bill.usdAmount;
     const diff = Math.round((originalApUsd - actualCashPaidUsd) * 100) / 100;
 
@@ -1092,6 +1092,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     const row = currentData.stagingRows.find((r) => r.id === rowId);
     if (!row || row.status !== "Pending") throw new Error("Linha indisponível para classificação.");
 
+    if(targetAccountCode===currentData.statements.find(s=>s.id===row.fileId)?.accountCode)throw new Error("Selecione uma contrapartida diferente da conta bancária.");
     const isOutflow = row.amount < 0;
     const absAmount = Math.abs(row.amount);
     const jeLines = [
@@ -1273,7 +1274,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
     updateCompanyData((prev) => ({
       ...prev,
       paymentTerms: (prev.paymentTerms || []).map((p) =>
-        p.id === id ? { ...p, ...data } : p,
+        p.id === id ? { ...p, ...data,closedBy:data.status&&data.status!=="Open"?userPersona.name:undefined,closingDate:data.status&&data.status!=="Open"?new Date().toISOString().slice(0,10):undefined } : p,
       ),
     }));
     addAuditLog("UPDATE_PAYMENT_TERM", "PaymentTermParam", id, `Atualizada condição de pagamento ${id}.`);
@@ -1353,6 +1354,7 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
   const addFiscalPeriod = (period: Omit<FiscalPeriodParam, "id">) => {
     const newPeriod: FiscalPeriodParam = {
       ...period,
+      ...(period.status!=="Open"?{closedBy:userPersona.name,closingDate:new Date().toISOString().slice(0,10)}:{}),
       id: `fp-${Date.now()}`,
     };
     updateCompanyData((prev) => ({
