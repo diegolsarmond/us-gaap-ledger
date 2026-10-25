@@ -1,9 +1,18 @@
+import { SignOutButton } from "@/components/sign-out-button";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { useAccounting, USER_PERSONAS, type UserRole } from "@/lib/accounting-store";
+import { useAccounting, type UserRole } from "@/lib/accounting-store";
 import { Badge } from "@/components/ui-kit";
 import { useModal } from "@/components/modal-provider";
-import { ChevronDown, ChevronRight, SlidersHorizontal, BookOpen, HelpCircle, Menu, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  BookOpen,
+  HelpCircle,
+  Menu,
+  X,
+} from "lucide-react";
 import { CurrencyRateTicker } from "@/components/currency-rate-ticker";
 import { ModuleTutorialModal } from "@/components/module-tutorial-modal";
 
@@ -17,7 +26,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { to: "/", label: "Dashboard" },
+      { to: "/dashboard", label: "Dashboard" },
       { to: "/invoices", label: "Invoices & AR" },
       { to: "/payables", label: "Bills & AP" },
       { to: "/inventory", label: "Inventory Catalog" },
@@ -86,15 +95,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     activeCompany,
     companies,
     setActiveCompanyId,
-    currentRole,
-    setCurrentRole,
     userPersona,
     isLedgerBalanced,
     togglePeriodLock,
   } = useAccounting();
 
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [autoOpenTutorial, setAutoOpenTutorial] = useState<boolean>(() => {
@@ -162,7 +169,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!userPersona.canClosePeriod) {
       await modal.showAlert({
         title: "Acesso Negado",
-        message: "Apenas administradores da plataforma ou contadores responsáveis podem bloquear ou desbloquear períodos contábeis.",
+        message:
+          "Apenas administradores da plataforma ou contadores responsáveis podem bloquear ou desbloquear períodos contábeis.",
         tone: "error",
       });
       return;
@@ -214,7 +222,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           if (isCollapsible) {
             return (
-              <div key={g.label} className="mb-2.5 rounded-lg border border-line/50 bg-ink/[0.015] p-1">
+              <div
+                key={g.label}
+                className="mb-2.5 rounded-lg border border-line/50 bg-ink/[0.015] p-1"
+              >
                 <button
                   type="button"
                   onClick={() => setParamsMenuOpen((v) => !v)}
@@ -329,9 +340,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="pt-1 border-t border-line/50 flex items-center justify-between text-[10.5px]">
           <span className="text-ink3">Ledger Balance</span>
-          <span
-            className={`font-semibold ${isLedgerBalanced ? "text-up" : "text-down font-bold"}`}
-          >
+          <span className={`font-semibold ${isLedgerBalanced ? "text-up" : "text-down font-bold"}`}>
             {isLedgerBalanced ? "Balanced (Δ $0.00)" : "UNBALANCED Δ"}
           </span>
         </div>
@@ -351,8 +360,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span>Guia & Tutoriais</span>
         </button>
         <p>
-          US GAAP Operational Model. Financial policies and year-end statements require approval
-          by a qualified U.S. CPA.
+          US GAAP Operational Model. Financial policies and year-end statements require approval by
+          a qualified U.S. CPA.
         </p>
       </div>
     </>
@@ -470,55 +479,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </button>
 
-            {/* Persona / Role Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setRoleDropdownOpen((v) => !v);
-                  setCompanyDropdownOpen(false);
-                }}
-                className="flex items-center gap-1.5 rounded-lg bg-ink/[0.04] px-2 sm:px-2.5 py-1.5 text-left ring-1 ring-line/80 hover:bg-ink/[0.07] transition-colors cursor-pointer"
-                title={`Perfil: ${userPersona.name}`}
-              >
-                <div className="size-2 rounded-full bg-brand shrink-0" />
-                <div className="leading-tight text-left hidden sm:block">
-                  <p className="text-[11.5px] font-semibold text-ink truncate max-w-[80px] md:max-w-none">{userPersona.name}</p>
-                  <p className="text-[9.5px] text-ink3 uppercase tracking-wider truncate">
-                    {userPersona.title}
-                  </p>
-                </div>
-                <span className="text-[10px] text-ink3 ml-0.5 sm:ml-1">▾</span>
-              </button>
-
-              {roleDropdownOpen && (
-                <div className="absolute right-0 top-11 w-64 max-w-[calc(100vw-24px)] overflow-hidden rounded-lg bg-white p-1.5 shadow-lg ring-1 ring-line z-30 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase text-ink3">
-                    Switch Test Persona (RBAC)
-                  </p>
-                  {(Object.keys(USER_PERSONAS) as UserRole[]).map((rKey) => {
-                    const p = USER_PERSONAS[rKey];
-                    const isSelected = rKey === currentRole;
-                    return (
-                      <button
-                        key={rKey}
-                        type="button"
-                        onClick={() => {
-                          setCurrentRole(rKey);
-                          setRoleDropdownOpen(false);
-                        }}
-                        className={`w-full rounded-md px-2 py-1.5 text-left text-[11.5px] transition-colors hover:bg-panel flex flex-col cursor-pointer ${
-                          isSelected ? "bg-brand/10 text-brand font-medium" : "text-ink2"
-                        }`}
-                      >
-                        <span className="font-semibold">{p.name}</span>
-                        <span className="text-[10px] text-ink3">{p.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <SignOutButton />
 
             {/* Tenant / Company Switcher */}
             <div className="relative">
@@ -526,7 +487,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => {
                   setCompanyDropdownOpen((v) => !v);
-                  setRoleDropdownOpen(false);
                 }}
                 className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-white/80 px-2 sm:px-2.5 py-1.5 text-left ring-1 ring-line transition-colors hover:bg-white shadow-2xs cursor-pointer"
                 title={`Tenant: ${activeCompany.name}`}
@@ -535,7 +495,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {activeCompany.initials}
                 </div>
                 <div className="leading-tight hidden sm:block">
-                  <p className="text-[12px] font-medium text-ink truncate max-w-[95px] md:max-w-none">{activeCompany.name}</p>
+                  <p className="text-[12px] font-medium text-ink truncate max-w-[95px] md:max-w-none">
+                    {activeCompany.name}
+                  </p>
                   <p className="text-[10px] text-ink3 truncate">
                     EIN {activeCompany.ein} · {activeCompany.entity}
                   </p>

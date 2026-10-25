@@ -74,3 +74,7 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Login e configuração do banco
+
+Consulte [instruções de execução](docs/EXECUTAR_PROJETO.md) e os scripts SQL em database/.

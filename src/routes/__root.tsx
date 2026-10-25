@@ -1,6 +1,9 @@
+import { getSession } from "@/lib/auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
+  redirect,
+  useRouterState,
   Link,
   createRootRouteWithContext,
   useRouter,
@@ -76,6 +79,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({ location }) => {
+    const user = await getSession();
+    if (!user && location.pathname !== "/") throw redirect({ to: "/" });
+    return { user };
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -118,7 +126,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>
@@ -131,7 +139,9 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+  const { queryClient, user } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === "/" || !user) return <Outlet />;
 
   return (
     <QueryClientProvider client={queryClient}>

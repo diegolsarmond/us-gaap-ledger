@@ -15,6 +15,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BalanceSheetRouteImport } from './routes/balance-sheet'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DreRouteImport } from './routes/dre'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InvoicesRouteImport } from './routes/invoices'
@@ -61,6 +62,11 @@ const BalanceSheetRoute = BalanceSheetRouteImport.update({
 const CashFlowRoute = CashFlowRouteImport.update({
   id: '/cash-flow',
   path: '/cash-flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DreRoute = DreRouteImport.update({
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
+  '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
+  '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
   '/cash-flow': typeof CashFlowRoute
+  '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/balance-sheet'
     | '/cash-flow'
+    | '/dashboard'
     | '/dre'
     | '/inventory'
     | '/invoices'
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/balance-sheet'
     | '/cash-flow'
+    | '/dashboard'
     | '/dre'
     | '/inventory'
     | '/invoices'
@@ -286,6 +297,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/balance-sheet'
     | '/cash-flow'
+    | '/dashboard'
     | '/dre'
     | '/inventory'
     | '/invoices'
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   AuditLogRoute: typeof AuditLogRoute
   BalanceSheetRoute: typeof BalanceSheetRoute
   CashFlowRoute: typeof CashFlowRoute
+  DashboardRoute: typeof DashboardRoute
   DreRoute: typeof DreRoute
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
@@ -373,6 +386,13 @@ declare module '@tanstack/react-router' {
       path: '/cash-flow'
       fullPath: '/cash-flow'
       preLoaderRoute: typeof CashFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dre': {
@@ -504,6 +524,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditLogRoute: AuditLogRoute,
   BalanceSheetRoute: BalanceSheetRoute,
   CashFlowRoute: CashFlowRoute,
+  DashboardRoute: DashboardRoute,
   DreRoute: DreRoute,
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
