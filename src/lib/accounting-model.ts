@@ -137,12 +137,8 @@ export const project = z.object({
 export const currency = z.object({
   code: z.string().regex(/^[A-Z]{3}$/),
   name: key,
-  symbol: key,
-  exchangeRateToUsd: num.positive(),
   isBaseCurrency: z.boolean(),
-  quotationType: z.enum(["Fixed", "Float", "Central Bank"]),
   status,
-  lastUpdated: date,
 });
 export const jurisdiction = z.object({
   id: key,

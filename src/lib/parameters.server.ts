@@ -48,19 +48,25 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
     if (input.operation !== "create" && !old)
       throw new Error("Parâmetro não encontrado. Atualize a página.");
     const sharedId = old?.sharedId ?? crypto.randomUUID();
-    const scope = value?.scope ?? old?.scope ?? "companies";
+    const scope =
+      input.domain === "currencies" ? "companies" : (value?.scope ?? old?.scope ?? "companies");
     const all = await client.query("SELECT id FROM companies WHERE active ORDER BY id");
     const targets: string[] =
       input.operation === "delete"
         ? []
-        : scope === "global"
-          ? all.rows.map((r) => r["id"])
-          : [...new Set(value?.companyIds ?? old?.companyIds ?? [input.companyId])];
+        : input.domain === "currencies"
+          ? [input.companyId]
+          : scope === "global"
+            ? all.rows.map((r) => r["id"])
+            : [...new Set(value?.companyIds ?? old?.companyIds ?? [input.companyId])];
     if (input.operation !== "delete" && !targets.length)
       throw new Error("Selecione pelo menos uma empresa.");
-    const linked = old?.sharedId
-      ? await client.query(`SELECT company_id FROM ${table} WHERE data->>'sharedId'=$1`, [sharedId])
-      : { rows: old ? [{ company_id: input.companyId }] : [] };
+    const linked =
+      input.domain !== "currencies" && old?.sharedId
+        ? await client.query(`SELECT company_id FROM ${table} WHERE data->>'sharedId'=$1`, [
+            sharedId,
+          ])
+        : { rows: old ? [{ company_id: input.companyId }] : [] };
     const affected = [...new Set([...targets, ...linked.rows.map((r) => r.company_id)])].sort();
     for (const companyId of affected) {
       await authorizeCompany(companyId, permission, client);

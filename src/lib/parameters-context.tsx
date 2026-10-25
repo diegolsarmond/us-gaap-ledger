@@ -41,7 +41,7 @@ export function useAccounting() {
 }
 export function ParametersProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { companies: companyRows, activeCompany, selectCompany } = useCompanies();
+  const { activeCompany } = useCompanies();
   const query = useQuery({
     queryKey: ["parameters", activeCompany?.id],
     queryFn: () => loadParameters({ data: { companyId: activeCompany!.id } }),
@@ -126,30 +126,8 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
     <Context.Provider value={{ ...data, ...methods, activeCompany } as any}>
       <p className="mb-3 text-sm text-ink3">
         Parâmetros globais são compartilhados com todas as empresas. Parâmetros específicos podem
-        ser vinculados a uma ou mais empresas. Selecione uma empresa para consultar os parâmetros
-        aplicáveis.
+        ser vinculados a uma ou mais empresas. Os parâmetros exibidos se aplicam à empresa ativa.
       </p>
-      <div className="mb-5 flex items-center gap-3">
-        <label htmlFor="parameter-company">Empresa</label>
-        <select
-          id="parameter-company"
-          value={activeCompany.id}
-          disabled={busy}
-          onChange={(e) => {
-            selectCompany(e.target.value);
-            setError("");
-          }}
-          className="rounded border border-line p-2"
-        >
-          {companyRows
-            .filter((c) => c.active)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </select>
-      </div>
       {error && (
         <p role="alert" className="mb-4 text-down">
           {error}

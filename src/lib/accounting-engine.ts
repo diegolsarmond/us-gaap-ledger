@@ -201,12 +201,12 @@ export interface ParameterScope {
 export interface CurrencyParam extends ParameterScope {
   code: string;
   name: string;
-  symbol: string;
-  exchangeRateToUsd: number;
+  symbol?: string;
+  exchangeRateToUsd?: number;
   isBaseCurrency: boolean;
-  quotationType: "Fixed" | "Float" | "Central Bank";
+  quotationType?: "Fixed" | "Float" | "Central Bank";
   status: "Active" | "Inactive";
-  lastUpdated: string;
+  lastUpdated?: string;
 }
 
 export interface TaxJurisdictionParam extends ParameterScope {

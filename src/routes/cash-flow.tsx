@@ -34,9 +34,17 @@ const today = () => {
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
 const statusLabels = { planned: "Previsto", paid: "Realizado", cancelled: "Cancelado" };
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <label className="block space-y-1 text-xs text-ink2">
+    <label className={`block space-y-1 text-xs text-ink2 ${className}`}>
       <span>{label}</span>
       {children}
     </label>
@@ -86,7 +94,7 @@ function CashFlowPage() {
   });
   const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
   const [end, setEnd] = useState(today);
-  const [interval, setInterval] = useState<Interval>("daily");
+  const [interval, setInterval] = useState<Interval>("monthly");
   const [projected, setProjected] = useState(true);
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
@@ -184,7 +192,7 @@ function CashFlowPage() {
       if (focusEntryRef.current) {
         focusEntryRef.current = false;
         requestAnimationFrame(() =>
-          entryFormRef.current?.querySelector<HTMLInputElement>('[name="description"]')?.focus(),
+          entryFormRef.current?.querySelector<HTMLTextAreaElement>('[name="description"]')?.focus(),
         );
       }
     }
@@ -430,17 +438,6 @@ function CashFlowPage() {
                           ))}
                         </select>
                       </Field>
-                      <Field
-                        label={direction === "in" ? "Data do lançamento" : "Data do vencimento"}
-                      >
-                        <input
-                          name="due_date"
-                          type="date"
-                          defaultValue={editing?.due_date ?? today()}
-                          required
-                          className={control}
-                        />
-                      </Field>
                       <Field label="Tipo">
                         <select
                           name="direction"
@@ -452,8 +449,20 @@ function CashFlowPage() {
                           <option value="out">Saída</option>
                         </select>
                       </Field>
-                      <Field label="Descrição">
+                      <Field
+                        label={direction === "in" ? "Data do lançamento" : "Data do vencimento"}
+                      >
                         <input
+                          name="due_date"
+                          type="date"
+                          defaultValue={editing?.due_date ?? today()}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Descrição" className="sm:col-span-2 lg:col-span-3">
+                        <textarea
+                          rows={3}
                           name="description"
                           defaultValue={editing?.description}
                           required

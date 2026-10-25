@@ -130,11 +130,7 @@ export function validateState(state: CompanyState) {
     }
   }
   for (const c of state.currencies)
-    if (
-      c.code === "USD"
-        ? !c.isBaseCurrency || c.exchangeRateToUsd !== 1 || c.status !== "Active"
-        : c.isBaseCurrency
-    )
+    if (c.code === "USD" ? !c.isBaseCurrency || c.status !== "Active" : c.isBaseCurrency)
       throw new Error("USD é a única moeda base, com paridade 1.");
   for (const domain of [
     "paymentTerms",

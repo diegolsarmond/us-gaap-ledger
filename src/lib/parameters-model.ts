@@ -13,23 +13,11 @@ const base = {
 };
 const date = z.string().date();
 export const parameterSchemas = {
-  currencies: z
-    .object({
-      ...base,
-      code: z.string().regex(/^[A-Z]{3}$/),
-      symbol: text,
-      exchangeRateToUsd: z.number().finite().positive(),
-      isBaseCurrency: z.boolean(),
-      quotationType: z.enum(["Fixed", "Float", "Central Bank"]),
-      lastUpdated: date,
-    })
-    .refine(
-      (v) =>
-        v.code === "USD"
-          ? v.isBaseCurrency && v.exchangeRateToUsd === 1 && v.status === "Active"
-          : !v.isBaseCurrency,
-      "USD deve permanecer ativo com paridade 1 e ser a única moeda base.",
-    ),
+  currencies: z.object({
+    ...base,
+    code: z.string().regex(/^[A-Z]{3}$/),
+    isBaseCurrency: z.boolean(),
+  }),
   taxJurisdictions: z.object({
     ...base,
     id: text,
