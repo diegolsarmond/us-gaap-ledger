@@ -5,7 +5,7 @@ import { login } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
-    if (context.user) throw redirect({ to: "/dashboard" });
+    if (context.user) throw redirect({ to: "/cash-flow" });
   },
   component: Login,
 });
@@ -29,7 +29,7 @@ function Login() {
         return;
       }
       await router.invalidate();
-      await router.navigate({ to: "/dashboard" });
+      await router.navigate({ to: "/cash-flow" });
     } catch {
       setError("Não foi possível entrar. Verifique a conexão e a configuração do servidor.");
     } finally {

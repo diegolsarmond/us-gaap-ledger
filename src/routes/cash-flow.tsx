@@ -1,422 +1,777 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
-import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { usd, acct, exportToCsv } from "@/lib/format";
-import { pageHead } from "@/lib/head";
-
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  loadCashData,
+  saveCashAccount,
+  saveCashTransaction,
+  deleteCashTransaction,
+} from "@/lib/cash-flow";
+import {
+  summarize,
+  type CashAccount,
+  type CashTransaction,
+  type Interval,
+} from "@/lib/cash-flow-model";
+import { PageTitle, Panel, Kpi, Table, Th, Td } from "@/components/ui-kit";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { exportToCsv } from "@/lib/format";
 export const Route = createFileRoute("/cash-flow")({
-  head: () =>
-    pageHead(
-      "Cash Flow & 24-Month Forecast · LedgerX",
-      "Actual cash movements and multi-horizon cash flow projections from daily to rolling 24 months.",
-    ),
+  head: () => ({ meta: [{ title: "Fluxo de caixa · World Business" }] }),
   component: CashFlowPage,
 });
-
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
+const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
+const statusLabels = { planned: "Previsto", paid: "Realizado", cancelled: "Cancelado" };
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block space-y-1 text-xs text-ink2">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function EntryFormContainer({
+  modal,
+  title,
+  onClose,
+  children,
+}: {
+  modal: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  if (!modal) return <Panel title={title}>{children}</Panel>;
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            Use Tab para navegar pelos campos e Enter para salvar.
+          </DialogDescription>
+        </DialogHeader>
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
 function CashFlowPage() {
-  const { activeCompany, cashOnHand, invoices, bills, accountBalances, totalFXVariance } =
-    useAccounting();
-  const [activeTab, setActiveTab] = useState<"actual" | "forecast">("actual");
-  const [forecastHorizon, setForecastHorizon] = useState<
-    "daily" | "weekly" | "monthly" | "24months"
-  >("monthly");
-
-  // Actual Cash Flow Categories from Ledger
-  const customerCollections = invoices
-    .filter((i) => i.status === "Paid")
-    .reduce((s, i) => s + i.total, 0);
-
-  const vendorDisbursements = bills
-    .filter((b) => b.status === "Paid")
-    .reduce((s, b) => s + b.usdAmount, 0);
-
-  const operatingPayrollEstimated = 36400.0;
-  const facilityLeasePaid = 9000.0;
-  const fxVarianceCashImpact = totalFXVariance;
-
-  const openingCash =
-    Math.round(
-      (cashOnHand -
-        customerCollections +
-        vendorDisbursements +
-        operatingPayrollEstimated +
-        facilityLeasePaid -
-        fxVarianceCashImpact) *
-        100,
-    ) / 100;
-  const netCashFlow =
-    customerCollections -
-    vendorDisbursements -
-    operatingPayrollEstimated -
-    facilityLeasePaid +
-    fxVarianceCashImpact;
-
-  // 24-Month Forecast Engine Simulation
-  // Projects cash movements over 24 upcoming months based on open AR/AP and recurring operating run-rate
-  const openReceivables = invoices
-    .filter((i) => i.status === "Open" || i.status === "Overdue")
-    .reduce((s, i) => s + i.total, 0);
-  const openPayables = bills
-    .filter((b) => b.status === "Open")
-    .reduce((s, b) => s + b.usdAmount, 0);
-
-  const generateForecastPeriods = () => {
-    const periods: {
-      label: string;
-      inflows: number;
-      outflows: number;
-      net: number;
-      endingCash: number;
-    }[] = [];
-    let runningCash = cashOnHand;
-
-    if (forecastHorizon === "daily") {
-      // 14 days
-      for (let day = 1; day <= 14; day++) {
-        const d = new Date(2026, 11, 22 + day);
-        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        const inflows =
-          day === 3 ? openReceivables * 0.4 : day === 8 ? openReceivables * 0.3 : 1500;
-        const outflows = day === 5 ? openPayables * 0.5 : day === 12 ? 9100 : 850;
-        const net = inflows - outflows;
-        runningCash += net;
-        periods.push({ label, inflows, outflows, net, endingCash: runningCash });
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ["cash-flow"], queryFn: () => loadCashData() });
+  const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
+  const [end, setEnd] = useState(today);
+  const [interval, setInterval] = useState<Interval>("daily");
+  const [projected, setProjected] = useState(false);
+  const [currency, setCurrency] = useState("USD");
+  const [accountId, setAccountId] = useState("");
+  const [form, setForm] = useState<"account" | "transaction" | null>(null);
+  const [keepOpen, setKeepOpen] = useState(false);
+  const entryFormRef = useRef<HTMLFormElement>(null);
+  const continueEntryRef = useRef(false);
+  const focusEntryRef = useRef(false);
+  const [editing, setEditing] = useState<CashTransaction | null>(null);
+  const [editingAccount, setEditingAccount] = useState<CashAccount | null>(null);
+  const [status, setStatus] = useState<CashTransaction["status"]>("planned");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const accounts = query.data?.accounts ?? [];
+  const transactions = query.data?.transactions ?? [];
+  const filteredAccounts = accounts.filter(
+    (a) => a.currency === currency && (!accountId || a.id === accountId),
+  );
+  const ids = new Set(filteredAccounts.map((a) => a.id));
+  const filteredTransactions = transactions.filter((t) => ids.has(t.account_id));
+  const validRange =
+    !!start &&
+    !!end &&
+    start <= end &&
+    new Date(end).getTime() - new Date(start).getTime() <= 366 * 5 * 86400000;
+  const report = summarize(
+    filteredAccounts,
+    filteredTransactions,
+    validRange ? start : today(),
+    validRange ? end : today(),
+    interval,
+    projected,
+  );
+  const money = (n: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(n);
+  const totalIn = report.periods.reduce((s, p) => s + p.inflows, 0);
+  const totalOut = report.periods.reduce((s, p) => s + p.outflows, 0);
+  const listed = filteredTransactions.filter((t) => {
+    const date = t.paid_date ?? t.due_date;
+    return date >= start && date <= end;
+  });
+  async function mutate(action: () => Promise<unknown>, message: string) {
+    if (pending) return;
+    continueEntryRef.current = form === "transaction" && !editing && keepOpen;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      await action();
+      await queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
+      if (continueEntryRef.current) {
+        const entryForm = entryFormRef.current;
+        entryForm?.reset();
+        setStatus("planned");
+        focusEntryRef.current = true;
+      } else {
+        setForm(null);
+        setEditing(null);
+        setEditingAccount(null);
       }
-    } else if (forecastHorizon === "weekly") {
-      // 8 weeks
-      for (let w = 1; w <= 8; w++) {
-        const label = `Week ${w} (Jan/Feb 2027)`;
-        const inflows = w <= 2 ? openReceivables * 0.45 : 18500;
-        const outflows = w === 2 || w === 6 ? 18200 + 4500 : 8200;
-        const net = inflows - outflows;
-        runningCash += net;
-        periods.push({ label, inflows, outflows, net, endingCash: runningCash });
+      setDeleteId(null);
+      setNotice(message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível salvar. Tente novamente.");
+    } finally {
+      setPending(false);
+      if (focusEntryRef.current) {
+        focusEntryRef.current = false;
+        requestAnimationFrame(() =>
+          entryFormRef.current?.querySelector<HTMLInputElement>('[name="description"]')?.focus(),
+        );
       }
-    } else if (forecastHorizon === "monthly") {
-      // Next 12 months
-      const months = [
-        "Jan 2027",
-        "Feb 2027",
-        "Mar 2027",
-        "Apr 2027",
-        "May 2027",
-        "Jun 2027",
-        "Jul 2027",
-        "Aug 2027",
-        "Sep 2027",
-        "Oct 2027",
-        "Nov 2027",
-        "Dec 2027",
-      ];
-      months.forEach((m, idx) => {
-        const inflows = idx === 0 ? openReceivables + 45000 : 78000 + idx * 2500;
-        const outflows = idx === 0 ? openPayables + 38000 : 52000 + idx * 1200;
-        const net = inflows - outflows;
-        runningCash += net;
-        periods.push({ label: m, inflows, outflows, net, endingCash: runningCash });
-      });
-    } else {
-      // 24-Month Rolling Projection (Grouped quarterly / bi-annually)
-      const quarters = [
-        "Q1 2027",
-        "Q2 2027",
-        "Q3 2027",
-        "Q4 2027",
-        "Q1 2028",
-        "Q2 2028",
-        "Q3 2028",
-        "Q4 2028",
-      ];
-      quarters.forEach((q, idx) => {
-        const inflows = 240000 + idx * 15000;
-        const outflows = 165000 + idx * 9000;
-        const net = inflows - outflows;
-        runningCash += net;
-        periods.push({ label: q, inflows, outflows, net, endingCash: runningCash });
-      });
     }
-
-    return periods;
-  };
-
-  const forecastPeriods = generateForecastPeriods();
-
-  const handleExportCsv = () => {
-    if (activeTab === "actual") {
-      const headers = ["Category", "Cash Flow Item", "Inflow / (Outflow)"];
-      const rows = [
-        ["Opening Balance", "Cash at Beginning of Period", openingCash],
-        [
-          "Operating Activities",
-          "Cash collected from customer trade receivables",
-          customerCollections,
-        ],
-        ["Operating Activities", "Cash disbursed for trade vendor payables", -vendorDisbursements],
-        ["Operating Activities", "Payroll, wages, and payroll taxes", -operatingPayrollEstimated],
-        ["Operating Activities", "Facilities, lease, and general overhead", -facilityLeasePaid],
-        [
-          "Financing & Foreign Exchange",
-          "Realized foreign currency translation variance",
-          fxVarianceCashImpact,
-        ],
-        ["Closing Balance", "Cash and Cash Equivalents at End of Period", cashOnHand],
-      ];
-      exportToCsv(`${activeCompany.id}_actual_cash_flow`, headers, rows);
-    } else {
-      const headers = [
-        "Horizon Period",
-        "Projected Inflows ($)",
-        "Projected Outflows ($)",
-        "Net Cash Change ($)",
-        "Ending Projected Cash ($)",
-      ];
-      const rows = forecastPeriods.map((p) => [
+  }
+  function submitAccount(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    void mutate(
+      () =>
+        saveCashAccount({
+          data: {
+            ...(editingAccount ? { id: editingAccount.id } : {}),
+            name: String(f.get("name")),
+            currency: String(f.get("currency")) as "USD" | "BRL" | "EUR",
+            opening_date: String(f.get("opening_date")),
+            opening_balance: Number(f.get("opening_balance")),
+          },
+        }),
+      editingAccount ? "Conta atualizada." : "Conta criada.",
+    );
+  }
+  function submitTransaction(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    void mutate(
+      () =>
+        saveCashTransaction({
+          data: {
+            ...(editing ? { id: editing.id } : {}),
+            account_id: String(f.get("account_id")),
+            description: String(f.get("description")),
+            category: String(f.get("category")),
+            direction: String(f.get("direction")) as "in" | "out",
+            amount: Number(f.get("amount")),
+            due_date: String(f.get("due_date")),
+            paid_date: status === "paid" ? String(f.get("paid_date")) : null,
+            status,
+          },
+        }),
+      "Lançamento salvo.",
+    );
+  }
+  function exportReport() {
+    exportToCsv(
+      "fluxo_caixa_" + currency + "_" + start + "_" + end,
+      [
+        "Período",
+        "Entradas",
+        "Saídas",
+        "Saldos iniciais cadastrados",
+        "Variação",
+        "Saldo final",
+        "Moeda",
+        "Visão",
+      ],
+      report.periods.map((p) => [
         p.label,
         p.inflows,
         p.outflows,
+        p.adjustments,
         p.net,
-        p.endingCash,
-      ]);
-      exportToCsv(`${activeCompany.id}_cash_forecast_${forecastHorizon}`, headers, rows);
-    }
-  };
-
+        p.balance,
+        currency,
+        projected ? "Previsto + realizado" : "Realizado",
+      ]),
+    );
+  }
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
-        <PageTitle
-          title="Cash Flow & Multi-Horizon Projections"
-          description={`Liquidity analysis and rolling 24-month cash runway for ${activeCompany.name} · Base USD`}
-        />
-        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {/* Tab Switcher */}
-          <div className="flex flex-wrap rounded-lg bg-panel p-1 ring-1 ring-line">
+    <div className="space-y-5">
+      <PageTitle
+        title="Fluxo de caixa"
+        description="Acompanhe entradas, saídas e saldos por dia, semana, mês, trimestre ou ano."
+        actions={
+          <>
             <button
-              type="button"
-              onClick={() => setActiveTab("actual")}
-              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors cursor-pointer ${
-                activeTab === "actual" ? "bg-white text-ink shadow-2xs" : "text-ink3 hover:text-ink"
-              }`}
+              className={button}
+              disabled={!query.isSuccess || pending}
+              onClick={() => {
+                setEditingAccount(null);
+                setForm("account");
+                setError("");
+              }}
             >
-              Actual Cash Flow
+              Nova conta
             </button>
             <button
-              type="button"
-              onClick={() => setActiveTab("forecast")}
-              className={`rounded-md px-3 py-1 text-[12px] font-semibold transition-colors cursor-pointer ${
-                activeTab === "forecast"
-                  ? "bg-white text-ink shadow-2xs"
-                  : "text-ink3 hover:text-ink"
-              }`}
+              className={button}
+              disabled={!accounts.length || pending}
+              onClick={() => {
+                setEditing(null);
+                setStatus("planned");
+                setForm("transaction");
+                setError("");
+              }}
             >
-              24-Month Forecast Engine
+              Novo lançamento
             </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs cursor-pointer"
-          >
-            Export (CSV)
+          </>
+        }
+      />
+      {query.isPending && <p role="status">Carregando dados do banco…</p>}
+      {query.isError && (
+        <div
+          role="alert"
+          className="rounded border border-red-300 bg-red-50 p-4 text-sm text-red-800"
+        >
+          Não foi possível carregar o fluxo de caixa. Verifique a conexão e se o script
+          database/002_cash_flow.sql foi executado.
+          <button className="ml-3 underline" onClick={() => void query.refetch()}>
+            Tentar novamente
           </button>
         </div>
-      </div>
-
-      {/* KPI Row */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Cash on Hand Today"
-          value={usd(cashOnHand)}
-          hint="Operating + Reserve accounts"
-          tone="up"
-        />
-        <Kpi
-          label="Open AR Pipeline"
-          value={usd(openReceivables)}
-          hint="Inflows due in 30-60 days"
-          tone="up"
-        />
-        <Kpi
-          label="Open AP Obligations"
-          value={usd(openPayables)}
-          hint="Disbursements due in 30 days"
-          tone="neutral"
-        />
-        <Kpi
-          label="Projected 12-Mo Runway"
-          value={usd(forecastPeriods[forecastPeriods.length - 1]?.endingCash ?? cashOnHand)}
-          hint="Based on current run-rate"
-          tone="up"
-        />
-      </section>
-
-      {/* Tab 1: Actual Statement of Cash Flows */}
-      {activeTab === "actual" ? (
-        <Panel
-          title={`Statement of Cash Flows · Period Ended ${activeCompany.activePeriod}`}
-          subtitle={`${activeCompany.name} · Direct Method · Base Currency USD`}
-          aside={<Badge tone="up">Liquid Reserves Reconciled</Badge>}
-        >
-          <div className="p-4">
+      )}
+      {error && (
+        <p role="alert" className="rounded bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="rounded bg-green-50 p-3 text-sm text-green-800">
+          {notice}
+        </p>
+      )}
+      {query.isSuccess && (
+        <>
+          {form && (
+            <EntryFormContainer
+              modal={form === "transaction"}
+              onClose={() => {
+                if (!pending) {
+                  setForm(null);
+                  setError("");
+                }
+              }}
+              title={
+                form === "account"
+                  ? editingAccount
+                    ? "Editar conta de caixa / banco"
+                    : "Cadastrar conta de caixa / banco"
+                  : editing
+                    ? "Editar lançamento"
+                    : "Cadastrar lançamento"
+              }
+            >
+              <form
+                key={
+                  form +
+                  (form === "account" ? (editingAccount?.id ?? "new") : (editing?.id ?? "new"))
+                }
+                ref={entryFormRef}
+                onSubmit={form === "account" ? submitAccount : submitTransaction}
+                className="p-4"
+              >
+                {form === "transaction" && error && (
+                  <p role="alert" className="mb-3 text-sm text-red-800">
+                    {error}
+                  </p>
+                )}
+                {form === "transaction" && notice && (
+                  <p role="status" className="mb-3 text-sm text-green-800">
+                    {notice}
+                  </p>
+                )}
+                <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {form === "account" ? (
+                    <>
+                      <Field label="Nome da conta">
+                        <input
+                          name="name"
+                          defaultValue={editingAccount?.name}
+                          required
+                          maxLength={120}
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Moeda">
+                        <select
+                          name="currency"
+                          defaultValue={editingAccount?.currency ?? currency}
+                          className={control}
+                        >
+                          <option>USD</option>
+                          <option>BRL</option>
+                          <option>EUR</option>
+                        </select>
+                      </Field>
+                      <Field label="Data do saldo inicial">
+                        <input
+                          name="opening_date"
+                          type="date"
+                          defaultValue={editingAccount?.opening_date ?? today()}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Saldo inicial (pode ser negativo)">
+                        <input
+                          name="opening_balance"
+                          type="number"
+                          step="0.01"
+                          min="-999999999999.99"
+                          max="999999999999.99"
+                          defaultValue={editingAccount?.opening_balance ?? 0}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <p className="text-xs text-ink3">
+                        O saldo inicial é a posição no início dessa data, antes dos lançamentos do
+                        dia.
+                        {editingAccount &&
+                          " Alterar o saldo inicial recalcula os saldos do fluxo. A moeda só pode ser alterada se não houver lançamentos."}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Field label="Conta">
+                        <select
+                          autoFocus
+                          name="account_id"
+                          defaultValue={
+                            editing?.account_id ?? filteredAccounts[0]?.id ?? accounts[0]?.id
+                          }
+                          required
+                          className={control}
+                        >
+                          {accounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name} · {a.currency}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Descrição">
+                        <input
+                          name="description"
+                          defaultValue={editing?.description}
+                          required
+                          maxLength={240}
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Categoria">
+                        <input
+                          name="category"
+                          defaultValue={editing?.category}
+                          required
+                          maxLength={100}
+                          placeholder="Ex.: Vendas, aluguel, folha"
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Tipo">
+                        <select
+                          name="direction"
+                          defaultValue={editing?.direction ?? "in"}
+                          className={control}
+                        >
+                          <option value="in">Entrada</option>
+                          <option value="out">Saída</option>
+                        </select>
+                      </Field>
+                      <Field label="Valor na moeda da conta">
+                        <input
+                          name="amount"
+                          type="number"
+                          min="0.01"
+                          max="999999999999.99"
+                          step="0.01"
+                          defaultValue={editing?.amount}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Vencimento">
+                        <input
+                          name="due_date"
+                          type="date"
+                          defaultValue={editing?.due_date ?? today()}
+                          required
+                          className={control}
+                        />
+                      </Field>
+                      <Field label="Situação">
+                        <select
+                          value={status}
+                          onChange={(e) => setStatus(e.target.value as typeof status)}
+                          className={control}
+                        >
+                          {Object.entries(statusLabels).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {status === "paid" && (
+                        <Field label="Data de recebimento / pagamento">
+                          <input
+                            name="paid_date"
+                            type="date"
+                            defaultValue={editing?.paid_date ?? today()}
+                            required
+                            className={control}
+                          />
+                        </Field>
+                      )}
+                    </>
+                  )}
+                  {form === "transaction" && !editing && (
+                    <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-3">
+                      <input
+                        type="checkbox"
+                        checked={keepOpen}
+                        onChange={(e) => setKeepOpen(e.target.checked)}
+                        className="h-4 w-4 accent-brand"
+                      />
+                      Continuar lançando (manter a janela aberta após salvar)
+                    </label>
+                  )}
+                  <div className="flex items-end gap-3">
+                    <button className={button}>{pending ? "Salvando…" : "Salvar"}</button>
+                    <button
+                      type="button"
+                      className="text-sm underline"
+                      onClick={() => {
+                        setForm(null);
+                        setError("");
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </fieldset>
+              </form>
+            </EntryFormContainer>
+          )}
+          {!accounts.length && (
+            <Panel title="Comece cadastrando sua primeira conta">
+              <p className="p-4 text-sm text-ink3">
+                Nenhum dado de demonstração é utilizado. Cadastre o saldo inicial de uma conta e
+                registre seus recebimentos e pagamentos.
+              </p>
+            </Panel>
+          )}
+          <Panel title="Período e visão">
+            <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+              <Field label="De">
+                <input
+                  type="date"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                  className={control}
+                />
+              </Field>
+              <Field label="Até">
+                <input
+                  type="date"
+                  value={end}
+                  onChange={(e) => setEnd(e.target.value)}
+                  className={control}
+                />
+              </Field>
+              <Field label="Agrupamento">
+                <select
+                  value={interval}
+                  onChange={(e) => setInterval(e.target.value as Interval)}
+                  className={control}
+                >
+                  {[
+                    ["daily", "Diário"],
+                    ["weekly", "Semanal"],
+                    ["monthly", "Mensal"],
+                    ["quarterly", "Trimestral"],
+                    ["yearly", "Anual"],
+                  ].map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Moeda">
+                <select
+                  value={currency}
+                  onChange={(e) => {
+                    setCurrency(e.target.value);
+                    setAccountId("");
+                  }}
+                  className={control}
+                >
+                  <option>USD</option>
+                  <option>BRL</option>
+                  <option>EUR</option>
+                </select>
+              </Field>
+              <Field label="Conta">
+                <select
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className={control}
+                >
+                  <option value="">Todas nesta moeda</option>
+                  {accounts
+                    .filter((a) => a.currency === currency)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+              <Field label="Visão">
+                <select
+                  value={projected ? "projected" : "actual"}
+                  onChange={(e) => setProjected(e.target.value === "projected")}
+                  className={control}
+                >
+                  <option value="actual">Realizado</option>
+                  <option value="projected">Realizado + previsto</option>
+                </select>
+              </Field>
+            </div>
+            <p className="px-4 pb-4 text-xs text-ink3">
+              Semanas começam na segunda-feira. Realizados usam a data de pagamento; previstos usam
+              o vencimento. Valores são separados por moeda, sem conversão cambial. Cancelados não
+              afetam os saldos.
+            </p>
+          </Panel>
+          {!validRange ? (
+            <p role="alert" className="text-red-700">
+              Informe um período válido de até cinco anos.
+            </p>
+          ) : (
+            <>
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Kpi label="Saldo anterior ao período" value={money(report.opening)} />
+                <Kpi label="Entradas no período" value={money(totalIn)} tone="up" />
+                <Kpi label="Saídas no período" value={money(totalOut)} tone="down" />
+                <Kpi
+                  label={projected ? "Saldo final projetado" : "Saldo final realizado"}
+                  value={money(report.periods.at(-1)?.balance ?? report.opening)}
+                />
+              </section>
+              <Panel
+                title="Evolução do caixa"
+                subtitle={
+                  projected
+                    ? "Projeção baseada somente nos lançamentos cadastrados, sem estimativas automáticas."
+                    : "Movimentações efetivamente recebidas ou pagas."
+                }
+                aside={
+                  <button onClick={exportReport} className={button}>
+                    Exportar CSV
+                  </button>
+                }
+              >
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>Período</Th>
+                      <Th align="right">Entradas</Th>
+                      <Th align="right">Saídas</Th>
+                      <Th align="right">Saldos iniciais</Th>
+                      <Th align="right">Variação</Th>
+                      <Th align="right">Saldo final</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.periods.map((p) => (
+                      <tr key={p.label} className="border-t border-line">
+                        <Td>
+                          {interval === "weekly" ? "Semana de " : ""}
+                          {p.label}
+                        </Td>
+                        <Td align="right">{money(p.inflows)}</Td>
+                        <Td align="right">{money(p.outflows)}</Td>
+                        <Td align="right">{money(p.adjustments)}</Td>
+                        <Td align="right">{money(p.net)}</Td>
+                        <Td align="right">{money(p.balance)}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Panel>
+              <Panel
+                title="Lançamentos do período"
+                subtitle="Inclui previstos, realizados e cancelados das contas selecionadas."
+              >
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>Vencimento / realização</Th>
+                      <Th>Descrição / categoria</Th>
+                      <Th>Conta</Th>
+                      <Th>Situação</Th>
+                      <Th align="right">Valor</Th>
+                      <Th>Ações</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!listed.length && (
+                      <tr>
+                        <Td colSpan={6}>Nenhum lançamento neste período.</Td>
+                      </tr>
+                    )}
+                    {listed.map((t) => (
+                      <tr key={t.id} className="border-t border-line">
+                        <Td>
+                          {t.due_date}
+                          <br />
+                          {t.paid_date}
+                        </Td>
+                        <Td>
+                          {t.description}
+                          <br />
+                          <span className="text-xs text-ink3">{t.category}</span>
+                        </Td>
+                        <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
+                        <Td>{statusLabels[t.status]}</Td>
+                        <Td align="right">
+                          {t.direction === "out" ? "−" : "+"}
+                          {money(t.amount)}
+                        </Td>
+                        <Td>
+                          <div className="flex gap-3">
+                            <button
+                              disabled={pending}
+                              className="text-brand underline"
+                              onClick={() => {
+                                setEditing(t);
+                                setStatus(t.status);
+                                setForm("transaction");
+                                setError("");
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              disabled={pending}
+                              className="text-red-700 underline"
+                              onClick={() => setDeleteId(t.id)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                          {deleteId === t.id && (
+                            <div className="mt-2 text-xs">
+                              Excluir definitivamente este lançamento?
+                              <div className="mt-2 flex gap-3">
+                                <button
+                                  disabled={pending}
+                                  className="text-red-700 underline"
+                                  onClick={() =>
+                                    void mutate(
+                                      () => deleteCashTransaction({ data: { id: t.id } }),
+                                      "Lançamento excluído.",
+                                    )
+                                  }
+                                >
+                                  Confirmar exclusão
+                                </button>
+                                <button disabled={pending} onClick={() => setDeleteId(null)}>
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Panel>
+            </>
+          )}
+          <Panel title="Contas cadastradas">
             <Table>
               <thead>
-                <tr className="border-b border-line/60">
-                  <Th>Cash Flow Activity Line</Th>
-                  <Th align="right">Amount (USD)</Th>
+                <tr>
+                  <Th>Conta</Th>
+                  <Th>Moeda</Th>
+                  <Th>Data inicial</Th>
+                  <Th align="right">Saldo inicial</Th>
+                  <Th>Ações</Th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-line/50 bg-ink/[0.02] font-semibold">
-                  <Td className="pl-4">Cash at Beginning of Period</Td>
-                  <Td align="right" className="font-mono text-[13px]">
-                    {usd(openingCash)}
-                  </Td>
-                </tr>
-
-                <tr className="border-b border-line/40 bg-ink/[0.01]">
-                  <Td className="pl-4 font-semibold text-ink pt-2">
-                    Cash Flows from Operating Activities
-                  </Td>
-                  <Td />
-                </tr>
-                <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">
-                    Cash collected from trade customers (AR collections)
-                  </Td>
-                  <Td align="right" className="font-mono text-up font-medium text-[12px]">
-                    {usd(customerCollections)}
-                  </Td>
-                </tr>
-                <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">Cash paid to trade suppliers and vendors</Td>
-                  <Td align="right" className="font-mono text-down text-[12px]">
-                    ({usd(vendorDisbursements)})
-                  </Td>
-                </tr>
-                <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">
-                    Operating payroll, wages, and compensation disbursed
-                  </Td>
-                  <Td align="right" className="font-mono text-down text-[12px]">
-                    ({usd(operatingPayrollEstimated)})
-                  </Td>
-                </tr>
-                <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">
-                    Facility rent, utility, and administrative cash outflows
-                  </Td>
-                  <Td align="right" className="font-mono text-down text-[12px]">
-                    ({usd(facilityLeasePaid)})
-                  </Td>
-                </tr>
-                <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">Realized foreign currency translation variance</Td>
-                  <Td
-                    align="right"
-                    className={`font-mono text-[12px] ${fxVarianceCashImpact >= 0 ? "text-up" : "text-down"}`}
-                  >
-                    {acct(fxVarianceCashImpact)}
-                  </Td>
-                </tr>
-                <tr className="border-b border-line/50 bg-ink/[0.02] font-semibold">
-                  <Td className="pl-6 text-ink">Net Cash Provided by Operating Activities</Td>
-                  <Td align="right" className="font-mono font-bold text-[12.5px]">
-                    {acct(netCashFlow)}
-                  </Td>
-                </tr>
-
-                <tr className="border-t-2 border-line bg-ink/[0.04] font-bold text-[13px]">
-                  <Td className="pl-4 text-ink uppercase">Ending Cash & Cash Equivalents</Td>
-                  <Td align="right" className="font-mono text-brand font-bold text-[13.5px]">
-                    {usd(cashOnHand)}
-                  </Td>
-                </tr>
+                {accounts.map((a) => (
+                  <tr key={a.id} className="border-t border-line">
+                    <Td>{a.name}</Td>
+                    <Td>{a.currency}</Td>
+                    <Td>{a.opening_date}</Td>
+                    <Td align="right">
+                      {new Intl.NumberFormat("pt-BR", {
+                        style: "currency",
+                        currency: a.currency,
+                      }).format(a.opening_balance)}
+                    </Td>
+                    <Td>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        className="text-brand underline"
+                        onClick={() => {
+                          setEditingAccount(a);
+                          setForm("account");
+                          setError("");
+                          setNotice("");
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        Editar
+                      </button>
+                    </Td>
+                  </tr>
+                ))}
               </tbody>
             </Table>
-
-            <div className="mt-4 border-t border-line/50 pt-3">
-              <Note tone="brand">
-                US GAAP: Verified cash balance traces directly to Cash Operating (1000) and Money
-                Market Reserve (1050). No manual reconciliation required.
-              </Note>
-            </div>
-          </div>
-        </Panel>
-      ) : (
-        /* Tab 2: Forecast Engine */
-        <Panel
-          title="Rolling Cash Forecast Engine"
-          subtitle="Dynamic projection model incorporating open receivables, vendor bills, and operational run-rate"
-          aside={
-            <div className="flex items-center gap-1">
-              {(["daily", "weekly", "monthly", "24months"] as const).map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => setForecastHorizon(h)}
-                  className={`rounded px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${
-                    forecastHorizon === h
-                      ? "bg-brand text-primary-foreground shadow-2xs"
-                      : "bg-panel text-ink2 hover:text-ink ring-1 ring-line"
-                  }`}
-                >
-                  {h === "24months" ? "24-Mo Rolling" : h}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          <div className="p-4">
-            <div className="overflow-x-auto">
-              <Table>
-                <thead>
-                  <tr className="border-b border-line/60">
-                    <Th>Forecast Interval</Th>
-                    <Th align="right">Projected Inflows (AR + Runrate)</Th>
-                    <Th align="right">Projected Outflows (AP + OpEx)</Th>
-                    <Th align="right">Net Period Variance</Th>
-                    <Th align="right">Projected Ending Cash</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {forecastPeriods.map((p, idx) => (
-                    <tr
-                      key={idx}
-                      className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
-                    >
-                      <Td className="font-medium text-ink">{p.label}</Td>
-                      <Td align="right" className="font-mono text-up text-[12px]">
-                        {usd(p.inflows)}
-                      </Td>
-                      <Td align="right" className="font-mono text-down text-[12px]">
-                        ({usd(p.outflows)})
-                      </Td>
-                      <Td
-                        align="right"
-                        className={`font-mono font-medium text-[12px] ${p.net >= 0 ? "text-up" : "text-down"}`}
-                      >
-                        {acct(p.net)}
-                      </Td>
-                      <Td align="right" className="font-mono font-bold text-ink text-[12.5px]">
-                        {usd(p.endingCash)}
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
-            <div className="mt-4 border-t border-line/50 pt-3">
-              <Note tone="brand">
-                The 24-month horizon projection leverages currently open customer invoices (AR) and
-                vendor bills (AP) with historical recurring operational burn rates to ensure early
-                detection of working capital constraints.
-              </Note>
-            </div>
-          </div>
-        </Panel>
+          </Panel>
+        </>
       )}
     </div>
   );

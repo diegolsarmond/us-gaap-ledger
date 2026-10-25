@@ -14,9 +14,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AppShell } from "@/components/app-shell";
-import { BookProvider } from "@/components/book-context";
-import { ModalProvider } from "@/components/modal-provider";
+import { CashShell } from "@/components/cash-shell";
 
 function NotFoundComponent() {
   return (
@@ -83,6 +81,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const user = await getSession();
     if (!user && !["/", "/cadastro", "/cadastro/"].includes(location.pathname))
       throw redirect({ to: "/" });
+    if (
+      user &&
+      !["/", "/cadastro", "/cadastro/", "/cash-flow", "/cash-flow/"].includes(location.pathname)
+    )
+      throw redirect({ to: "/cash-flow" });
     return { user };
   },
   head: () => ({
@@ -146,14 +149,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BookProvider>
-        <ModalProvider>
-          <AppShell>
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </AppShell>
-        </ModalProvider>
-      </BookProvider>
+      <CashShell user={user}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </CashShell>
     </QueryClientProvider>
   );
 }

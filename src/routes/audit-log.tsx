@@ -1,170 +1,130 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
-import { Badge, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { exportToCsv } from "@/lib/format";
-import { pageHead } from "@/lib/head";
-
-export const Route = createFileRoute("/audit-log")({
-  head: () =>
-    pageHead(
-      "Audit Trail & Compliance Log · LedgerX",
-      "Immutable chronological record of all operational transactions, posting events, period locks, and administrator overrides.",
-    ),
-  component: AuditLogPage,
-});
-
-function AuditLogPage() {
-  const { activeCompany, auditLogs } = useAccounting();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterAction, setFilterAction] = useState("");
-
-  const filteredLogs = auditLogs.filter((log) => {
-    const matchesSearch =
-      log.actor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.targetId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesAction = filterAction ? log.action === filterAction : true;
-    return matchesSearch && matchesAction;
+import { useQuery } from "@tanstack/react-query";
+import { getAuditEvents } from "@/lib/admin";
+import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
+export const Route = createFileRoute("/audit-log")({ component: AuditPage });
+function AuditPage() {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [action, setAction] = useState("");
+  const query = useQuery({
+    queryKey: ["system-audit", page],
+    queryFn: () => getAuditEvents({ data: { page } }),
   });
-
-  const handleExportCsv = () => {
-    const headers = [
-      "Log ID",
-      "Timestamp (EST)",
-      "Actor",
-      "Role",
-      "Action",
-      "Target Type",
-      "Target ID",
-      "Details",
-      "Override Reason",
-    ];
-    const rows = filteredLogs.map((l) => [
-      l.id,
-      l.timestamp,
-      l.actor,
-      l.role,
-      l.action,
-      l.targetType,
-      l.targetId,
-      l.details,
-      l.overrideReason || "",
-    ]);
-    exportToCsv(`${activeCompany.id}_audit_trail`, headers, rows);
-  };
-
+  const rows =
+    query.data?.events.filter(
+      (r) =>
+        (!action || r.action === action) &&
+        `${r.actor_name} ${r.entity} ${r.target_id}`.toLowerCase().includes(search.toLowerCase()),
+    ) ?? [];
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
-        <PageTitle
-          title="Audit Trail & Security Log"
-          description={`Comprehensive operational event logging for ${activeCompany.name} · US GAAP Compliance`}
+      <PageTitle
+        title="Auditoria · Logs de ações"
+        description="Histórico de alterações de usuários, perfis, contas e lançamentos. Datas no horário local."
+      />
+      {query.isPending && <p role="status">Carregando logs…</p>}
+      {query.isError && (
+        <p role="alert">
+          Não foi possível consultar a auditoria. Verifique sua permissão, a conexão e a migração
+          003_access_audit.sql.{" "}
+          <button className="underline" onClick={() => void query.refetch()}>
+            Tentar novamente
+          </button>
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <input
+          aria-label="Buscar logs nesta página"
+          placeholder="Buscar nesta página por usuário, entidade ou ID…"
+          className="min-w-64 flex-1 rounded-md border border-line bg-white p-2 text-sm"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs self-start sm:self-auto cursor-pointer"
+        <select
+          aria-label="Ação"
+          value={action}
+          onChange={(e) => setAction(e.target.value)}
+          className="rounded-md border border-line bg-white p-2 text-sm"
         >
-          Export Audit Trail (CSV)
-        </button>
+          <option value="">Todas as ações</option>
+          <option value="INSERT">Criação</option>
+          <option value="UPDATE">Alteração</option>
+          <option value="DELETE">Exclusão</option>
+        </select>
       </div>
-
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/60 p-3 rounded-lg ring-1 ring-line">
-        <div className="flex-1 min-w-0">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by actor, target ID, or description..."
-            className="w-full rounded bg-white px-3 py-1.5 text-[12px] ring-1 ring-line outline-none focus:ring-brand"
-          />
-        </div>
-        <div className="w-full sm:w-auto">
-          <select
-            value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-            className="w-full sm:w-auto rounded bg-white px-3 py-1.5 text-[12px] ring-1 ring-line outline-none"
-          >
-            <option value="">All Action Types</option>
-            <option value="POST_JOURNAL_ENTRY">POST_JOURNAL_ENTRY</option>
-            <option value="REVERSE_JOURNAL_ENTRY">REVERSE_JOURNAL_ENTRY</option>
-            <option value="CREATE_INVOICE">CREATE_INVOICE</option>
-            <option value="RECORD_PAYMENT">RECORD_PAYMENT</option>
-            <option value="CREATE_BILL">CREATE_BILL</option>
-            <option value="PAY_BILL">PAY_BILL</option>
-            <option value="LOCK_PERIOD">LOCK_PERIOD</option>
-            <option value="UNLOCK_PERIOD">UNLOCK_PERIOD</option>
-            <option value="UPLOAD_STATEMENT">UPLOAD_STATEMENT</option>
-            <option value="CLASSIFY_STAGING">CLASSIFY_STAGING</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Audit Log Table */}
-      <Panel
-        title="Chronological Audit Register"
-        subtitle={`${filteredLogs.length} verified event signatures`}
-      >
-        <div className="overflow-x-auto">
+      {query.isSuccess && (
+        <Panel
+          title={`Registros · página ${page}`}
+          subtitle={`${rows.length} registros exibidos · até 100 por página`}
+        >
           <Table>
             <thead>
-              <tr className="border-b border-line/60">
-                <Th>Timestamp (EST)</Th>
-                <Th>Actor & Role</Th>
-                <Th>Action Event</Th>
-                <Th>Entity Target</Th>
-                <Th>Audit Details</Th>
-                <Th>Override Justification</Th>
+              <tr>
+                <Th>Data e hora</Th>
+                <Th>Responsável</Th>
+                <Th>Ação</Th>
+                <Th>Entidade / registro</Th>
+                <Th>Detalhes</Th>
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map((log) => (
-                <tr
-                  key={log.id}
-                  className="border-b border-line/40 last:border-0 hover:bg-black/[0.01]"
-                >
-                  <Td className="font-mono text-[11px] text-ink3 whitespace-nowrap">
-                    {log.timestamp}
-                  </Td>
-                  <Td className="text-[12px]">
-                    <span className="font-semibold text-ink">{log.actor}</span>
-                    <span className="block text-[10px] text-ink3">{log.role}</span>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <Td>{new Date(r.occurred_at).toLocaleString("pt-BR")}</Td>
+                  <Td>{r.actor_name}</Td>
+                  <Td>
+                    {{ INSERT: "Criação", UPDATE: "Alteração", DELETE: "Exclusão" }[r.action] ??
+                      r.action}
                   </Td>
                   <Td>
-                    <Badge
-                      tone={
-                        log.action.includes("REVERSE") || log.action.includes("LOCK")
-                          ? "down"
-                          : log.action.includes("POST") || log.action.includes("CREATE")
-                            ? "brand"
-                            : "neutral"
-                      }
-                    >
-                      {log.action}
-                    </Badge>
+                    {r.entity}
+                    <span className="block font-mono text-xs text-ink3">{r.target_id}</span>
                   </Td>
-                  <Td className="font-mono text-[11.5px] text-ink2">
-                    {log.targetType} · {log.targetId}
-                  </Td>
-                  <Td className="text-[12px] text-ink2 max-w-[340px]">{log.details}</Td>
-                  <Td className="text-[11.5px] text-amber-800 font-medium">
-                    {log.overrideReason ? (
-                      <span className="rounded bg-amber-50 px-1.5 py-0.5 ring-1 ring-amber-200">
-                        {log.overrideReason}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
+                  <Td>
+                    <details>
+                      <summary className="cursor-pointer text-brand">Ver alterações</summary>
+                      <pre className="max-w-sm overflow-auto whitespace-pre-wrap text-xs">
+                        {JSON.stringify(
+                          {
+                            antes: r.before_data ? JSON.parse(r.before_data) : null,
+                            depois: r.after_data ? JSON.parse(r.after_data) : null,
+                          },
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    </details>
                   </Td>
                 </tr>
               ))}
+              {!rows.length && (
+                <tr>
+                  <Td colSpan={5}>Nenhum log encontrado.</Td>
+                </tr>
+              )}
             </tbody>
           </Table>
-        </div>
-      </Panel>
+        </Panel>
+      )}
+      <div className="flex items-center gap-4 text-sm">
+        <button
+          disabled={page === 1 || query.isFetching}
+          onClick={() => setPage((p) => p - 1)}
+          className="text-brand disabled:opacity-40"
+        >
+          Anterior
+        </button>
+        <span>Página {page}</span>
+        <button
+          disabled={!query.data?.hasMore || query.isFetching}
+          onClick={() => setPage((p) => p + 1)}
+          className="text-brand disabled:opacity-40"
+        >
+          Próxima
+        </button>
+      </div>
     </div>
   );
 }

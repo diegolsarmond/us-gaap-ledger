@@ -1,0 +1,110 @@
+import { db } from "./db.server";
+import { readSession } from "./auth.server";
+import { authorize } from "./admin.server";
+import type { CashAccount, CashTransaction, CashData } from "./cash-flow-model";
+async function userId() {
+  const user = await readSession();
+  if (!user) throw new Error("Sessão expirada. Entre novamente.");
+  return user.id;
+}
+export async function load(): Promise<CashData> {
+  const id = await userId();
+  const [accounts, transactions] = await Promise.all([
+    db().query(
+      "SELECT id, name, currency, opening_date::text, opening_balance::float8 FROM cash_accounts WHERE user_id=$1 ORDER BY name",
+      [id],
+    ),
+    db().query(
+      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status FROM cash_transactions WHERE user_id=$1 ORDER BY due_date DESC, created_at DESC",
+      [id],
+    ),
+  ]);
+  return { accounts: accounts.rows, transactions: transactions.rows };
+}
+export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string | undefined }) {
+  const id = (await authorize("write_cash")).user.id;
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    if (data.id) {
+      const account = await client.query(
+        "SELECT currency FROM cash_accounts WHERE id=$1 AND user_id=$2 FOR UPDATE",
+        [data.id, id],
+      );
+      if (!account.rowCount) throw new Error("Conta não encontrada.");
+      const movements = await client.query(
+        "SELECT count(*)::int AS count, min(least(due_date, paid_date))::text AS first_date FROM cash_transactions WHERE account_id=$1 AND user_id=$2",
+        [data.id, id],
+      );
+      const history = movements.rows[0];
+      if (history.count > 0 && data.currency !== account.rows[0].currency)
+        throw new Error("A moeda não pode ser alterada em uma conta com lançamentos.");
+      if (history.first_date && data.opening_date > history.first_date)
+        throw new Error("A data inicial não pode ser posterior aos lançamentos existentes.");
+      await client.query(
+        "UPDATE cash_accounts SET name=$3,currency=$4,opening_date=$5,opening_balance=$6 WHERE id=$1 AND user_id=$2",
+        [data.id, id, data.name, data.currency, data.opening_date, data.opening_balance],
+      );
+    } else
+      await client.query(
+        "INSERT INTO cash_accounts(user_id,name,currency,opening_date,opening_balance) VALUES ($1,$2,$3,$4,$5)",
+        [id, data.name, data.currency, data.opening_date, data.opening_balance],
+      );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if ((error as { code?: string }).code === "23505")
+      throw new Error("Já existe uma conta com esse nome.");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return { ok: true };
+}
+export async function saveTransaction(
+  data: Omit<CashTransaction, "id"> & { id?: string | undefined },
+) {
+  const id = (await authorize("write_cash")).user.id;
+  const account = await db().query(
+    "SELECT opening_date::text FROM cash_accounts WHERE id=$1 AND user_id=$2",
+    [data.account_id, id],
+  );
+  if (!account.rowCount) throw new Error("Conta não encontrada.");
+  if (
+    data.due_date < account.rows[0].opening_date ||
+    (data.paid_date && data.paid_date < account.rows[0].opening_date)
+  )
+    throw new Error("As datas devem ser iguais ou posteriores à abertura da conta.");
+  const values = [
+    id,
+    data.account_id,
+    data.description,
+    data.category,
+    data.direction,
+    data.amount,
+    data.due_date,
+    data.paid_date,
+    data.status,
+  ];
+  if (data.id) {
+    const result = await db().query(
+      "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9 WHERE user_id=$1 AND id=$10",
+      [...values, data.id],
+    );
+    if (!result.rowCount) throw new Error("Lançamento não encontrado.");
+  } else
+    await db().query(
+      "INSERT INTO cash_transactions(user_id,account_id,description,category,direction,amount,due_date,paid_date,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+      values,
+    );
+  return { ok: true };
+}
+export async function removeTransaction(transactionId: string) {
+  const id = (await authorize("write_cash")).user.id;
+  const result = await db().query("DELETE FROM cash_transactions WHERE id=$1 AND user_id=$2", [
+    transactionId,
+    id,
+  ]);
+  if (!result.rowCount) throw new Error("Lançamento não encontrado.");
+  return { ok: true };
+}

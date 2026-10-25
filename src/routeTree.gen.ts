@@ -27,6 +27,7 @@ import { Route as ReceivablesRouteImport } from './routes/receivables'
 import { Route as StatementsRouteImport } from './routes/statements'
 import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as ParametersIndexRouteImport } from './routes/parameters/index'
 import { Route as ParametersCostCentersRouteImport } from './routes/parameters/cost-centers'
 import { Route as ParametersCurrenciesRouteImport } from './routes/parameters/currencies'
@@ -125,6 +126,11 @@ const TrialBalanceRoute = TrialBalanceRouteImport.update({
   path: '/trial-balance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ParametersIndexRoute = ParametersIndexRouteImport.update({
   id: '/parameters/',
   path: '/parameters/',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
+  '/users': typeof UsersRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
+  '/users': typeof UsersRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
+  '/users': typeof UsersRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/statements'
     | '/taxes'
     | '/trial-balance'
+    | '/users'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/statements'
     | '/taxes'
     | '/trial-balance'
+    | '/users'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/statements'
     | '/taxes'
     | '/trial-balance'
+    | '/users'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -348,6 +360,7 @@ export interface RootRouteChildren {
   StatementsRoute: typeof StatementsRoute
   TaxesRoute: typeof TaxesRoute
   TrialBalanceRoute: typeof TrialBalanceRoute
+  UsersRoute: typeof UsersRoute
   ParametersCostCentersRoute: typeof ParametersCostCentersRoute
   ParametersCurrenciesRoute: typeof ParametersCurrenciesRoute
   ParametersExpenseCategoriesRoute: typeof ParametersExpenseCategoriesRoute
@@ -485,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrialBalanceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/parameters/': {
       id: '/parameters/'
       path: '/parameters'
@@ -556,6 +576,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatementsRoute: StatementsRoute,
   TaxesRoute: TaxesRoute,
   TrialBalanceRoute: TrialBalanceRoute,
+  UsersRoute: UsersRoute,
   ParametersCostCentersRoute: ParametersCostCentersRoute,
   ParametersCurrenciesRoute: ParametersCurrenciesRoute,
   ParametersExpenseCategoriesRoute: ParametersExpenseCategoriesRoute,

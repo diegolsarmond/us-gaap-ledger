@@ -78,3 +78,13 @@ npm run dev
 ## Login e configuração do banco
 
 Consulte [instruções de execução](docs/EXECUTAR_PROJETO.md) e os scripts SQL em database/.
+
+## Configurações e auditoria
+
+Execute `database/003_access_audit.sql` após os scripts 001 e 002. A migração atribui o perfil Administrador à conta existente mais antiga; as demais recebem Operador financeiro. Novos cadastros públicos ficam sem permissões de alteração até um administrador atribuir um perfil.
+
+Os menus Configurações (Usuários e Perfis de acesso) e Auditoria (Logs de ações) seguem as permissões do usuário autenticado. As listas permitem cadastro, edição, ativação/desativação de usuários e configuração das permissões de cada perfil. O perfil Administrador é protegido e pelo menos um administrador deve permanecer ativo. Os dados de caixa continuam vinculados a cada usuário.
+
+Gatilhos no PostgreSQL registram criação, alteração e exclusão de usuários, perfis, contas e lançamentos com dados anteriores e posteriores, sem hashes de senha. Os registros começam após a migração; eventos antigos não são reconstruídos. A lista de auditoria usa páginas de 100 registros e busca/filtro na página exibida. Não há edição nem exclusão de logs pela aplicação.
+
+Validação isolada e revertida: `node --env-file=.env scripts/test-access-audit-db.mjs`.

@@ -1,13 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import pg from "pg";
+import { db } from "./db.server";
 import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
 
-let pool: pg.Pool | undefined;
-function db() {
-  if (!process.env["DATABASE_URL"])
-    throw new Error("Configure DATABASE_URL e execute os scripts de banco.");
-  return (pool ??= new pg.Pool({ connectionString: process.env["DATABASE_URL"], max: 5 }));
-}
 const cookie = "ledgerx_session";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 

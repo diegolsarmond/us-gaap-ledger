@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { summarize, dateSchema, transactionSchema } from '../src/lib/cash-flow-model.ts';
+const account = {id:'a', name:'Conta', currency:'USD', opening_date:'2026-10-01', opening_balance:100};
+const entry = (overrides={}) => ({id:'t',account_id:'a',description:'Recebimento',category:'Vendas',direction:'in',amount:10.10,due_date:'2026-10-02',paid_date:'2026-10-03',status:'paid',...overrides});
+test('realizado utiliza pagamento, previsto utiliza vencimento e cancelados não afetam saldo',()=>{
+ const entries=[entry(),entry({id:'p',status:'planned',paid_date:null,amount:20}),entry({id:'c',status:'cancelled',paid_date:null,amount:999})];
+ const actual=summarize([account],entries,'2026-10-02','2026-10-03','daily',false);
+ assert.equal(actual.opening,100);assert.equal(actual.periods[0].inflows,0);assert.equal(actual.periods[1].balance,110.10);
+ const forecast=summarize([account],entries,'2026-10-02','2026-10-03','daily',true);
+ assert.equal(forecast.periods[0].inflows,20);assert.equal(forecast.periods[1].balance,130.10);
+});
+test('saldo inicial durante período e centavos exatos, inclusive saldo negativo',()=>{
+ const report=summarize([{...account,opening_balance:-50}], [entry({amount:0.1}),entry({amount:0.2}),entry({direction:'out',amount:1})], '2026-10-01','2026-10-31','monthly',false);
+ assert.equal(report.opening,0); assert.equal(report.periods[0].adjustments,-50);assert.equal(report.periods[0].balance,-50.7);
+});
+test('saldo anterior inclui todo histórico anterior ao filtro',()=>{
+ const report=summarize([account],[entry()], '2026-10-10','2026-10-10','daily',false);
+ assert.equal(report.opening,110.10);assert.equal(report.periods[0].balance,110.10);
+});
+test('agrupamentos preservam totais e segunda-feira define semana',()=>{
+ const entries=[entry(),entry({due_date:'2026-11-01',paid_date:'2026-11-01',direction:'out',amount:5})];
+ for(const interval of ['daily','weekly','monthly','quarterly','yearly']) {
+   const report=summarize([account],entries,'2026-10-01','2026-12-31',interval,false);
+   assert.equal(report.periods.at(-1).balance,105.10);
+   assert.equal(report.periods.reduce((s,p)=>s+p.inflows,0),10.10);
+ }
+ assert.equal(summarize([account],entries,'2026-10-03','2026-10-04','weekly',false).periods[0].label,'2026-09-28');
+});
+test('período vazio e contas futuras não fabricam saldo',()=>{
+ assert.equal(summarize([],[],'2026-10-01','2026-10-01','daily',true).periods[0].balance,0);
+ assert.equal(summarize([{...account,opening_date:'2027-01-01'}],[],'2026-10-01','2026-10-31','monthly',false).periods[0].balance,0);
+});
+test('validação rejeita datas inexistentes, valor inválido e pagamento inconsistente',()=>{
+ assert.equal(dateSchema.safeParse('2026-02-30').success,false);
+ const valid=entry({id:'bbda1c08-3d13-44c0-920b-f1c67f1423ca',account_id:'bbda1c08-3d13-44c0-920b-f1c67f1423ca'});
+ assert.equal(transactionSchema.safeParse(valid).success,true);
+ for(const changes of [{amount:0},{amount:1.111},{status:'paid',paid_date:null},{status:'planned',paid_date:'2026-10-03'}]) assert.equal(transactionSchema.safeParse({...valid,...changes}).success,false);
+});

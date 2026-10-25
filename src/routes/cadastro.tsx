@@ -5,7 +5,7 @@ import { register } from "@/lib/auth";
 
 export const Route = createFileRoute("/cadastro")({
   beforeLoad: ({ context }) => {
-    if (context.user) throw redirect({ to: "/dashboard" });
+    if (context.user) throw redirect({ to: "/cash-flow" });
   },
   head: () => ({ meta: [{ title: "Cadastro de usuário · World Business" }] }),
   component: Registration,
