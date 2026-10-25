@@ -41,7 +41,7 @@ export function validateState(state:CompanyState) {
   refs.push({source_domain:domain,source_id:id,account_id:account||null,project_id:project||null,statement_id:file||null});
  };
  for (const domain of domains) {
-  const keys=(state[domain] as unknown as Record<string,unknown>[]).map(r=>String(domain==='accounts'||domain==='currencies'?r.code:r.id));
+  const keys=(state[domain] as unknown as Record<string,unknown>[]).map(r=>String(domain==='accounts'||domain==='currencies'?r['code']:r['id']));
   if(new Set(keys).size!==keys.length) throw new Error(`Registro duplicado em ${domain}.`);
  }
  if(skus.size!==state.inventory.length) throw new Error("SKU duplicado.");
@@ -102,7 +102,7 @@ export async function execute(input:{companyId:string;revision:number;command:st
   for(const domain of domains) {
    const values=next[domain] as unknown as Record<string,unknown>[];
    await client.query(`DELETE FROM ${table(domain)} WHERE company_id=$1`,[input.companyId]);
-   if(values.length) await client.query(`INSERT INTO ${table(domain)}(company_id,id,position,data) SELECT $1, item->>'id', (item->>'position')::integer, item->'data' FROM jsonb_array_elements($2::jsonb) item`,[input.companyId,JSON.stringify(values.map((data,position)=>({id:domain==='accounts'||domain==='currencies'?data.code:data.id,position,data})))]);
+   if(values.length) await client.query(`INSERT INTO ${table(domain)}(company_id,id,position,data) SELECT $1, item->>'id', (item->>'position')::integer, item->'data' FROM jsonb_array_elements($2::jsonb) item`,[input.companyId,JSON.stringify(values.map((data,position)=>({id:domain==='accounts'||domain==='currencies'?data['code']:data['id'],position,data})))]);
   }
   for(const r of refs) await client.query("INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,project_id,statement_id) VALUES($1,$2,$3,$4,$5,$6)",[input.companyId,r.source_domain,r.source_id,r.account_id,r.project_id,r.statement_id]);
   const company=engine.getCompany();

@@ -84,9 +84,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const user = await getSession();
     const pathname = location.pathname.replace(/\/+$/, "") || "/";
     const publicRoutes = ["/", "/cadastro"];
-    const workspaceRoutes = ["/cash-flow", "/access", "/users", "/audit-log"];
+    const workspaceRoutes = ["/companies", "/cash-flow", "/access", "/users", "/audit-log"];
     if (!user && !publicRoutes.includes(pathname)) throw redirect({ to: "/" });
-    if (user && !publicRoutes.includes(pathname) && !workspaceRoutes.includes(pathname) && !pathname.startsWith("/parameters"))
+    if (
+      user &&
+      !publicRoutes.includes(pathname) &&
+      !workspaceRoutes.includes(pathname) &&
+      !pathname.startsWith("/parameters")
+    )
       throw redirect({ to: "/cash-flow" });
     return { user };
   },
@@ -145,16 +150,41 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
- const {queryClient,user}=Route.useRouteContext();
- const pathname=useRouterState({select:s=>s.location.pathname});
- if(pathname==='/' || pathname.startsWith('/cadastro') || !user) return <Outlet />;
- return <QueryClientProvider client={queryClient}><CompanyProvider><ModalProvider><CashShell user={user}><CompanyRoutes pathname={pathname}/></CashShell></ModalProvider></CompanyProvider></QueryClientProvider>;
+  const { queryClient, user } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname === "/" || pathname.startsWith("/cadastro") || !user) return <Outlet />;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CompanyProvider>
+        <ModalProvider>
+          <CashShell user={user}>
+            <CompanyRoutes pathname={pathname} />
+          </CashShell>
+        </ModalProvider>
+      </CompanyProvider>
+    </QueryClientProvider>
+  );
 }
-function CompanyRoutes({pathname}:{pathname:string}) {
- const {activeCompany}=useCompanies();
- if(['/companies','/users','/access','/audit-log'].some(p=>pathname===p||pathname===p+'/')) return <Outlet key={pathname + (activeCompany?.id??'')} />;
- if(pathname.startsWith('/parameters')) return <Outlet key={activeCompany?.id ?? 'parameters'} />;
- if(!activeCompany) return <div className="p-5">Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.</div>;
- if(pathname==='/cash-flow'||pathname==='/cash-flow/') return <Outlet key={activeCompany.id} />;
- return <AccountingProvider key={activeCompany.id}><Outlet key={activeCompany.id} /></AccountingProvider>;
+function CompanyRoutes({ pathname }: { pathname: string }) {
+  const { activeCompany } = useCompanies();
+  if (
+    ["/companies", "/users", "/access", "/audit-log"].some(
+      (p) => pathname === p || pathname === p + "/",
+    )
+  )
+    return <Outlet key={pathname + (activeCompany?.id ?? "")} />;
+  if (pathname.startsWith("/parameters")) return <Outlet key={activeCompany?.id ?? "parameters"} />;
+  if (!activeCompany)
+    return (
+      <div className="p-5">
+        Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.
+      </div>
+    );
+  if (pathname === "/cash-flow" || pathname === "/cash-flow/")
+    return <Outlet key={activeCompany.id} />;
+  return (
+    <AccountingProvider key={activeCompany.id}>
+      <Outlet key={activeCompany.id} />
+    </AccountingProvider>
+  );
 }

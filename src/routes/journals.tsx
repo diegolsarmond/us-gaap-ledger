@@ -37,7 +37,7 @@ function JournalsPage() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
   // New Journal Form State
-  const [date, setDate] = useState("2026-12-22");
+  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
   const [memo, setMemo] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [lines, setLines] = useState<

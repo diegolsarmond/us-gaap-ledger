@@ -26,14 +26,14 @@ function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // New Project Form State
-  const [code, setCode] = useState("PRJ-2027-01");
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
-  const [budget, setBudget] = useState("45000");
-  const [contractValue, setContractValue] = useState("65000");
+  const [budget, setBudget] = useState("0");
+  const [contractValue, setContractValue] = useState("0");
   const [status, setStatus] = useState<"Active" | "Completed" | "On Hold">("Active");
-  const [startDate, setStartDate] = useState("2026-12-01");
-  const [endDate, setEndDate] = useState("2027-04-30");
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0,10));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0,10));
   const [notes, setNotes] = useState("");
 
   // Calculate project metrics

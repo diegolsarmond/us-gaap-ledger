@@ -11,7 +11,7 @@ export const Route = createFileRoute("/statements")({
   head: () =>
     pageHead(
       "Bank Statements & Staging Feed · LedgerX",
-      "Upload bank and credit card statements in CSV, OFX, and PDF formats with accountant staging and classification workflows.",
+      "Import bank transactions from CSV files with accountant staging and classification workflows.",
     ),
   component: StatementsPage,
 });
@@ -39,7 +39,7 @@ function StatementsPage() {
     {},
   );
 
-  const handleSimulateUpload = async (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     try { await importStatement({name:customFileName,type:"CSV",accountCode:selectedAccount,content});setContent("");setPreview([]);setCustomFileName("");setError("");await modal.showAlert({title:"Extrato importado",message:"Transações disponíveis para classificação.",tone:"success"}); } catch(e){setError(e instanceof Error?e.message:"Falha ao importar.");}
   };
@@ -124,7 +124,7 @@ function StatementsPage() {
             title="Upload Bank / Credit Card File"
             subtitle="Client Portal & Internal Accountant Feed"
           >
-            <form onSubmit={handleSimulateUpload} className="p-4 space-y-3">
+            <form onSubmit={handleUpload} className="p-4 space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
                   Target Financial Institution Account

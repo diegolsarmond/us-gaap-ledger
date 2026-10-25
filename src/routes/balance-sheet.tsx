@@ -16,7 +16,7 @@ export const Route = createFileRoute("/balance-sheet")({
 
 function BalanceSheetPage() {
   const { activeCompany, accountBalances, netIncome } = useAccounting();
-  const [asOfDate, setAsOfDate] = useState("2026-12-31");
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0,10));
 
   // Assets
   const cashOperating = accountBalances["1000"]?.net || 0;
@@ -168,7 +168,7 @@ function BalanceSheetPage() {
                   <Td />
                 </tr>
                 <tr className="border-b border-line/30 hover:bg-black/[0.01]">
-                  <Td className="pl-8 text-ink2">Cash and cash equivalents (Chase & Reserves)</Td>
+                  <Td className="pl-8 text-ink2">Cash and cash equivalents</Td>
                   <Td align="right" className="font-mono text-[12px]">
                     {usd(totalCash)}
                   </Td>

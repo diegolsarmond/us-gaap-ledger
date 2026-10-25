@@ -489,6 +489,8 @@ export function createAccountingEngine(currentData: CompanyState, initialCompany
       if (!currentData.accounts.some(a => a.code === line.accountCode)) return {success:false,error:`Cadastre a conta contábil ${line.accountCode} antes de operar.`};
       if (!Number.isFinite(line.debit) || !Number.isFinite(line.credit) || line.debit < 0 || line.credit < 0 || (line.debit > 0 && line.credit > 0)) return {success:false,error:"Débito/crédito inválido."};
     }
+    if(lines.length<2)return {success:false,error:"Informe pelo menos duas linhas."};
+    for(const line of lines){if(!currentData.accounts.some(a=>a.code===line.accountCode))return {success:false,error:`Cadastre a conta contábil ${line.accountCode} antes de operar.`};}
     const totalDebit =
       Math.round(lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) * 100) / 100;
     const totalCredit =

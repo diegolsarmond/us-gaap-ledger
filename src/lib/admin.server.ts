@@ -64,17 +64,20 @@ export async function saveProfile(data: z.infer<typeof profileSchema>) {
       data.write_cash,
       data.manage_companies,data.write_accounting,data.close_periods,data.all_companies,
     ];
+    let profileId=data.id;
     if (data.id) {
       const r = await client.query(
         "UPDATE access_profiles SET name=$1,manage_users=$2,manage_profiles=$3,view_audit=$4,write_cash=$5  ,manage_companies=$6,write_accounting=$7,close_periods=$8,all_companies=$9 WHERE id=$10 AND NOT system_admin RETURNING id",
         [...values, data.id],
       );
       if (!r.rowCount) throw new Error("Perfil protegido ou não encontrado.");
-    } else
-      await client.query(
-        "INSERT INTO access_profiles(name,manage_users,manage_profiles,view_audit,write_cash) VALUES($1,$2,$3,$4,$5)",
-        values,
-      );
+    } else {
+      const created=await client.query("INSERT INTO access_profiles(name,manage_users,manage_profiles,view_audit,write_cash,manage_companies,write_accounting,close_periods,all_companies) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",values);
+      profileId=created.rows[0].id;
+    }
+    await client.query("DELETE FROM profile_companies WHERE profile_id=$1",[profileId]);
+    if(!data.all_companies)for(const companyId of new Set(data.company_ids))await client.query("INSERT INTO profile_companies(profile_id,company_id) VALUES($1,$2)",[profileId,companyId]);
+    await client.query("INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,after_data) VALUES($1,$2,'UPDATE_COMPANY_ACCESS','access_profiles',$3,$4)",[user.id,user.name,profileId,JSON.stringify({all_companies:data.all_companies,company_ids:data.company_ids})]);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -174,8 +177,9 @@ export async function resetPassword(id: string) {
     client.release();
   }
 }
-export async function loadAudit(page: number) {
-  await authorize("view_audit");
+export async function loadAudit(page: number,companyId?:string) {
+  const auth=await authorize("view_audit");
+  if(companyId)await (await import("./companies.server")).authorizeCompany(companyId);
   const result = await db().query(
     "SELECT id::text,occurred_at::text,actor_name,action,entity,target_id,before_data::text,after_data::text FROM system_audit_log WHERE (company_id=$2::uuid OR (company_id IS NULL AND $3)) ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $1",
     [(page - 1) * 100,companyId??null,auth.permissions.manage_users||auth.permissions.manage_profiles],

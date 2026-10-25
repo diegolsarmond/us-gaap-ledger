@@ -4,7 +4,7 @@ import { companySchema, type Company } from "./company-model";
 import type { z } from "zod";
 import type { PoolClient } from "pg";
 
-export async function authorizeCompany(companyId: string, permission?: "write_cash" | "write_accounting" | "close_periods", connection = db()) {
+export async function authorizeCompany(companyId: string, permission?: "write_cash" | "write_accounting" | "close_periods", connection: Pick<PoolClient,"query"> = db()) {
   const auth = await authorize(permission);
   const result = await connection.query(`SELECT c.* FROM companies c JOIN app_users u ON u.id=$2 JOIN access_profiles p ON p.id=u.profile_id
     WHERE c.id=$1 AND c.active AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id))`, [companyId, auth.user.id]);
@@ -12,7 +12,7 @@ export async function authorizeCompany(companyId: string, permission?: "write_ca
   return { ...auth, company: mapCompany(result.rows[0]) };
 }
 export function mapCompany(row: Record<string, any>): Company {
-  return { ...row.data, id: row.id, active: row.active, baseCurrency: "USD", initials: row.data.name.split(/\s+/).slice(0,2).map((s: string) => s[0]).join("").toUpperCase(), costMethod: row.cost_method, isPeriodClosed: row.period_closed, activePeriod: row.active_period };
+  return { ...row['data'], id: row['id'], active: row['active'], baseCurrency: "USD", initials: row['data'].name.split(/\s+/).slice(0,2).map((s: string) => s[0]).join("").toUpperCase(), costMethod: row['cost_method'], isPeriodClosed: row['period_closed'], activePeriod: row['active_period'] };
 }
 export async function listCompanies() {
   const auth = await authorize();
@@ -28,6 +28,7 @@ export async function saveCompany(data: z.infer<typeof companySchema>) {
   const client = await db().connect();
   try {
     await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
     await setActor(client, user.id);
     let id = data.id;
     if (id) {

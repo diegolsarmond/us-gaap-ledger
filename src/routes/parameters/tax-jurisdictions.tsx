@@ -38,7 +38,7 @@ function TaxJurisdictionsPage() {
   const [code, setCode] = useState("");
   const [state, setState] = useState("FL");
   const [name, setName] = useState("");
-  const [rate, setRate] = useState("6.0");
+  const [rate, setRate] = useState("0");
   const [taxType, setTaxType] = useState<"State Sales Tax" | "Local Surcharge" | "Combined">(
     "State Sales Tax",
   );

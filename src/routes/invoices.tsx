@@ -34,18 +34,18 @@ function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // Invoice creation form state
-  const [customerName, setCustomerName] = useState("Northgate Supply Co.");
+  const [customerName, setCustomerName] = useState("");
   const [customerEin, setCustomerEin] = useState("");
-  const [date, setDate] = useState("2026-12-22");
-  const [dueDate, setDueDate] = useState("2027-01-21");
+  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0,10));
   const [kind, setKind] = useState<"Product" | "Service">("Product");
   const [projectId, setProjectId] = useState("");
   const [taxExempt, setTaxExempt] = useState(false);
-  const [taxRate, setTaxRate] = useState("7.0");
+  const [taxRate, setTaxRate] = useState("0");
 
   const [formItems, setFormItems] = useState<
     { sku: string; description: string; qty: number; unitPrice: number }[]
-  >([{ sku: "HR-1001", description: "Marine Hardware Stainless Kit", qty: 10, unitPrice: 124.0 }]);
+  >([{ sku: "", description: "", qty: 1, unitPrice: 0 }]);
 
   // Computations
   const subtotal = formItems.reduce((s, it) => s + it.qty * it.unitPrice, 0);
@@ -62,7 +62,7 @@ function InvoicesPage() {
   const handleAddItemRow = () => {
     setFormItems([
       ...formItems,
-      { sku: "HR-2010", description: "316 Marine Fastener Set", qty: 20, unitPrice: 18.5 },
+      { sku: "", description: "", qty: 1, unitPrice: 0 },
     ]);
   };
 

@@ -186,6 +186,7 @@ function CashFlowPage() {
       () =>
         saveCashTransaction({
           data: {
+            companyId,
             ...(editing ? { id: editing.id } : {}),
             account_id: String(f.get("account_id")),
             description: String(f.get("description")),

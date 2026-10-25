@@ -35,16 +35,16 @@ function InventoryPage() {
 
   // Stock Adjustment Form
   const [selectedItemId, setSelectedItemId] = useState(inventory[0]?.id || "");
-  const [qtyDelta, setQtyDelta] = useState("-5");
-  const [adjustMemo, setAdjustMemo] = useState("Avariado durante movimentação no pátio");
+  const [qtyDelta, setQtyDelta] = useState("0");
+  const [adjustMemo, setAdjustMemo] = useState("");
 
   // New Item Form
   const [newSku, setNewSku] = useState("");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"Product" | "Service">("Product");
-  const [newCost, setNewCost] = useState("45.00");
-  const [newPrice, setNewPrice] = useState("95.00");
-  const [newQty, setNewQty] = useState("20");
+  const [newCost, setNewCost] = useState("0");
+  const [newPrice, setNewPrice] = useState("0");
+  const [newQty, setNewQty] = useState("0");
 
   const totalProductsCount = inventory.filter((i) => i.type === "Product").length;
   const totalServicesCount = inventory.filter((i) => i.type === "Service").length;

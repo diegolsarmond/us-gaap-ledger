@@ -35,17 +35,17 @@ function PayablesPage() {
   const [currencyFilter, setCurrencyFilter] = useState<string>("ALL");
 
   // Bill creation form state
-  const [vendorName, setVendorName] = useState("Grainger Industrial Supply");
-  const [billNumber, setBillNumber] = useState("INV-GR-8819");
-  const [date, setDate] = useState("2026-12-18");
-  const [dueDate, setDueDate] = useState("2027-01-17");
+  const [vendorName, setVendorName] = useState("");
+  const [billNumber, setBillNumber] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0,10));
   const [currency, setCurrency] = useState("USD");
   const [fxRateInput, setFxRateInput] = useState("1.0");
-  const [foreignAmount, setForeignAmount] = useState("3400.00");
+  const [foreignAmount, setForeignAmount] = useState("0");
   const [accountCode, setAccountCode] = useState("6100");
   const [isInventory, setIsInventory] = useState(false);
-  const [skuPurchased, setSkuPurchased] = useState("HR-1001");
-  const [qtyPurchased, setQtyPurchased] = useState(50);
+  const [skuPurchased, setSkuPurchased] = useState("");
+  const [qtyPurchased, setQtyPurchased] = useState(0);
   const [projectId, setProjectId] = useState("");
 
   // Pay Modal State

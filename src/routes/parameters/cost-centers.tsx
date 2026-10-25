@@ -41,7 +41,7 @@ function CostCentersPage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [manager, setManager] = useState("");
-  const [annualBudget, setAnnualBudget] = useState("150000");
+  const [annualBudget, setAnnualBudget] = useState("0");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive">("Active");
 

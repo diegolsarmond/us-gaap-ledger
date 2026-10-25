@@ -1,9 +1,9 @@
 import { db } from "./db.server";
-import { readSession } from "./auth.server";
 import { authorizeCompany } from "./companies.server";
 import type { CashAccount, CashTransaction, CashData } from "./cash-flow-model";
-export async function load(): Promise<CashData> {
-  const id = await userId();
+export async function load(companyId:string): Promise<CashData> {
+  await authorizeCompany(companyId);
+  const id=companyId;
   const [accounts, transactions] = await Promise.all([
     db().query(
       "SELECT id, name, currency, opening_date::text, opening_balance::float8 FROM cash_accounts WHERE company_id=$1 ORDER BY name",
@@ -16,8 +16,9 @@ export async function load(): Promise<CashData> {
   ]);
   return { accounts: accounts.rows, transactions: transactions.rows };
 }
-export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string | undefined }) {
-  const id = (await authorize("write_cash")).user.id;
+export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string | undefined;companyId:string }) {
+  const auth=await authorizeCompany(data.companyId,"write_cash");
+  const id=data.companyId;
   const client = await db().connect();
   try {
     await client.query("BEGIN");
@@ -59,7 +60,7 @@ export async function saveAccount(data: Omit<CashAccount, "id"> & { id?: string 
   }
   return { ok: true };
 }
-export async function saveTransaction(data: Omit<CashTransaction,"id"> & {id?:string;companyId:string}) {
+export async function saveTransaction(data: Omit<CashTransaction,"id"> & {id?:string|undefined;companyId:string}) {
  const client=await db().connect();
  try {
   await client.query("BEGIN");await client.query("SELECT pg_advisory_xact_lock(803003)");

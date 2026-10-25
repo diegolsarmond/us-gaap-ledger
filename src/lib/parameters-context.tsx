@@ -1,6 +1,7 @@
+import { useCompanies } from "@/components/company-context";
 import React, { createContext, useContext, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { loadParameterCompanies, loadParameters, mutateParameter } from "./parameters";
+import { loadParameters, mutateParameter } from "./parameters";
 import type { ParameterDomain } from "./parameters-model";
 import type * as Models from "./accounting-store";
 export type {
@@ -39,12 +40,7 @@ export function useAccounting() {
   return value;
 }
 export function ParametersProvider({ children }: { children: React.ReactNode }) {
-  const companies = useQuery({
-    queryKey: ["parameter-companies"],
-    queryFn: () => loadParameterCompanies(),
-  });
-  const [selected, setSelected] = useState("");
-  const activeCompany = companies.data?.find((c) => c.id === selected) ?? companies.data?.[0];
+  const { companies: companyRows, activeCompany, selectCompany } = useCompanies();
   const query = useQuery({
     queryKey: ["parameters", activeCompany?.id],
     queryFn: () => loadParameters({ data: { companyId: activeCompany!.id } }),
@@ -52,14 +48,13 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  if (companies.isPending) return <p role="status">Carregando empresas…</p>;
-  if (companies.error || query.error)
+  if (query.error)
     return (
       <div role="alert">
-        {(companies.error || query.error)?.message}
+        {query.error?.message}
         <button
           onClick={() => {
-            void companies.refetch();
+            void query.refetch();
             void query.refetch();
           }}
         >
@@ -70,8 +65,8 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
   if (!activeCompany)
     return (
       <p>
-        Nenhuma empresa disponível. Cadastre uma empresa no Fluxo de Caixa ou solicite acesso ao
-        administrador.
+        Nenhuma empresa disponível. Cadastre uma empresa no cadastro de empresas ou solicite acesso
+        ao administrador.
       </p>
     );
   if (!query.data) return <p role="status">Carregando parâmetros…</p>;
@@ -135,16 +130,18 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
           value={activeCompany.id}
           disabled={busy}
           onChange={(e) => {
-            setSelected(e.target.value);
+            selectCompany(e.target.value);
             setError("");
           }}
           className="rounded border border-line p-2"
         >
-          {companies.data?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {companyRows
+            .filter((c) => c.active)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
       </div>
       {error && (
