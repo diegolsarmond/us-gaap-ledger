@@ -1,6 +1,7 @@
 import { useModal } from "@/components/modal-provider";
 import { useCompanies } from "@/components/company-context";
 import { CashManagementReport } from "@/components/cash-management-report";
+import { SearchableSelect } from "@/components/searchable-select";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import {
 import {
   summarize,
   cashFlowLines,
+  transactionSchema,
   type CashFlowLine,
   type CashAccount,
   type CashTransaction,
@@ -80,7 +82,10 @@ function EntryFormAccountiner({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        className="max-h-[90dvh] overflow-y-auto overscroll-contain"
+        style={{ width: "96vw", maxWidth: "1600px" }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2">
@@ -109,6 +114,7 @@ function CashFlowPage() {
   const [accountId, setAccountId] = useState("");
   const [form, setForm] = useState<"account" | "transaction" | null>(null);
   const [direction, setDirection] = useState<"in" | "out">("in");
+  const [cashFlowLine, setCashFlowLine] = useState<CashFlowLine | "">("");
   const [entryAccount, setEntryAccount] = useState("");
   const [amountCents, setAmountCents] = useState("");
   const [openingBalanceCents, setOpeningBalanceCents] = useState("0");
@@ -186,6 +192,7 @@ function CashFlowPage() {
         entryForm?.reset();
         setStatus("planned");
         setDirection("in");
+        setCashFlowLine("");
         setAmountCents("");
         setEntryAccount("");
         focusEntryRef.current = true;
@@ -228,24 +235,29 @@ function CashFlowPage() {
   function submitTransaction(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    if (!cashFlowLine) {
+      setError("Select a cash flow classification for this transaction type.");
+      return;
+    }
+    const parsed = transactionSchema.safeParse({
+      ...(editing ? { id: editing.id } : {}),
+      account_id: String(f.get("account_id")),
+      description: String(f.get("description")),
+      category: String(f.get("category")),
+      direction,
+      amount: Number(amountCents) / 100,
+      due_date: String(f.get("due_date")),
+      paid_date: status === "paid" ? String(f.get("paid_date")) : null,
+      status,
+      cash_flow_line: cashFlowLine,
+      variance_note: String(f.get("variance_note") ?? ""),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues.map((issue) => issue.message).join(" "));
+      return;
+    }
     void mutate(
-      () =>
-        saveCashTransaction({
-          data: {
-            companyId,
-            ...(editing ? { id: editing.id } : {}),
-            account_id: String(f.get("account_id")),
-            description: String(f.get("description")),
-            category: String(f.get("category")),
-            direction: String(f.get("direction")) as "in" | "out",
-            amount: Number(amountCents) / 100,
-            due_date: String(f.get("due_date")),
-            paid_date: status === "paid" ? String(f.get("paid_date")) : null,
-            status,
-            cash_flow_line: String(f.get("cash_flow_line")) as CashFlowLine,
-            variance_note: String(f.get("variance_note") ?? ""),
-          },
-        }),
+      () => saveCashTransaction({ data: { companyId, ...parsed.data } }),
       "Transaction saved.",
     );
   }
@@ -305,6 +317,7 @@ function CashFlowPage() {
               onClick={() => {
                 setEditing(null);
                 setDirection("in");
+                setCashFlowLine("");
                 setAmountCents("");
                 setEntryAccount("");
                 setStatus("planned");
@@ -452,33 +465,43 @@ function CashFlowPage() {
                   ) : (
                     <>
                       <Field label="Account">
-                        <select
+                        <SearchableSelect
+                          label="Account"
                           autoFocus
-                          onChange={(e) => setEntryAccount(e.target.value)}
                           name="account_id"
-                          defaultValue={
-                            editing?.account_id ?? filteredAccounts[0]?.id ?? accounts[0]?.id
-                          }
                           required
-                          className={control}
-                        >
-                          {accounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name} · {a.currency}
-                            </option>
-                          ))}
-                        </select>
+                          defaultValue={
+                            editing?.account_id ?? filteredAccounts[0]?.id ?? accounts[0]?.id ?? ""
+                          }
+                          onChange={setEntryAccount}
+                          options={accounts.map((a) => ({
+                            value: a.id,
+                            label: `${a.name} · ${a.currency}`,
+                          }))}
+                        />
                       </Field>
                       <Field label="Type">
-                        <select
+                        <SearchableSelect
+                          label="Type"
                           name="direction"
                           value={direction}
-                          onChange={(e) => setDirection(e.target.value as "in" | "out")}
-                          className={control}
-                        >
-                          <option value="in">Inflow</option>
-                          <option value="out">Outflow</option>
-                        </select>
+                          onChange={(value) => {
+                            const nextDirection = value as "in" | "out";
+                            setDirection(nextDirection);
+                            if (
+                              cashFlowLine &&
+                              cashFlowLines[cashFlowLine].direction !== null &&
+                              cashFlowLines[cashFlowLine].direction !== nextDirection
+                            ) {
+                              setCashFlowLine("");
+                            }
+                            setError("");
+                          }}
+                          options={[
+                            { value: "in", label: "Inflow" },
+                            { value: "out", label: "Outflow" },
+                          ]}
+                        />
                       </Field>
                       <Field
                         label={
@@ -504,21 +527,16 @@ function CashFlowPage() {
                         />
                       </Field>
                       <Field label="Category">
-                        <select
+                        <SearchableSelect
+                          label="Category"
                           name="category"
                           defaultValue={editing?.category ?? ""}
                           required
-                          className={control}
-                        >
-                          <option value="" disabled>
-                            Select a category
-                          </option>
-                          {Array.from(new Set(categories.map((c) => c.name))).map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select a category"
+                          options={Array.from(new Set(categories.map((c) => c.name))).map(
+                            (name) => ({ value: name, label: name }),
+                          )}
+                        />
                         {!categories.length && <span>Add a category in System Parameters.</span>}
                       </Field>
                       <Field label="Amount in account currency">
@@ -541,25 +559,26 @@ function CashFlowPage() {
                         />
                       </Field>
                       <Field label="US GAAP cash flow classification">
-                        <select
+                        <SearchableSelect
+                          label="Cash flow classification"
                           name="cash_flow_line"
-                          defaultValue={editing?.cash_flow_line ?? ""}
+                          value={cashFlowLine}
+                          onChange={(value) => {
+                            setCashFlowLine(value as CashFlowLine);
+                            setError("");
+                          }}
                           required
-                          className={control}
-                        >
-                          <option value="" disabled>
-                            Select a cash flow line
-                          </option>
-                          {Object.entries(cashFlowLines).map(([key, line]) => (
-                            <option
-                              key={key}
-                              value={key}
-                              disabled={line.direction !== null && line.direction !== direction}
-                            >
-                              {line.activity} · {line.label}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select a cash flow line"
+                          options={Object.entries(cashFlowLines)
+                            .filter(
+                              ([, line]) => line.direction === null || line.direction === direction,
+                            )
+                            .map(([key, line]) => ({
+                              value: key,
+                              label: `${line.activity} · ${line.label}`,
+                              disabled: line.direction !== null && line.direction !== direction,
+                            }))}
+                        />
                       </Field>
                       <Field
                         label="Forecast variance explanation"
@@ -591,17 +610,15 @@ function CashFlowPage() {
                         )}
                       </Field>
                       <Field label="Status">
-                        <select
+                        <SearchableSelect
+                          label="Status"
                           value={status}
-                          onChange={(e) => setStatus(e.target.value as typeof status)}
-                          className={control}
-                        >
-                          {Object.entries(statusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(value) => setStatus(value as typeof status)}
+                          options={Object.entries(statusLabels).map(([value, label]) => ({
+                            value,
+                            label,
+                          }))}
+                        />
                       </Field>
                       {status === "paid" && (
                         <Field label="Receipt / payment date">
@@ -883,6 +900,7 @@ function CashFlowPage() {
                               onClick={() => {
                                 setEditing(t);
                                 setDirection(t.direction);
+                                setCashFlowLine(t.cash_flow_line ?? "unclassified");
                                 setEntryAccount(t.account_id);
                                 setAmountCents(String(Math.round(t.amount * 100)));
                                 setStatus(t.status);

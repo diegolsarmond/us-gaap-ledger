@@ -102,7 +102,11 @@ export const transactionSchema = z
     (t) =>
       !cashFlowLines[t.cash_flow_line].direction ||
       cashFlowLines[t.cash_flow_line].direction === t.direction,
-    "The cash flow classification must match the inflow / outflow direction.",
+    {
+      message:
+        "Select a cash flow classification that matches the transaction type (inflow or outflow).",
+      path: ["cash_flow_line"],
+    },
   )
   .refine(
     (t) => (t.status === "paid") === (t.paid_date !== null),
