@@ -176,7 +176,7 @@ function CompanyRoutes({ pathname }: { pathname: string }) {
         Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.
       </div>
     );
-  if (pathname === "/cash-flow" || pathname === "/cash-flow/")
+  if (["/cash-flow", "/cash-flow/", "/accounts", "/accounts/"].includes(pathname))
     return <Outlet key={activeCompany.id} />;
   return (
     <AccountingProvider key={activeCompany.id}>

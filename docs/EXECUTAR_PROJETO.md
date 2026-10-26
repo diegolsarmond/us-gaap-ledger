@@ -73,3 +73,5 @@ Execute `database/009_required_password_change.sql` após as migrações anterio
 ## Fluxo de caixa US GAAP e previsão semanal
 
 Execute `database/010_cash_flow_management.sql` após as migrações anteriores antes de usar esta versão. Veja [operação, fórmulas e reconciliação](CASH_FLOW_MANAGEMENT.md). A migração preserva os lançamentos existentes e estabelece a previsão original dos que estiverem planejados.
+
+Execute em seguida `database/011_cash_chart_links.sql` para vincular contas bancárias e movimentos previstos/realizados ao plano de contas da mesma empresa. Registros existentes ficam pendentes de vinculação, sem alteração dos valores históricos. Veja [Chart of Accounts](CHART_OF_ACCOUNTS.md).

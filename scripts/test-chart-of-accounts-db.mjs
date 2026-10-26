@@ -84,7 +84,7 @@ try {
   assert.equal(persisted[0].code, "1000");
   assert.equal(persisted[0].name, "Bank");
   assert.deepEqual((await service.load(b)).state.accounts, []);
-  await assert.rejects(command("addAccount", [account]), /Já existe/);
+  await assert.rejects(command("addAccount", [account]), /already exists|Já existe/);
   await assert.rejects(command("addAccount", [{ ...account, code: " " }]));
   const changes = {
     name: "Operating bank",
@@ -94,7 +94,7 @@ try {
   };
   await command("updateAccount", ["1000", changes]);
   assert.equal((await service.load(a)).state.accounts[0].name, "Operating bank");
-  await assert.rejects(command("updateAccount", ["missing", changes]), /não encontrada/);
+  await assert.rejects(command("updateAccount", ["missing", changes]), /not found|não encontrada/);
   await command("addAccount", [{ ...account, code: "unused" }]);
   await command("deleteAccount", ["unused"]);
   assert.equal((await service.load(a)).state.accounts.length, 1);
@@ -120,10 +120,10 @@ try {
       },
     ],
   );
-  await assert.rejects(command("deleteAccount", ["1000"]), /vínculos/);
+  await assert.rejects(command("deleteAccount", ["1000"]), /linked records|vínculos/);
   await assert.rejects(
     command("updateAccount", ["1000", { ...changes, balanceType: "Credit" }]),
-    /natureza/,
+    /normal balance|natureza/,
   );
   await command("updateAccount", ["1000", { ...changes, name: "Renamed used account" }]);
   const balanceState = await service.load(a);

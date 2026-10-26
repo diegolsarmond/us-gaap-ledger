@@ -2,7 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { loadCashAccountLinks } from "@/lib/accounting";
-import { useAccounting, type Account, type AccountType } from "@/lib/accounting-store";
+import {
+  AccountingProvider,
+  useAccounting,
+  type Account,
+  type AccountType,
+} from "@/lib/accounting-store";
 import { account as accountSchema } from "@/lib/accounting-model";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
@@ -16,8 +21,16 @@ export const Route = createFileRoute("/accounts")({
       "Chart of Accounts · LedgerX",
       "US GAAP standardized Chart of Accounts covering Assets, Liabilities, Equity, Revenue, COGS, and Expenses.",
     ),
-  component: AccountsPage,
+  component: AccountsRoute,
 });
+
+function AccountsRoute() {
+  return (
+    <AccountingProvider>
+      <AccountsPage />
+    </AccountingProvider>
+  );
+}
 
 function AccountsPage() {
   const modal = useModal();
