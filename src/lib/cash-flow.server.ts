@@ -1,6 +1,6 @@
 import { db } from "./db.server";
 import { authorizeCompany } from "./companies.server";
-import type { CashAccount, CashTransaction, CashData } from "./cash-flow-model";
+import type { CashAccount, CashTransaction, CashData, CashReconciliation } from "./cash-flow-model";
 export async function load(companyId: string): Promise<CashData> {
   await authorizeCompany(companyId);
   const id = companyId;
@@ -10,7 +10,7 @@ export async function load(companyId: string): Promise<CashData> {
       [id],
     ),
     db().query(
-      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
+      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status, cash_flow_line, variance_note, forecast_amount::float8, forecast_date::text, forecast_direction FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
       [id],
     ),
     db().query(
@@ -19,6 +19,58 @@ export async function load(companyId: string): Promise<CashData> {
     ),
   ]);
   return { accounts: accounts.rows, transactions: transactions.rows, categories: categories.rows };
+}
+
+type ReconciliationScope = Pick<
+  CashReconciliation,
+  "companyId" | "start" | "end" | "currency" | "accountId"
+>;
+export async function readReconciliation(
+  data: ReconciliationScope,
+): Promise<CashReconciliation | null> {
+  await authorizeCompany(data.companyId);
+  const result = await db().query(
+    "SELECT inputs FROM cash_flow_reconciliations WHERE company_id=$1 AND period_start=$2 AND period_end=$3 AND currency=$4 AND account_id IS NOT DISTINCT FROM $5::uuid",
+    [data.companyId, data.start, data.end, data.currency, data.accountId],
+  );
+  return result.rows[0]?.inputs ?? null;
+}
+export async function writeReconciliation(data: CashReconciliation) {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(data.companyId, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    if (data.accountId) {
+      const account = await client.query(
+        "SELECT 1 FROM cash_accounts WHERE id=$1 AND company_id=$2 AND currency=$3",
+        [data.accountId, data.companyId, data.currency],
+      );
+      if (!account.rowCount) throw new Error("Select an account in this company and currency.");
+    }
+    await client.query(
+      `INSERT INTO cash_flow_reconciliations(company_id,period_start,period_end,currency,account_id,inputs,updated_by)
+      VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,period_start,period_end,currency,account_id)
+      DO UPDATE SET inputs=EXCLUDED.inputs,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+      [
+        data.companyId,
+        data.start,
+        data.end,
+        data.currency,
+        data.accountId,
+        JSON.stringify(data),
+        auth.user.id,
+      ],
+    );
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 export async function saveAccount(
   data: Omit<CashAccount, "id"> & { id?: string | undefined; companyId: string },
@@ -38,7 +90,7 @@ export async function saveAccount(
       );
       if (!account.rowCount) throw new Error("Account not found.");
       const movements = await client.query(
-        "SELECT count(*)::int AS count, min(least(due_date, paid_date))::text AS first_date FROM cash_transactions WHERE account_id=$1 AND company_id=$2",
+        "SELECT count(*)::int AS count, min(least(due_date, paid_date, forecast_date))::text AS first_date FROM cash_transactions WHERE account_id=$1 AND company_id=$2",
         [data.id, id],
       );
       const history = movements.rows[0];
@@ -100,16 +152,18 @@ export async function saveTransaction(
       data.due_date,
       data.paid_date,
       data.status,
+      data.cash_flow_line,
+      data.variance_note,
     ];
     if (data.id) {
       const r = await client.query(
-        "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9 WHERE company_id=$1 AND id=$10",
+        "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9,cash_flow_line=$10,variance_note=$11 WHERE company_id=$1 AND id=$12",
         [...values, data.id],
       );
       if (!r.rowCount) throw new Error("Transaction not found.");
     } else
       await client.query(
-        "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+        "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,cash_flow_line,variance_note,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
         [...values, auth.user.id],
       );
     await client.query("COMMIT");
@@ -128,6 +182,14 @@ export async function removeTransaction(transactionId: string, companyId: string
     await client.query("SELECT pg_advisory_xact_lock(803003)");
     const auth = await authorizeCompany(companyId, "write_cash", client);
     await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    const forecast = await client.query(
+      "SELECT forecast_amount FROM cash_transactions WHERE id=$1 AND company_id=$2 FOR UPDATE",
+      [transactionId, companyId],
+    );
+    if (forecast.rows[0]?.forecast_amount !== null && forecast.rowCount)
+      throw new Error(
+        "Cancel forecasted transactions instead of deleting them to preserve variance history.",
+      );
     const r = await client.query("DELETE FROM cash_transactions WHERE id=$1 AND company_id=$2", [
       transactionId,
       companyId,

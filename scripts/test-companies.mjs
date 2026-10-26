@@ -112,6 +112,7 @@ try {
   if (existsSync(new URL("../database/007_cash_categories.sql", import.meta.url))) {
     await connection.query(readFileSync(new URL("../database/007_cash_categories.sql", import.meta.url),"utf8"));
   }
+  await connection.query(readFileSync(new URL("../database/010_cash_flow_management.sql", import.meta.url), "utf8"));
   const companies = await import("../src/lib/companies.server.ts");
   const accounting = await import("../src/lib/accounting.server.ts");
   const adminService = await import("../src/lib/admin.server.ts");
@@ -318,6 +319,8 @@ try {
     companyId: a,
     account_id: bank.id,
     description: "Real",
+    cash_flow_line: "customers",
+    variance_note: "",
     category: "Sales",
     direction: "in",
     amount: 5,

@@ -1,5 +1,6 @@
 import { useModal } from "@/components/modal-provider";
 import { useCompanies } from "@/components/company-context";
+import { CashManagementReport } from "@/components/cash-management-report";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,8 @@ import {
 } from "@/lib/cash-flow";
 import {
   summarize,
+  cashFlowLines,
+  type CashFlowLine,
   type CashAccount,
   type CashTransaction,
   type Interval,
@@ -31,6 +34,11 @@ export const Route = createFileRoute("/cash-flow")({
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const relativeDate = (days: number) => {
+  const date = new Date(today() + "T12:00:00Z");
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 };
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
@@ -93,9 +101,9 @@ function CashFlowPage() {
     queryKey: ["cash-flow", companyId],
     queryFn: () => loadCashData({ data: { companyId } }),
   });
-  const [start, setStart] = useState(() => today().slice(0, 7) + "-01");
-  const [end, setEnd] = useState(today);
-  const [interval, setInterval] = useState<Interval>("monthly");
+  const [start, setStart] = useState(() => relativeDate(-28));
+  const [end, setEnd] = useState(() => relativeDate(90));
+  const [interval, setInterval] = useState<Interval>("weekly");
   const [projected, setProjected] = useState(true);
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
@@ -234,6 +242,8 @@ function CashFlowPage() {
             due_date: String(f.get("due_date")),
             paid_date: status === "paid" ? String(f.get("paid_date")) : null,
             status,
+            cash_flow_line: String(f.get("cash_flow_line")) as CashFlowLine,
+            variance_note: String(f.get("variance_note") ?? ""),
           },
         }),
       "Transaction saved.",
@@ -262,7 +272,7 @@ function CashFlowPage() {
         p.net,
         p.balance,
         currency,
-        projected ? "Planned + realizado" : "Actual",
+        projected ? "Actual + forecast" : "Actual",
       ]),
     );
   }
@@ -270,7 +280,7 @@ function CashFlowPage() {
     <div className="space-y-5">
       <PageTitle
         title="Cash flow"
-        description="Track inflows, outflows, and balances by day, week, month, quarter, or year."
+        description="US GAAP cash flow management · operating, investing and financing · weekly forecast vs. actual."
         actions={
           <>
             <Link to="/parameters/cash-categories" className={button}>
@@ -470,7 +480,11 @@ function CashFlowPage() {
                           <option value="out">Outflow</option>
                         </select>
                       </Field>
-                      <Field label={direction === "in" ? "Transaction date" : "Due date"}>
+                      <Field
+                        label={
+                          direction === "in" ? "Expected receipt date" : "Expected payment date"
+                        }
+                      >
                         <input
                           name="due_date"
                           type="date"
@@ -525,6 +539,56 @@ function CashFlowPage() {
                           required
                           className={control}
                         />
+                      </Field>
+                      <Field label="US GAAP cash flow classification">
+                        <select
+                          name="cash_flow_line"
+                          defaultValue={editing?.cash_flow_line ?? ""}
+                          required
+                          className={control}
+                        >
+                          <option value="" disabled>
+                            Select a cash flow line
+                          </option>
+                          {Object.entries(cashFlowLines).map(([key, line]) => (
+                            <option
+                              key={key}
+                              value={key}
+                              disabled={line.direction !== null && line.direction !== direction}
+                            >
+                              {line.activity} · {line.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field
+                        label="Forecast variance explanation"
+                        className="sm:col-span-2 lg:col-span-3"
+                      >
+                        <textarea
+                          name="variance_note"
+                          rows={2}
+                          maxLength={1000}
+                          defaultValue={editing?.variance_note ?? ""}
+                          className={control}
+                          placeholder="Explain amount changes, receipt/payment delays, cancelled sales or unexpected costs."
+                        />
+                        <span>
+                          Planned inflows include future sales; planned outflows include fixed
+                          costs, logistics and supplier payments. The first saved plan is preserved
+                          when this entry is revised or settled.
+                        </span>
+                        {editing?.forecast_amount != null && (
+                          <span className="block">
+                            Original plan: {editing.forecast_direction === "out" ? "−" : "+"}
+                            {new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: selectedCurrency,
+                            }).format(editing.forecast_amount)}{" "}
+                            on {editing.forecast_date}. To preserve history, cancel this entry
+                            instead of deleting it.
+                          </span>
+                        )}
                       </Field>
                       <Field label="Status">
                         <select
@@ -662,7 +726,7 @@ function CashFlowPage() {
                   className={control}
                 >
                   <option value="actual">Actual</option>
-                  <option value="projected">Actual + previsto</option>
+                  <option value="projected">Actual + forecast</option>
                 </select>
               </Field>
             </div>
@@ -748,6 +812,18 @@ function CashFlowPage() {
                   </tbody>
                 </Table>
               </Panel>
+              <CashManagementReport
+                key={`${companyId}-${currency}-${accountId}-${start}-${end}`}
+                accounts={filteredAccounts}
+                transactions={filteredTransactions}
+                start={start}
+                end={end}
+                projected={projected}
+                currency={currency as "USD" | "BRL" | "EUR"}
+                companyId={companyId}
+                accountId={accountId}
+                asOf={today()}
+              />
               <Panel
                 title="Transactions during period"
                 subtitle={
@@ -782,6 +858,13 @@ function CashFlowPage() {
                           {t.description}
                           <br />
                           <span className="text-xs text-ink3">{t.category}</span>
+                          <br />
+                          <span className="text-xs text-ink3">
+                            {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
+                          </span>
+                          {t.variance_note && (
+                            <p className="text-xs text-ink2">{t.variance_note}</p>
+                          )}
                         </Td>
                         <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
                         <Td>{statusLabels[t.status]}</Td>
@@ -811,7 +894,12 @@ function CashFlowPage() {
                               Edit
                             </button>
                             <button
-                              disabled={pending}
+                              disabled={pending || t.forecast_amount != null}
+                              title={
+                                t.forecast_amount != null
+                                  ? "Cancel this transaction to preserve forecast history"
+                                  : "Delete transaction"
+                              }
                               className="text-red-700 underline"
                               onClick={async () => {
                                 const confirmed = await modal.showConfirm({

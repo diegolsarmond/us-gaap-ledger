@@ -69,3 +69,7 @@ COMMIT;
 ## Troca obrigatória de senha e logins
 
 Execute `database/009_required_password_change.sql` após as migrações anteriores. Redefinições administrativas exigem nova senha no próximo login. Logins bem-sucedidos são registrados na auditoria como `LOGIN`.
+
+## Fluxo de caixa US GAAP e previsão semanal
+
+Execute `database/010_cash_flow_management.sql` após as migrações anteriores antes de usar esta versão. Veja [operação, fórmulas e reconciliação](CASH_FLOW_MANAGEMENT.md). A migração preserva os lançamentos existentes e estabelece a previsão original dos que estiverem planejados.

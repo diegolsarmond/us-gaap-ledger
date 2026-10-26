@@ -1,6 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { accountSchema, transactionSchema, cashCategorySchema } from "./cash-flow-model";
+import {
+  accountSchema,
+  transactionSchema,
+  cashCategorySchema,
+  reconciliationSchema,
+  reconciliationScopeSchema,
+} from "./cash-flow-model";
 export const loadCashData = createServerFn({ method: "GET" })
   .validator(z.object({ companyId: z.string().uuid() }))
   .handler(async ({ data }) => {
@@ -32,3 +38,10 @@ export const saveCashCategory = createServerFn({ method: "POST" })
 export const deleteCashCategory = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
   .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
+
+export const loadCashReconciliation = createServerFn({ method: "GET" })
+  .validator(reconciliationScopeSchema)
+  .handler(async ({ data }) => (await import("./cash-flow.server")).readReconciliation(data));
+export const saveCashReconciliation = createServerFn({ method: "POST" })
+  .validator(reconciliationSchema.refine((d) => d.start <= d.end, "Invalid period"))
+  .handler(async ({ data }) => (await import("./cash-flow.server")).writeReconciliation(data));
