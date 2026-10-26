@@ -391,7 +391,7 @@ function CashFlowPage() {
                 onSubmit={form === "account" ? submitAccount : submitTransaction}
                 className="p-4"
               >
-                {form === "transaction" && error && (
+                {error && (
                   <p role="alert" className="mb-3 text-sm text-red-800">
                     {error}
                   </p>
