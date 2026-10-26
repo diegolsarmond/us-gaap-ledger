@@ -4,21 +4,30 @@ import type { CashAccount, CashTransaction, CashData, CashReconciliation } from 
 export async function load(companyId: string): Promise<CashData> {
   await authorizeCompany(companyId);
   const id = companyId;
-  const [accounts, transactions, categories] = await Promise.all([
+  const [accounts, transactions, categories, glAccounts] = await Promise.all([
     db().query(
-      "SELECT id, name, currency, opening_date::text, opening_balance::float8 FROM cash_accounts WHERE company_id=$1 ORDER BY name",
+      "SELECT id, name, currency, opening_date::text, opening_balance::float8, gl_account_code FROM cash_accounts WHERE company_id=$1 ORDER BY name",
       [id],
     ),
     db().query(
-      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status, cash_flow_line, variance_note, forecast_amount::float8, forecast_date::text, forecast_direction FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
+      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status, cash_flow_line, variance_note, forecast_amount::float8, forecast_date::text, forecast_direction, gl_account_code FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
       [id],
     ),
     db().query(
       "SELECT id,name,company_id FROM cash_categories WHERE company_id IS NULL OR company_id=$1 ORDER BY name",
       [id],
     ),
+    db().query(
+      "SELECT id AS code,data->>'name' AS name,data->>'type' AS type,data->>'balanceType' AS \"balanceType\" FROM ledger_accounts WHERE company_id=$1 ORDER BY id",
+      [id],
+    ),
   ]);
-  return { accounts: accounts.rows, transactions: transactions.rows, categories: categories.rows };
+  return {
+    accounts: accounts.rows,
+    transactions: transactions.rows,
+    categories: categories.rows,
+    glAccounts: glAccounts.rows,
+  };
 }
 
 type ReconciliationScope = Pick<
@@ -83,9 +92,19 @@ export async function saveAccount(
     await client.query("SELECT pg_advisory_xact_lock(803003)");
     await authorizeCompany(id, "write_cash", client);
     await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    if (!data.id && !data.gl_account_code)
+      throw new Error("Link this cash account to an Asset account in Chart of Accounts.");
+    if (data.gl_account_code) {
+      const gl = await client.query(
+        "SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2 AND data->>'type'='Asset'",
+        [id, data.gl_account_code],
+      );
+      if (!gl.rowCount)
+        throw new Error("Select an Asset account from this company's Chart of Accounts.");
+    }
     if (data.id) {
       const account = await client.query(
-        "SELECT currency FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
+        "SELECT currency,gl_account_code FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
         [data.id, id],
       );
       if (!account.rowCount) throw new Error("Account not found.");
@@ -94,18 +113,40 @@ export async function saveAccount(
         [data.id, id],
       );
       const history = movements.rows[0];
+      if (
+        history.count > 0 &&
+        account.rows[0].gl_account_code &&
+        account.rows[0].gl_account_code !== data.gl_account_code
+      )
+        throw new Error("The linked GL account cannot change after cash movements are recorded.");
       if (history.count > 0 && data.currency !== account.rows[0].currency)
         throw new Error("The currency cannot be changed for an account with transactions.");
       if (history.first_date && data.opening_date > history.first_date)
         throw new Error("The opening date cannot be later than existing transactions.");
       await client.query(
-        "UPDATE cash_accounts SET name=$3,currency=$4,opening_date=$5,opening_balance=$6 WHERE id=$1 AND company_id=$2",
-        [data.id, id, data.name, data.currency, data.opening_date, data.opening_balance],
+        "UPDATE cash_accounts SET name=$3,currency=$4,opening_date=$5,opening_balance=$6,gl_account_code=$7 WHERE id=$1 AND company_id=$2",
+        [
+          data.id,
+          id,
+          data.name,
+          data.currency,
+          data.opening_date,
+          data.opening_balance,
+          data.gl_account_code,
+        ],
       );
     } else
       await client.query(
-        "INSERT INTO cash_accounts(company_id,name,currency,opening_date,opening_balance,user_id) VALUES ($1,$2,$3,$4,$5,$6)",
-        [id, data.name, data.currency, data.opening_date, data.opening_balance, auth.user.id],
+        "INSERT INTO cash_accounts(company_id,name,currency,opening_date,opening_balance,user_id,gl_account_code) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        [
+          id,
+          data.name,
+          data.currency,
+          data.opening_date,
+          data.opening_balance,
+          auth.user.id,
+          data.gl_account_code,
+        ],
       );
     await client.query("COMMIT");
   } catch (error) {
@@ -132,6 +173,18 @@ export async function saveTransaction(
       [data.account_id, data.companyId],
     );
     if (!account.rowCount) throw new Error("The account does not belong to this company.");
+    if (!data.id && !data.gl_account_code)
+      throw new Error(
+        "Select a counterpart account from Chart of Accounts for this transaction or forecast.",
+      );
+    if (data.gl_account_code) {
+      const gl = await client.query("SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2", [
+        data.companyId,
+        data.gl_account_code,
+      ]);
+      if (!gl.rowCount)
+        throw new Error("The counterpart GL account does not belong to this company.");
+    }
     if (
       data.due_date < account.rows[0].opening_date ||
       (data.paid_date && data.paid_date < account.rows[0].opening_date)
@@ -154,16 +207,17 @@ export async function saveTransaction(
       data.status,
       data.cash_flow_line,
       data.variance_note,
+      data.gl_account_code,
     ];
     if (data.id) {
       const r = await client.query(
-        "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9,cash_flow_line=$10,variance_note=$11 WHERE company_id=$1 AND id=$12",
+        "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9,cash_flow_line=$10,variance_note=$11,gl_account_code=$12 WHERE company_id=$1 AND id=$13",
         [...values, data.id],
       );
       if (!r.rowCount) throw new Error("Transaction not found.");
     } else
       await client.query(
-        "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,cash_flow_line,variance_note,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+        "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,cash_flow_line,variance_note,gl_account_code,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
         [...values, auth.user.id],
       );
     await client.query("COMMIT");

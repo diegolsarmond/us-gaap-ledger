@@ -89,9 +89,13 @@ function CompanyAccounting({
             company: result.company,
             revision: result.revision,
           });
+          if (["addAccount", "updateAccount", "deleteAccount"].includes(command)) {
+            await client.invalidateQueries({ queryKey: ["cash-flow", companyId] });
+            await client.invalidateQueries({ queryKey: ["cash-flow-links", companyId] });
+          }
           return result.result;
         } catch (e) {
-          const message = e instanceof Error ? e.message : "Não foi possível salvar.";
+          const message = e instanceof Error ? e.message : "Unable to save.";
           setError(message);
           await client.invalidateQueries({ queryKey: ["accounting", companyId] });
           throw e;
@@ -106,16 +110,16 @@ function CompanyAccounting({
     <Context.Provider value={value}>
       {(!query.data!.state.accounts.length || !query.data!.state.fiscalPeriods.length) && (
         <div className="mb-4 rounded-lg border border-line bg-white/80 p-3 text-[12px] text-ink2">
-          Esta empresa começa sem dados. Cadastre o{" "}
+          This company starts with no data. Set up the{" "}
           <Link to="/accounts" className="text-brand underline">
-            plano de contas
+            chart of accounts
           </Link>{" "}
-          e os{" "}
+          and{" "}
           <Link to="/parameters/fiscal-periods" className="text-brand underline">
-            períodos fiscais
+            fiscal periods
           </Link>{" "}
-          antes de lançar movimentações. Os lançamentos automáticos usam os códigos de contas
-          indicados em cada módulo.
+          before recording transactions. Automatic journal entries use the account codes specified
+          in each module.
         </div>
       )}
       {error && (
@@ -124,7 +128,7 @@ function CompanyAccounting({
         </p>
       )}
       <fieldset disabled={saving} className="min-w-0">
-        {saving && <p role="status">Salvando…</p>}
+        {saving && <p role="status">Saving…</p>}
         {children}
       </fieldset>
     </Context.Provider>

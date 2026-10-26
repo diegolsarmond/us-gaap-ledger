@@ -37,7 +37,13 @@ try {
   url.searchParams.set("options", "-c search_path=" + schema);
   process.env.DATABASE_URL = url.href;
   pool = (await import("../src/lib/db.server.ts")).db();
-  for (const migration of ["001_auth", "002_cash_flow", "003_access_audit", "004_companies"])
+  for (const migration of [
+    "001_auth",
+    "002_cash_flow",
+    "003_access_audit",
+    "004_companies",
+    "011_cash_chart_links",
+  ])
     await pool.query(
       readFileSync(new URL("../database/" + migration + ".sql", import.meta.url), "utf8"),
     );

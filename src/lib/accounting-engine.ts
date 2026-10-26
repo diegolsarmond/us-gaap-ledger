@@ -1281,7 +1281,7 @@ export function createAccountingEngine(
 
   const addAccount = (acct: Account) => {
     if (currentData.accounts.some((a) => a.code.toLowerCase() === acct.code.toLowerCase()))
-      throw new Error("Já existe uma conta contábil com este código nesta empresa.");
+      throw new Error("An account with this code already exists for this company.");
     updateCompanyData((prev) => ({
       ...prev,
       accounts: [...prev.accounts, acct],
@@ -1296,13 +1296,13 @@ export function createAccountingEngine(
 
   const updateAccount = (code: string, data: Omit<Account, "code">) => {
     const existing = currentData.accounts.find((a) => a.code === code);
-    if (!existing) throw new Error("Conta contábil não encontrada nesta empresa.");
+    if (!existing) throw new Error("Account not found for this company.");
     if (
       currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) &&
       (existing.type !== data.type || existing.balanceType !== data.balanceType)
     )
       throw new Error(
-        "Contas com lançamentos não podem mudar de classificação ou natureza. Crie uma nova conta.",
+        "Accounts with journal entries cannot change classification or normal balance. Create a new account.",
       );
     updateCompanyData((prev) => ({
       ...prev,
@@ -1313,7 +1313,7 @@ export function createAccountingEngine(
 
   const deleteAccount = (code: string) => {
     if (!currentData.accounts.some((a) => a.code === code))
-      throw new Error("Conta contábil não encontrada nesta empresa.");
+      throw new Error("Account not found for this company.");
     const used =
       currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) ||
       currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
@@ -1322,7 +1322,8 @@ export function createAccountingEngine(
       [...currentData.expenseCategories, ...currentData.taxJurisdictions].some(
         (p) => p.glAccountCode === code,
       );
-    if (used) throw new Error("Esta conta possui lançamentos ou vínculos e não pode ser excluída.");
+    if (used)
+      throw new Error("This account has journal entries or linked records and cannot be deleted.");
     updateCompanyData((prev) => ({
       ...prev,
       accounts: prev.accounts.filter((a) => a.code !== code),

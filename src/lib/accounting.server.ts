@@ -53,6 +53,22 @@ export async function load(companyId: string) {
     client.release();
   }
 }
+export async function cashAccountLinks(
+  companyId: string,
+): Promise<
+  { code: string; cashAccounts: number; actual: number; planned: number; cancelled: number }[]
+> {
+  await authorizeCompany(companyId);
+  const result = await db().query(
+    `SELECT code,sum(banks)::int AS "cashAccounts",sum(actual)::int AS actual,sum(planned)::int AS planned,sum(cancelled)::int AS cancelled FROM (
+    SELECT gl_account_code AS code,count(*) AS banks,0 AS actual,0 AS planned,0 AS cancelled FROM cash_accounts WHERE company_id=$1 AND gl_account_code IS NOT NULL GROUP BY gl_account_code
+    UNION ALL
+    SELECT gl_account_code AS code,0 AS banks,count(*) FILTER(WHERE status='paid') AS actual,count(*) FILTER(WHERE status='planned') AS planned,count(*) FILTER(WHERE status='cancelled') AS cancelled FROM cash_transactions WHERE company_id=$1 AND gl_account_code IS NOT NULL GROUP BY gl_account_code
+  ) links GROUP BY code ORDER BY code`,
+    [companyId],
+  );
+  return result.rows;
+}
 
 export function validateState(state: CompanyState) {
   const accounts = new Set(state.accounts.map((a) => a.code));
@@ -190,6 +206,37 @@ export async function execute(input: {
       );
     await setActor(client, auth.user.id);
     const state = await readState(input.companyId, client);
+    if (command === "deleteAccount" || command === "updateAccount") {
+      const code = String(args[0]);
+      const linked = await client.query(
+        `SELECT
+        EXISTS(SELECT 1 FROM cash_accounts WHERE company_id=$1 AND gl_account_code=$2) AS bank,
+        EXISTS(SELECT 1 FROM cash_transactions WHERE company_id=$1 AND gl_account_code=$2) AS movement,
+        EXISTS(SELECT 1 FROM cash_transactions WHERE company_id=$1 AND gl_account_code=$2 AND status='paid') AS actual`,
+        [input.companyId, code],
+      );
+      const usage = linked.rows[0];
+      if (command === "deleteAccount" && (usage.bank || usage.movement))
+        throw new Error(
+          "Esta conta está vinculada ao fluxo de caixa ou forecast e não pode ser excluída.",
+        );
+      if (command === "updateAccount") {
+        const changes = args[1] as { type: string; balanceType: string };
+        const previous = state.accounts.find((a) => a.code === code);
+        if (usage.bank && changes.type !== "Asset")
+          throw new Error(
+            "Contas vinculadas a caixa/banco devem permanecer classificadas como Asset.",
+          );
+        if (
+          usage.actual &&
+          previous &&
+          (previous.type !== changes.type || previous.balanceType !== changes.balanceType)
+        )
+          throw new Error(
+            "Contas com movimentos de caixa realizados não podem mudar de classificação ou natureza.",
+          );
+      }
+    }
     const engine = createAccountingEngine(
       state,
       auth.company,

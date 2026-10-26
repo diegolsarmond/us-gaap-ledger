@@ -113,6 +113,7 @@ try {
     await connection.query(readFileSync(new URL("../database/007_cash_categories.sql", import.meta.url),"utf8"));
   }
   await connection.query(readFileSync(new URL("../database/010_cash_flow_management.sql", import.meta.url), "utf8"));
+  await connection.query(readFileSync(new URL("../database/011_cash_chart_links.sql", import.meta.url), "utf8"));
   const companies = await import("../src/lib/companies.server.ts");
   const accounting = await import("../src/lib/accounting.server.ts");
   const adminService = await import("../src/lib/admin.server.ts");
@@ -296,6 +297,7 @@ try {
   await cash.saveAccount({
     companyId: a,
     name: "Bank",
+    gl_account_code: "1000",
     currency: "USD",
     opening_date: "2026-10-01",
     opening_balance: 0,
@@ -319,6 +321,7 @@ try {
     companyId: a,
     account_id: bank.id,
     description: "Real",
+    gl_account_code: "4000",
     cash_flow_line: "customers",
     variance_note: "",
     category: "Sales",

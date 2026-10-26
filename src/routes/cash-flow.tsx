@@ -132,6 +132,7 @@ function CashFlowPage() {
   const modal = useModal();
   const accounts = query.data?.accounts ?? [];
   const categories = query.data?.categories ?? [];
+  const glAccounts = query.data?.glAccounts ?? [];
   const selectedCurrency =
     accounts.find((a) => a.id === entryAccount)?.currency ?? filteredCurrency();
   function filteredCurrency() {
@@ -187,6 +188,7 @@ function CashFlowPage() {
     try {
       await action();
       await queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
+      await queryClient.invalidateQueries({ queryKey: ["cash-flow-links"] });
       if (continueEntryRef.current) {
         const entryForm = entryFormRef.current;
         entryForm?.reset();
@@ -227,6 +229,7 @@ function CashFlowPage() {
             currency: String(f.get("currency")) as "USD" | "BRL" | "EUR",
             opening_date: String(f.get("opening_date")),
             opening_balance: Number(openingBalanceCents) / 100,
+            gl_account_code: String(f.get("gl_account_code") ?? "") || null,
           },
         }),
       editingAccount ? "Account updated." : "Account created.",
@@ -251,6 +254,7 @@ function CashFlowPage() {
       status,
       cash_flow_line: cashFlowLine,
       variance_note: String(f.get("variance_note") ?? ""),
+      gl_account_code: String(f.get("gl_account_code") ?? "") || null,
     });
     if (!parsed.success) {
       setError(parsed.error.issues.map((issue) => issue.message).join(" "));
@@ -409,6 +413,21 @@ function CashFlowPage() {
                           className={control}
                         />
                       </Field>
+                      <Field label="Linked cash / bank GL account (Asset)">
+                        <SearchableSelect
+                          label="Cash GL account"
+                          name="gl_account_code"
+                          defaultValue={editingAccount?.gl_account_code ?? ""}
+                          required
+                          placeholder="Select an Asset account"
+                          options={glAccounts
+                            .filter((a) => a.type === "Asset")
+                            .map((a) => ({ value: a.code, label: `${a.code} · ${a.name}` }))}
+                        />
+                        <Link to="/accounts" className="text-brand underline">
+                          Manage Chart of Accounts
+                        </Link>
+                      </Field>
                       <Field label="Currency">
                         <select
                           name="currency"
@@ -541,6 +560,28 @@ function CashFlowPage() {
                           )}
                         />
                         {!categories.length && <span>Add a category in System Parameters.</span>}
+                      </Field>
+                      <Field label="GL counterpart account · actual / forecast">
+                        <SearchableSelect
+                          label="GL counterpart account"
+                          name="gl_account_code"
+                          defaultValue={editing?.gl_account_code ?? ""}
+                          required
+                          placeholder="Select an accounting account"
+                          options={glAccounts.map((a) => ({
+                            value: a.code,
+                            label: `${a.code} · ${a.name} · ${a.type}`,
+                          }))}
+                        />
+                        <span>
+                          Account associated with this receipt/payment or forecast. Forecasts do not
+                          post journal entries.
+                        </span>
+                        {!glAccounts.length && (
+                          <Link to="/accounts" className="block text-brand underline">
+                            Create your Chart of Accounts first
+                          </Link>
+                        )}
                       </Field>
                       <Field label="Amount in account currency">
                         <input
@@ -756,6 +797,16 @@ function CashFlowPage() {
               transactions do not affect balances.
             </p>
           </Panel>
+          {(filteredAccounts.some((a) => !a.gl_account_code) ||
+            filteredTransactions.some((t) => !t.gl_account_code)) && (
+            <p
+              role="status"
+              className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              Some existing cash accounts or transactions are not linked to Chart of Accounts. Edit
+              them to select the correct GL account; no historical mapping has been assumed.
+            </p>
+          )}
           {!validRange ? (
             <p role="alert" className="text-red-700">
               Enter a valid period of up to five years.
@@ -880,6 +931,13 @@ function CashFlowPage() {
                           <span className="text-xs text-ink3">{t.category}</span>
                           <br />
                           <span className="text-xs text-ink3">
+                            GL:{" "}
+                            {t.gl_account_code
+                              ? `${t.gl_account_code} · ${glAccounts.find((a) => a.code === t.gl_account_code)?.name ?? ""}`
+                              : "Not linked"}
+                          </span>
+                          <br />
+                          <span className="text-xs text-ink3">
                             {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
                           </span>
                           {t.variance_note && (
@@ -955,6 +1013,7 @@ function CashFlowPage() {
                 <tr>
                   <Th>Account</Th>
                   <Th>Currency</Th>
+                  <Th>Linked GL account</Th>
                   <Th>Opening date</Th>
                   <Th align="right">Opening balance</Th>
                   <Th>Actions</Th>
@@ -965,6 +1024,11 @@ function CashFlowPage() {
                   <tr key={a.id} className="border-t border-line">
                     <Td>{a.name}</Td>
                     <Td>{a.currency}</Td>
+                    <Td>
+                      {a.gl_account_code
+                        ? `${a.gl_account_code} · ${glAccounts.find((gl) => gl.code === a.gl_account_code)?.name ?? ""}`
+                        : "Not linked"}
+                    </Td>
                     <Td>{a.opening_date}</Td>
                     <Td align="right">
                       {new Intl.NumberFormat("en-US", {

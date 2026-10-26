@@ -78,6 +78,20 @@ try {
   );
   await pool.query(sql);
   await pool.query(sql);
+  const linksMigration = readFileSync(
+    new URL("../database/011_cash_chart_links.sql", import.meta.url),
+    "utf8",
+  );
+  await pool.query(linksMigration);
+  await pool.query(linksMigration);
+  for (const data of [
+    { code: "1000", name: "Bank", type: "Asset", balanceType: "Debit", description: "" },
+    { code: "4000", name: "Sales", type: "Revenue", balanceType: "Credit", description: "" },
+  ])
+    await pool.query(
+      "INSERT INTO ledger_accounts(company_id,id,position,data) VALUES($1,$2,0,$3)",
+      [company, data.code, data],
+    );
   const service = await import("../src/lib/cash-flow.server.ts");
   assert.equal((await service.load(company)).transactions[0].forecast_amount, 100);
   const input = {
@@ -93,12 +107,14 @@ try {
     paid_date: "2026-10-12",
     cash_flow_line: "customers",
     variance_note: "Delayed and discounted",
+    gl_account_code: "4000",
   };
   await service.saveTransaction(input);
   let saved = (await service.load(company)).transactions.find((t) => t.id === legacy);
   assert.equal(saved.forecast_amount, 100);
   assert.equal(saved.forecast_date, "2026-10-01");
   assert.equal(saved.amount, 80);
+  assert.equal(saved.gl_account_code, "4000");
   await assert.rejects(service.removeTransaction(legacy, company), /Cancel forecasted/);
   await service.saveTransaction({ ...input, status: "cancelled", paid_date: null });
   saved = (await service.load(company)).transactions.find((t) => t.id === legacy);
@@ -109,6 +125,108 @@ try {
       .forecast_amount,
     null,
   );
+  const bank = {
+    id: account,
+    companyId: company,
+    name: "Test",
+    currency: "USD",
+    opening_date: "2026-01-01",
+    opening_balance: 1000,
+    gl_account_code: "1000",
+  };
+  await service.saveAccount(bank);
+  await assert.rejects(service.saveAccount({ ...bank, gl_account_code: "4000" }), /Asset/);
+  const other = (
+    await pool.query('INSERT INTO companies(data) VALUES(\'{"name":"Other"}\') RETURNING id')
+  ).rows[0].id;
+  await pool.query(
+    "INSERT INTO ledger_accounts(company_id,id,position,data) VALUES($1,'9999',0,$2)",
+    [
+      other,
+      {
+        code: "9999",
+        name: "Other sales",
+        type: "Revenue",
+        balanceType: "Credit",
+        description: "",
+      },
+    ],
+  );
+  await assert.rejects(
+    service.saveTransaction({ ...input, gl_account_code: "9999" }),
+    /does not belong/,
+  );
+  await assert.rejects(
+    pool.query("UPDATE cash_transactions SET gl_account_code='9999' WHERE id=$1", [legacy]),
+    (error) => error.code === "23503",
+  );
+  await assert.rejects(
+    pool.query("DELETE FROM ledger_accounts WHERE company_id=$1 AND id='1000'", [company]),
+    (error) => error.code === "23503",
+  );
+  const accounting = await import("../src/lib/accounting.server.ts");
+  await assert.rejects(
+    accounting.execute({
+      companyId: company,
+      revision: 0,
+      command: "deleteAccount",
+      args: ["4000"],
+    }),
+    /forecast/,
+  );
+  await assert.rejects(
+    accounting.execute({
+      companyId: company,
+      revision: 0,
+      command: "updateAccount",
+      args: [
+        "1000",
+        { name: "Invalid", type: "Liability", balanceType: "Credit", description: "" },
+      ],
+    }),
+    /Asset/,
+  );
+  await accounting.execute({
+    companyId: company,
+    revision: 0,
+    command: "updateAccount",
+    args: ["1000", { name: "Linked bank", type: "Asset", balanceType: "Debit", description: "" }],
+  });
+  assert.equal((await service.load(company)).accounts[0].gl_account_code, "1000");
+  await service.saveTransaction({
+    ...input,
+    id: undefined,
+    description: "Future sale",
+    status: "planned",
+    paid_date: null,
+    amount: 150,
+  });
+  const forecast = (await service.load(company)).transactions.find(
+    (t) => t.description === "Future sale",
+  );
+  await service.saveTransaction({
+    ...forecast,
+    companyId: company,
+    status: "paid",
+    paid_date: "2026-10-20",
+    amount: 140,
+  });
+  const settled = (await service.load(company)).transactions.find((t) => t.id === forecast.id);
+  assert.equal(settled.gl_account_code, "4000");
+  assert.equal(settled.forecast_amount, 150);
+  assert.equal(settled.amount, 140);
+  assert.equal(
+    (
+      await pool.query("SELECT count(*)::int AS n FROM ledger_journals WHERE company_id=$1", [
+        company,
+      ])
+    ).rows[0].n,
+    0,
+  );
+  const usage = (await accounting.cashAccountLinks(company)).find((l) => l.code === "4000");
+  assert.equal(usage.actual, 2);
+  assert.equal(usage.cancelled, 1);
+  assert.equal(usage.planned, 0);
   const scope = {
     companyId: company,
     start: "2026-10-01",

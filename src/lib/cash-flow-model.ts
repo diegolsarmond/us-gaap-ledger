@@ -77,6 +77,7 @@ export const accountSchema = z.object({
   currency: z.enum(["USD", "BRL", "EUR"]),
   opening_date: dateSchema,
   opening_balance: money.min(-999999999999.99),
+  gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
 });
 export const cashCategorySchema = z.object({
   id: z.string().uuid().optional(),
@@ -97,6 +98,7 @@ export const transactionSchema = z
     status: z.enum(["planned", "paid", "cancelled"]),
     cash_flow_line: cashFlowLineSchema.default("unclassified"),
     variance_note: z.string().trim().max(1000).default(""),
+    gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
   })
   .refine(
     (t) =>
@@ -123,6 +125,7 @@ export type CashData = {
   accounts: CashAccount[];
   transactions: CashTransaction[];
   categories: CashCategory[];
+  glAccounts: { code: string; name: string; type: string; balanceType: "Debit" | "Credit" }[];
 };
 export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 export const reconciliationScopeSchema = z.object({
