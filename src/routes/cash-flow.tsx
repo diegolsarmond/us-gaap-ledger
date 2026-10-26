@@ -295,6 +295,9 @@ function CashFlowPage() {
         description="US GAAP cash flow management · operating, investing and financing · weekly forecast vs. actual."
         actions={
           <>
+            <Link to="/accounts" className={button}>
+              Chart of Accounts
+            </Link>
             <Link to="/parameters/cash-categories" className={button}>
               Categories
             </Link>

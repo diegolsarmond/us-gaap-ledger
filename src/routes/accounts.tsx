@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type AccountType } from "@/lib/accounting-store";
+import { useAccounting, type Account, type AccountType } from "@/lib/accounting-store";
+import { account as accountSchema } from "@/lib/accounting-model";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { usd, dash, exportToCsv } from "@/lib/format";
+import { usd, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { ArrowLeft, Plus, Search } from "lucide-react";
@@ -18,7 +19,17 @@ export const Route = createFileRoute("/accounts")({
 
 function AccountsPage() {
   const modal = useModal();
-  const { activeCompany, accounts, accountBalances, addAccount, userPersona } = useAccounting();
+  const {
+    activeCompany,
+    accounts,
+    accountBalances,
+    addAccount,
+    updateAccount,
+    deleteAccount,
+    userPersona,
+  } = useAccounting();
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   // Screen View Mode: "list" | "create"
   const [view, setView] = useState<"list" | "create">("list");
@@ -32,13 +43,55 @@ function AccountsPage() {
   const [newBalanceType, setNewBalanceType] = useState<"Debit" | "Credit">("Debit");
   const [newDescription, setNewDescription] = useState("");
 
+  function openForm(existing?: Account) {
+    setEditingCode(existing?.code ?? null);
+    setNewCode(existing?.code ?? "");
+    setNewName(existing?.name ?? "");
+    setNewType(existing?.type ?? "Operating Expense");
+    setNewBalanceType(existing?.balanceType ?? "Debit");
+    setNewDescription(existing?.description ?? "");
+    setError("");
+    setView("create");
+  }
+
+  async function removeAccount(existing: Account) {
+    const confirmed = await modal.showConfirm({
+      title: "Excluir conta contábil?",
+      message: `Excluir ${existing.code} — ${existing.name}? Contas com lançamentos ou vínculos não podem ser excluídas.`,
+      tone: "error",
+      confirmText: "Excluir",
+      cancelText: "Cancelar",
+    });
+    if (!confirmed) return;
+    setError("");
+    try {
+      await deleteAccount(existing.code);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível excluir a conta.");
+    }
+  }
+
   const handleCreateAccount = async (e: React.FormEvent) => {
     try {
       e.preventDefault();
-      if (!newCode || !newName) return;
+      setError("");
+      const parsed = accountSchema.safeParse({
+        code: newCode,
+        name: newName,
+        type: newType,
+        balanceType: newBalanceType,
+        description: newDescription.trim(),
+      });
+      if (!parsed.success) {
+        setError(parsed.error.issues.map((issue) => issue.message).join(" "));
+        return;
+      }
 
       // Check duplicate
-      if (accounts.some((a) => a.code.trim() === newCode.trim())) {
+      if (
+        !editingCode &&
+        accounts.some((a) => a.code.trim().toLowerCase() === newCode.trim().toLowerCase())
+      ) {
         await modal.showAlert({
           title: "Código de Conta Duplicado",
           message: `Já existe uma conta contábil registrada com o código "${newCode}". Por favor, utilize um código único no plano de contas.`,
@@ -47,13 +100,10 @@ function AccountsPage() {
         return;
       }
 
-      await addAccount({
-        code: newCode.trim(),
-        name: newName.trim(),
-        type: newType,
-        balanceType: newBalanceType,
-        description: newDescription.trim(),
-      });
+      if (editingCode) {
+        const { code: _, ...changes } = parsed.data;
+        await updateAccount(editingCode, changes);
+      } else await addAccount(parsed.data);
 
       const createdCode = newCode;
       const createdName = newName;
@@ -64,12 +114,12 @@ function AccountsPage() {
       setView("list");
 
       await modal.showAlert({
-        title: "Conta Adicionada com Sucesso",
+        title: editingCode ? "Conta atualizada" : "Conta cadastrada",
         message: `A conta contábil "${createdCode} — ${createdName}" foi integrada ao Plano de Contas da empresa ${activeCompany.name}.`,
         tone: "success",
       });
-    } catch {
-      /* The company provider displays the server error and preserves the form. */
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível salvar a conta.");
     }
   };
 
@@ -101,6 +151,7 @@ function AccountsPage() {
     "Revenue",
     "COGS",
     "Operating Expense",
+    "Other Income",
     "Other Expense",
   ];
 
@@ -115,6 +166,14 @@ function AccountsPage() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        >
+          {error}
+        </p>
+      )}
       {view === "list" ? (
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
@@ -122,9 +181,15 @@ function AccountsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
               title="Chart of Accounts (COA)"
-              description={`General ledger master structure for ${activeCompany.name} · US GAAP Standard`}
+              description={`Plano de contas de ${activeCompany.name} · dados salvos no banco de dados`}
             />
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <Link
+                to="/cash-flow"
+                className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs transition-colors"
+              >
+                Cash Flow & Forecast
+              </Link>
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -135,7 +200,7 @@ function AccountsPage() {
               {userPersona.canCreateJournals && (
                 <button
                   type="button"
-                  onClick={() => setView("create")}
+                  onClick={() => openForm()}
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Plus className="size-4" />
@@ -190,13 +255,19 @@ function AccountsPage() {
                     <Th>Normal Bal</Th>
                     <Th>Accounting Scope</Th>
                     <Th align="right">Current Net Balance</Th>
+                    {userPersona.canCreateJournals && <Th>Actions</Th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAccounts.length === 0 ? (
                     <tr>
-                      <Td colSpan={6} className="py-8 text-center text-[12px] text-ink3">
-                        Nenhuma conta encontrada para o filtro selecionado.
+                      <Td
+                        colSpan={userPersona.canCreateJournals ? 7 : 6}
+                        className="py-8 text-center text-[12px] text-ink3"
+                      >
+                        {accounts.length
+                          ? "Nenhuma conta encontrada para o filtro selecionado."
+                          : "Nenhuma conta cadastrada para esta empresa. Cadastre a primeira conta para começar; não há dados demonstrativos."}
                       </Td>
                     </tr>
                   ) : (
@@ -235,6 +306,26 @@ function AccountsPage() {
                           <Td align="right" className="font-mono text-[12px] font-medium text-ink">
                             {usd(net)}
                           </Td>
+                          {userPersona.canCreateJournals && (
+                            <Td>
+                              <div className="flex gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => openForm(a)}
+                                  className="text-brand underline"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void removeAccount(a)}
+                                  className="text-red-700 underline"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </Td>
+                          )}
                         </tr>
                       );
                     })
@@ -244,10 +335,10 @@ function AccountsPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP Classification Standard: 1000s = Assets, 2000s = Liabilities, 3000s =
-                Equity, 4000s = Revenue, 5000s = Cost of Goods Sold, 6000s = Operating &
-                Administrative Expenses. Sub-accounts inherit the normal balance polarity of their
-                master group.
+                Os códigos são definidos pela empresa. A numeração 1000–6000 é apenas uma sugestão
+                de organização. Os saldos são calculados a partir dos lançamentos contábeis
+                persistidos, incluindo estornos. Contas bancárias e categorias do fluxo de caixa são
+                cadastros separados deste plano de contas.
               </Note>
             </div>
           </Panel>
@@ -267,7 +358,9 @@ function AccountsPage() {
                 Voltar para a Listagem
               </button>
               <div>
-                <h1 className="text-[16px] font-semibold text-ink">Cadastrar Conta Contábil</h1>
+                <h1 className="text-[16px] font-semibold text-ink">
+                  {editingCode ? "Editar Conta Contábil" : "Cadastrar Conta Contábil"}
+                </h1>
                 <p className="text-[12px] text-ink3">
                   Configuração de nova conta contábil no Razão da empresa {activeCompany.name}
                 </p>
@@ -277,7 +370,7 @@ function AccountsPage() {
 
           <Panel
             title="Dados da Conta Contábil"
-            subtitle="Preencha os dados normatizados conforme a estrutura US GAAP"
+            subtitle="Cadastro por empresa, com validação e auditoria das alterações"
           >
             <form onSubmit={handleCreateAccount} className="p-6 space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -288,12 +381,15 @@ function AccountsPage() {
                   <input
                     type="text"
                     value={newCode}
+                    readOnly={editingCode !== null}
+                    maxLength={120}
                     onChange={(e) => setNewCode(e.target.value)}
                     placeholder="Ex: 6250 ou 1050"
                     required
                     className="w-full rounded-md bg-canvas px-3 py-2 font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
                   />
                   <p className="mt-1 text-[10.5px] text-ink3">
+                    {editingCode && "O código não pode ser alterado para preservar os vínculos. "}
                     Recomendado: 1000s (Ativo), 2000s (Passivo), 3000s (Patrimônio), 4000s
                     (Receita), 5000s (CPV), 6000s (Despesas).
                   </p>
@@ -321,6 +417,7 @@ function AccountsPage() {
                 <input
                   type="text"
                   value={newName}
+                  maxLength={120}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Ex: Software & Cloud Subscriptions, Seguro Empresarial..."
                   required
@@ -362,6 +459,7 @@ function AccountsPage() {
                   <option value="Other Expense">
                     Other Expense — Outras Despesas e Tributos (6300s)
                   </option>
+                  <option value="Other Income">Other Income — Outras Receitas</option>
                 </select>
               </div>
 
@@ -371,6 +469,7 @@ function AccountsPage() {
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={2000}
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   placeholder="Defina o propósito das transações destinadas a esta conta contábil..."

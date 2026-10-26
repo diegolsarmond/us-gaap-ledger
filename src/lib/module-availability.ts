@@ -2,6 +2,7 @@
 const availableModulePaths = new Set([
   "/companies",
   "/cash-flow",
+  "/accounts",
   "/parameters/cash-categories",
   "/access",
   "/users",

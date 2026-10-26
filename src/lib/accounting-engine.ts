@@ -314,6 +314,8 @@ export interface AccountingContextType {
 
   accounts: Account[];
   addAccount: (account: Account) => void;
+  updateAccount: (code: string, data: Omit<Account, "code">) => void;
+  deleteAccount: (code: string) => void;
 
   journals: JournalEntry[];
   postJournalEntry: (entry: {
@@ -1278,6 +1280,8 @@ export function createAccountingEngine(
   };
 
   const addAccount = (acct: Account) => {
+    if (currentData.accounts.some((a) => a.code.toLowerCase() === acct.code.toLowerCase()))
+      throw new Error("Já existe uma conta contábil com este código nesta empresa.");
     updateCompanyData((prev) => ({
       ...prev,
       accounts: [...prev.accounts, acct],
@@ -1288,6 +1292,42 @@ export function createAccountingEngine(
       acct.code,
       `Added account ${acct.code} — ${acct.name} (${acct.type}).`,
     );
+  };
+
+  const updateAccount = (code: string, data: Omit<Account, "code">) => {
+    const existing = currentData.accounts.find((a) => a.code === code);
+    if (!existing) throw new Error("Conta contábil não encontrada nesta empresa.");
+    if (
+      currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) &&
+      (existing.type !== data.type || existing.balanceType !== data.balanceType)
+    )
+      throw new Error(
+        "Contas com lançamentos não podem mudar de classificação ou natureza. Crie uma nova conta.",
+      );
+    updateCompanyData((prev) => ({
+      ...prev,
+      accounts: prev.accounts.map((a) => (a.code === code ? { ...data, code } : a)),
+    }));
+    addAuditLog("UPDATE_ACCOUNT", "Account", code, `Updated account ${code} — ${data.name}.`);
+  };
+
+  const deleteAccount = (code: string) => {
+    if (!currentData.accounts.some((a) => a.code === code))
+      throw new Error("Conta contábil não encontrada nesta empresa.");
+    const used =
+      currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) ||
+      currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
+      currentData.statements.some((s) => s.accountCode === code) ||
+      currentData.stagingRows.some((s) => s.classifiedAccount === code) ||
+      [...currentData.expenseCategories, ...currentData.taxJurisdictions].some(
+        (p) => p.glAccountCode === code,
+      );
+    if (used) throw new Error("Esta conta possui lançamentos ou vínculos e não pode ser excluída.");
+    updateCompanyData((prev) => ({
+      ...prev,
+      accounts: prev.accounts.filter((a) => a.code !== code),
+    }));
+    addAuditLog("DELETE_ACCOUNT", "Account", code, `Deleted unused account ${code}.`);
   };
 
   // --- CRUD de Parâmetros ---
@@ -1651,6 +1691,8 @@ export function createAccountingEngine(
       userPersona,
       accounts: currentData.accounts,
       addAccount,
+      updateAccount,
+      deleteAccount,
       journals: currentData.journals,
       postJournalEntry,
       reverseJournalEntry,

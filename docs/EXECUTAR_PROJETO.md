@@ -55,7 +55,7 @@ No Easypanel, configure DATABASE_URL nas variáveis do serviço e use o Dockerfi
 
 O PostgreSQL armazena usuários, hashes de senha scrypt, sessões (somente hash do token) e controle de tentativas de login (dez por e-mail a cada quinze minutos). Cookies são HttpOnly e SameSite=Lax, e as ações de login/logout usam a proteção CSRF do TanStack Start.
 
-Os módulos contábeis existentes continuam sendo um protótipo com dados de demonstração e persistência local no navegador. Estes scripts NÃO implementam persistência contábil, segregação por cliente ou autorização por função no servidor. Todos os usuários cadastrados acessam o mesmo protótipo. Não use dados reais de múltiplos clientes antes de implementar essa camada.
+O plano de contas utiliza PostgreSQL com segregação por empresa e autorização no servidor, por meio da migração `004_companies.sql`. Consulte [Chart of Accounts](CHART_OF_ACCOUNTS.md) para cadastro, edição, exclusão e proteção de contas utilizadas. Os módulos liberados aparecem como links ativos no menu; cadastros de empresas novas começam vazios.
 
 Para desativar um acesso e revogar sessões, execute comandos parametrizados na ferramenta administrativa, ou substitua o e-mail no exemplo SQL:
 

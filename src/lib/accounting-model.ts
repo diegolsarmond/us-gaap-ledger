@@ -6,8 +6,8 @@ const text = z.string().max(2000),
 const status = z.enum(["Active", "Inactive"]);
 const projectId = key.optional();
 export const account = z.object({
-  code: key,
-  name: key,
+  code: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(120),
   type: z.enum([
     "Asset",
     "Liability",
@@ -193,6 +193,8 @@ export const period = z.object({
 });
 export const commandArgs = {
   addAccount: z.tuple([account]),
+  updateAccount: z.tuple([key, account.omit({ code: true })]),
+  deleteAccount: z.tuple([key]),
   postJournalEntry: z.tuple([journalInput]),
   reverseJournalEntry: z.tuple([key, text.min(5)]),
   togglePeriodLock: z.tuple([text.optional()]),

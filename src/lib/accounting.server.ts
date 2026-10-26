@@ -231,9 +231,24 @@ export async function execute(input: {
       "UPDATE companies SET revision=revision+1,cost_method=$2,period_closed=$3,active_period=$4 WHERE id=$1 RETURNING revision",
       [input.companyId, company.costMethod, company.isPeriodClosed, company.activePeriod],
     );
+    const accountCommand = ["addAccount", "updateAccount", "deleteAccount"].includes(command);
+    const accountCode = accountCommand
+      ? command === "addAccount"
+        ? (args[0] as { code: string }).code
+        : String(args[0])
+      : null;
     await client.query(
-      "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,'Accounting',$4,$5)",
-      [auth.user.id, auth.user.name, command, input.companyId, input.companyId],
+      "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+      [
+        auth.user.id,
+        auth.user.name,
+        command,
+        accountCommand ? "Account" : "Accounting",
+        accountCode ?? input.companyId,
+        input.companyId,
+        accountCode ? (state.accounts.find((a) => a.code === accountCode) ?? null) : null,
+        accountCode ? (next.accounts.find((a) => a.code === accountCode) ?? null) : null,
+      ],
     );
     await client.query("COMMIT");
     return {
