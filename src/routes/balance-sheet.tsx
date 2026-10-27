@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { reportRows } from "@/lib/financial-report";
 import { PageTitle, Panel, Table, Td, Th, Note } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
@@ -11,7 +11,11 @@ export const Route = createFileRoute("/balance-sheet")({
       "Classified Balance Sheet · LedgerX",
       "Company chart of accounts and classified balances.",
     ),
-  component: BalanceSheetPage,
+  component: () => (
+    <AccountingProvider>
+      <BalanceSheetPage />
+    </AccountingProvider>
+  ),
 });
 function BalanceSheetPage() {
   const { activeCompany, accounts, journals } = useAccounting();

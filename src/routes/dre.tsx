@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { reportRows } from "@/lib/financial-report";
 import { PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
@@ -11,7 +11,11 @@ export const Route = createFileRoute("/dre")({
       "Income Statement · LedgerX",
       "Revenue, COGS, operating expenses and other income and expenses.",
     ),
-  component: IncomeStatementPage,
+  component: () => (
+    <AccountingProvider>
+      <IncomeStatementPage />
+    </AccountingProvider>
+  ),
 });
 function IncomeStatementPage() {
   const { activeCompany, accounts, journals, projects } = useAccounting();

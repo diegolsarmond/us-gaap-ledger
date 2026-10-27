@@ -1,7 +1,7 @@
 import { parseStatementCsv } from "@/lib/statement-csv";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/statements")({
       "Bank Statements & Staging Feed · LedgerX",
       "Import bank transactions from CSV files with accountant staging and classification workflows.",
     ),
-  component: StatementsPage,
+  component: () => (
+    <AccountingProvider>
+      <StatementsPage />
+    </AccountingProvider>
+  ),
 });
 
 function StatementsPage() {

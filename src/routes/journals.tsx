@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type JournalEntry } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting, type JournalEntry } from "@/lib/accounting-store";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { dash, formatDate, acct, exportToCsv, usd } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/journals")({
       "General Ledger & Double-Entry Journals · LedgerX",
       "Immutable double-entry transaction journals with debit/credit balance validation and audit trail logging.",
     ),
-  component: JournalsPage,
+  component: () => (
+    <AccountingProvider>
+      <JournalsPage />
+    </AccountingProvider>
+  ),
 });
 
 function JournalsPage() {

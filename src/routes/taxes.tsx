@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -12,7 +12,11 @@ export const Route = createFileRoute("/taxes")({
       "Sales Tax Collection & Filing · LedgerX",
       "State and county sales tax collection summary, taxable versus exempt proceeds, and payment receipt archives.",
     ),
-  component: TaxesPage,
+  component: () => (
+    <AccountingProvider>
+      <TaxesPage />
+    </AccountingProvider>
+  ),
 });
 
 function TaxesPage() {
@@ -36,7 +40,8 @@ function TaxesPage() {
   const totalExemptSales = invoices.filter((i) => i.taxExempt).reduce((s, i) => s + i.subtotal, 0);
 
   const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
-  const salesTaxPayableBalance = (accountBalances["22100"]?.net || 0) + (accountBalances["2200"]?.net || 0);
+  const salesTaxPayableBalance =
+    (accountBalances["22100"]?.net || 0) + (accountBalances["2200"]?.net || 0);
 
   const handleRemitPayment = async (taxId: string) => {
     try {

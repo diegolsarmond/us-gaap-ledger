@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, dash, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -10,7 +10,11 @@ export const Route = createFileRoute("/trial-balance")({
       "Adjusted Trial Balance · LedgerX",
       "US GAAP Trial Balance summarizing cumulative debit and credit ledger balances to prove double-entry mathematical equality.",
     ),
-  component: TrialBalancePage,
+  component: () => (
+    <AccountingProvider>
+      <TrialBalancePage />
+    </AccountingProvider>
+  ),
 });
 
 function TrialBalancePage() {

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -10,7 +10,11 @@ export const Route = createFileRoute("/receivables")({
       "Accounts Receivable Aging · LedgerX",
       "Aging schedule of customer receivables categorizing balances by days past invoice due date.",
     ),
-  component: ReceivablesPage,
+  component: () => (
+    <AccountingProvider>
+      <ReceivablesPage />
+    </AccountingProvider>
+  ),
 });
 
 function ReceivablesPage() {

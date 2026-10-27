@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import {
   vendorSchema,
   MAX_VENDOR_ATTACHMENT_BYTES,
@@ -15,7 +15,13 @@ import {
   removeVendorAttachment,
 } from "@/lib/vendor-attachments";
 
-export const Route = createFileRoute("/vendors")({ component: VendorsPage });
+export const Route = createFileRoute("/vendors")({
+  component: () => (
+    <AccountingProvider>
+      <VendorsPage />
+    </AccountingProvider>
+  ),
+});
 const groups: { title: string; fields: [keyof VendorInput, string][] }[] = [
   {
     title: "1. Basic information and contact",

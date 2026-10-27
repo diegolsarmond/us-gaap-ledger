@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import {
   customerSchema,
   MAX_ATTACHMENT_BYTES,
@@ -8,7 +8,13 @@ import {
   type CustomerInput,
 } from "@/lib/customer-model";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
-export const Route = createFileRoute("/customers")({ component: CustomersPage });
+export const Route = createFileRoute("/customers")({
+  component: () => (
+    <AccountingProvider>
+      <CustomersPage />
+    </AccountingProvider>
+  ),
+});
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 const button = "rounded-md bg-brand px-4 py-2 text-sm text-white disabled:opacity-50";
 const blankAddress = { street: "", city: "", state: "", zip: "", country: "" };

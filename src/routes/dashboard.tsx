@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { acct, dash, pct, usd, formatDate } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -10,7 +10,11 @@ export const Route = createFileRoute("/dashboard")({
       "Financial Operations Dashboard · LedgerX",
       "Real-time US GAAP financial ledger dashboard with double-entry audit trails and multi-currency tracking.",
     ),
-  component: Dashboard,
+  component: () => (
+    <AccountingProvider>
+      <Dashboard />
+    </AccountingProvider>
+  ),
 });
 
 function Dashboard() {

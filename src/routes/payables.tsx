@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, acct, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/payables")({
       "Accounts Payable & Multi-Currency · LedgerX",
       "Manage vendor obligations, currency exchange rates, foreign payables, and realized FX gain/loss entries under US GAAP.",
     ),
-  component: PayablesPage,
+  component: () => (
+    <AccountingProvider>
+      <PayablesPage />
+    </AccountingProvider>
+  ),
 });
 
 function PayablesPage() {
@@ -595,7 +599,13 @@ function PayablesPage() {
                       ))}
                   </optgroup>
                   <optgroup label="Estoque & Custos (Assets / COGS)">
-                    {accounts.filter(a => a.type === "COGS" || ["1300", "13000"].includes(a.code)).map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}
+                    {accounts
+                      .filter((a) => a.type === "COGS" || ["1300", "13000"].includes(a.code))
+                      .map((a) => (
+                        <option key={a.code} value={a.code}>
+                          {a.code} · {a.name}
+                        </option>
+                      ))}
                   </optgroup>
                 </select>
 

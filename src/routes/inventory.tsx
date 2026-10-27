@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/inventory")({
       "Inventory Catalog & Valuation · LedgerX",
       "Perpetual inventory tracking with FIFO and Weighted Average cost lots and periodic count variance adjustments.",
     ),
-  component: InventoryPage,
+  component: () => (
+    <AccountingProvider>
+      <InventoryPage />
+    </AccountingProvider>
+  ),
 });
 
 function InventoryPage() {

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAccounting, type InvoiceItem } from "@/lib/accounting-store";
+import { AccountingProvider, useAccounting, type InvoiceItem } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/invoices")({
       "Invoices & Accounts Receivable · LedgerX",
       "Issue US GAAP compliant customer invoices with automatic inventory relief, sales tax accrual, and subledger aging.",
     ),
-  component: InvoicesPage,
+  component: () => (
+    <AccountingProvider>
+      <InvoicesPage />
+    </AccountingProvider>
+  ),
 });
 
 function InvoicesPage() {

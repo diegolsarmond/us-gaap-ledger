@@ -14,7 +14,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AccountingProvider } from "@/lib/accounting-store";
 import { CompanyProvider, useCompanies } from "@/components/company-context";
 import { ModalProvider } from "@/components/modal-provider";
 import { CashShell } from "@/components/cash-shell";
@@ -180,11 +179,5 @@ function CompanyRoutes({ pathname }: { pathname: string }) {
         Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.
       </div>
     );
-  if (["/cash-flow", "/cash-flow/", "/accounts", "/accounts/"].includes(pathname))
-    return <Outlet key={activeCompany.id} />;
-  return (
-    <AccountingProvider key={activeCompany.id}>
-      <Outlet key={activeCompany.id} />
-    </AccountingProvider>
-  );
+  return <Outlet key={activeCompany.id} />;
 }
