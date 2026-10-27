@@ -45,6 +45,7 @@ try {
     "011_cash_chart_links",
     "012_vendors",
     "013_customers",
+    "014_us_gaap_coa",
   ])
     await pool.query(
       readFileSync(new URL("../database/" + migration + ".sql", import.meta.url), "utf8"),
@@ -74,6 +75,14 @@ try {
     return result;
   }
   assert.deepEqual((await service.load(a)).state.accounts, []);
+  await pool.query(readFileSync(new URL("../database/014_us_gaap_coa.sql", import.meta.url), "utf8"));
+  const installed = await service.execute({ companyId: b, revision: 0, command: "installUsGaapCoa", args: [] });
+  assert.equal(installed.state.accounts.length, 81);
+  assert.equal(installed.state.accounts.find(a => a.code === "15200").balanceType, "Credit");
+  assert.equal(installed.state.accounts.find(a => a.code === "30200").type, "Equity");
+  assert.equal((await pool.query("SELECT * FROM chart_of_accounts WHERE company_id=$1 AND account_code='50300'",[b])).rows[0].track_1099, true);
+  await assert.rejects(service.execute({ companyId: b, revision: installed.revision, command: "installUsGaapCoa", args: [] }), /empty chart/);
+
   const account = {
     code: "1000",
     name: "Bank",
@@ -85,7 +94,7 @@ try {
   let persisted = (await service.load(a)).state.accounts;
   assert.equal(persisted[0].code, "1000");
   assert.equal(persisted[0].name, "Bank");
-  assert.deepEqual((await service.load(b)).state.accounts, []);
+  assert.equal((await service.load(b)).state.accounts.length, 81);
   await assert.rejects(command("addAccount", [account]), /already exists|Já existe/);
   await assert.rejects(command("addAccount", [{ ...account, code: " " }]));
   const changes = {

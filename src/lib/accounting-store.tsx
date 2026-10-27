@@ -89,7 +89,8 @@ function CompanyAccounting({
             company: result.company,
             revision: result.revision,
           });
-          if (["addAccount", "updateAccount", "deleteAccount"].includes(command)) {
+          if (["installUsGaapCoa", "addAccount", "updateAccount", "deleteAccount"].includes(command)) {
+            await client.invalidateQueries({ queryKey: ["parameters", companyId] });
             await client.invalidateQueries({ queryKey: ["cash-flow", companyId] });
             await client.invalidateQueries({ queryKey: ["cash-flow-links", companyId] });
           }

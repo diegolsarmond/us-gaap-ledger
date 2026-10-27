@@ -98,9 +98,9 @@ function PayablesPage() {
             id: `bi-${Date.now()}`,
             description: `Fatura ${billNumber} — ${vendorName}`,
             accountCode,
-            isInventory: accountCode === "1300" && isInventory,
-            sku: accountCode === "1300" ? skuPurchased : undefined,
-            qty: accountCode === "1300" ? qtyPurchased : undefined,
+            isInventory: ["1300", "13000"].includes(accountCode) && isInventory,
+            sku: ["1300", "13000"].includes(accountCode) ? skuPurchased : undefined,
+            qty: ["1300", "13000"].includes(accountCode) ? qtyPurchased : undefined,
             amount: calculatedUsd,
             projectId: projectId || undefined,
           },
@@ -579,7 +579,7 @@ function PayablesPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setAccountCode(val);
-                    if (val === "1300") setIsInventory(true);
+                    if (["1300", "13000"].includes(val)) setIsInventory(true);
                     else setIsInventory(false);
                   }}
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono"
@@ -595,12 +595,11 @@ function PayablesPage() {
                       ))}
                   </optgroup>
                   <optgroup label="Estoque & Custos (Assets / COGS)">
-                    <option value="1300">1300 · Merchandise Inventory (Entrada de Estoque)</option>
-                    <option value="5000">5000 · Cost of Goods Sold (Custo Direto)</option>
+                    {accounts.filter(a => a.type === "COGS" || ["1300", "13000"].includes(a.code)).map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}
                   </optgroup>
                 </select>
 
-                {accountCode === "1300" && (
+                {["1300", "13000"].includes(accountCode) && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-line/60">
                     <div>
                       <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">

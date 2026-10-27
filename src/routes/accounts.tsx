@@ -38,6 +38,7 @@ function AccountsPage() {
     activeCompany,
     accounts,
     accountBalances,
+    installUsGaapCoa,
     addAccount,
     updateAccount,
     deleteAccount,
@@ -62,7 +63,29 @@ function AccountsPage() {
   const [newBalanceType, setNewBalanceType] = useState<"Debit" | "Credit">("Debit");
   const [newDescription, setNewDescription] = useState("");
 
+  const [details, setDetails] = useState<
+    Pick<Account, "subgroup" | "maturity" | "isContra" | "track1099" | "parentCode">
+  >({});
+  async function installTemplate() {
+    setError("");
+    try {
+      await installUsGaapCoa();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to install template.");
+    }
+  }
   function openForm(existing?: Account) {
+    setDetails(
+      existing
+        ? {
+            subgroup: existing.subgroup,
+            maturity: existing.maturity,
+            isContra: existing.isContra,
+            track1099: existing.track1099,
+            parentCode: existing.parentCode,
+          }
+        : { maturity: "Not Applicable", isContra: false, track1099: false },
+    );
     setEditingCode(existing?.code ?? null);
     setNewCode(existing?.code ?? "");
     setNewName(existing?.name ?? "");
@@ -95,6 +118,7 @@ function AccountsPage() {
       e.preventDefault();
       setError("");
       const parsed = accountSchema.safeParse({
+        ...details,
         code: newCode,
         name: newName,
         type: newType,
@@ -148,6 +172,11 @@ function AccountsPage() {
       "Account Name",
       "Category / Type",
       "Normal Balance",
+      "Subgroup",
+      "Current / Noncurrent",
+      "Contra Account",
+      "Track 1099",
+      "Parent Code",
       "Description",
       "Current Net Balance ($)",
     ];
@@ -156,6 +185,11 @@ function AccountsPage() {
       a.name,
       a.type,
       a.balanceType,
+      a.subgroup || "",
+      a.maturity || "Unclassified",
+      String(a.isContra ?? ""),
+      String(a.track1099 ?? false),
+      a.parentCode || "",
       a.description,
       accountBalances[a.code]?.net || 0,
     ]);
@@ -178,7 +212,8 @@ function AccountsPage() {
     const matchesSearch =
       a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.description.toLowerCase().includes(searchQuery.toLowerCase());
+      a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "ALL" || a.type === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -216,6 +251,15 @@ function AccountsPage() {
               >
                 Export COA (CSV)
               </button>
+              {userPersona.canCreateJournals && accounts.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => void installTemplate()}
+                  className="rounded-md border border-brand px-3 py-1.5 text-brand text-[12px]"
+                >
+                  Install US GAAP CoA · 81 accounts
+                </button>
+              )}
               {userPersona.canCreateJournals && (
                 <button
                   type="button"
@@ -270,7 +314,7 @@ function AccountsPage() {
                   <tr className="border-b border-line/60">
                     <Th>Code</Th>
                     <Th>Account Name</Th>
-                    <Th>Classification</Th>
+                    <Th>Classification / Structure</Th>
                     <Th>Normal Bal</Th>
                     <Th>Accounting Scope</Th>
                     <Th align="right">Current Net Balance</Th>
@@ -318,6 +362,12 @@ function AccountsPage() {
                             >
                               {a.type}
                             </Badge>
+                            <div className="text-[11px] text-ink3">
+                              {a.subgroup} · {a.maturity || "Unclassified"}
+                              {a.isContra ? " · Contra" : ""}
+                              {a.track1099 ? " · Track 1099" : ""}
+                              {a.parentCode ? ` · Parent ${a.parentCode}` : ""}
+                            </div>
                           </Td>
                           <Td className="text-[11.5px] text-ink3">{a.balanceType}</Td>
                           <Td className="text-ink3 text-[11.5px] max-w-[280px] truncate">
@@ -372,10 +422,12 @@ function AccountsPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                Account codes are defined by the company. The 1000–6000 numbering range is a
-                suggested structure. Balances are calculated from saved journal entries, including
-                reversals. Bank accounts and cash flow categories are managed separately from this
-                chart of accounts.
+                Account codes are defined by the company. The five-digit template uses 10000–19999
+                Assets, 20000–29999 Liabilities, 30000–39999 Equity, 40000–49999 Revenue,
+                50000–59999 COGS, 60000–79999 Operating Expenses, 80000–89999 Other Income and
+                90000–99999 Other Expenses. Balances are calculated from saved journal entries,
+                including reversals. Bank accounts and cash flow categories are managed separately
+                from this chart of accounts.
               </Note>
             </div>
           </Panel>
@@ -421,14 +473,13 @@ function AccountsPage() {
                     readOnly={editingCode !== null}
                     maxLength={120}
                     onChange={(e) => setNewCode(e.target.value)}
-                    placeholder="e.g., 6250 or 1050"
+                    placeholder="e.g., 62300 or 10200"
                     required
                     className="w-full rounded-md bg-canvas px-3 py-2 font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
                   />
                   <p className="mt-1 text-[10.5px] text-ink3">
                     {editingCode && "The code cannot be changed to preserve linked records. "}
-                    Recommended: 1000s (Assets), 2000s (Liabilities), 3000s (Equity), 4000s
-                    (Revenue), 5000s (COGS), 6000s (Expenses).
+                    Recommended: five digits, 10000–99999. Existing codes remain available.
                   </p>
                 </div>
 
@@ -471,6 +522,14 @@ function AccountsPage() {
                   onChange={(e) => {
                     const t = e.target.value as AccountType;
                     setNewType(t);
+                    setDetails((d) => ({
+                      ...d,
+                      isContra: false,
+                      parentCode: undefined,
+                      maturity: ["Asset", "Liability"].includes(t)
+                        ? "Unclassified"
+                        : "Not Applicable",
+                    }));
                     if (["Asset", "COGS", "Operating Expense", "Other Expense"].includes(t)) {
                       setNewBalanceType("Debit");
                     } else {
@@ -479,23 +538,103 @@ function AccountsPage() {
                   }}
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                 >
-                  <option value="Asset">Asset — Current / Noncurrent Assets (1000s)</option>
+                  <option value="Asset">Asset — Current / Noncurrent Assets (10000–19999)</option>
                   <option value="Liability">
-                    Liability — Current / Noncurrent Liabilities (2000s)
+                    Liability — Current / Noncurrent Liabilities (20000–29999)
                   </option>
-                  <option value="Equity">Equity — Equity and Share Capital (3000s)</option>
-                  <option value="Revenue">Revenue — Operating Revenue / Sales (4000s)</option>
-                  <option value="COGS">COGS — Cost of Goods / Services Sold (5000s)</option>
+                  <option value="Equity">Equity — Equity and Share Capital (30000–39999)</option>
+                  <option value="Revenue">Revenue — Operating Revenue / Sales (40000–49999)</option>
+                  <option value="COGS">COGS — Cost of Goods / Services Sold (50000–59999)</option>
                   <option value="Operating Expense">
-                    Operating Expense — Operating Expenses / SG&A (6000s)
+                    Operating Expense — Operating Expenses / SG&A (60000–79999)
                   </option>
                   <option value="Other Expense">
-                    Other Expense — Other Expenses and Taxes (6300s)
+                    Other Expense — Other Expenses and Taxes (90000–99999)
                   </option>
                   <option value="Other Income">Other Income — Other Income</option>
                 </select>
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="text-sm">
+                  Reporting subgroup
+                  <input
+                    aria-label="Reporting subgroup"
+                    value={details.subgroup || ""}
+                    maxLength={120}
+                    onChange={(e) => setDetails((d) => ({ ...d, subgroup: e.target.value }))}
+                    className="mt-1 w-full rounded border border-line p-2"
+                    placeholder="e.g., Payroll & Personnel"
+                  />
+                </label>
+                <label className="text-sm">
+                  Current / Noncurrent
+                  <select
+                    aria-label="Current / Noncurrent"
+                    value={details.maturity || "Unclassified"}
+                    onChange={(e) =>
+                      setDetails((d) => ({ ...d, maturity: e.target.value as Account["maturity"] }))
+                    }
+                    className="mt-1 w-full rounded border border-line p-2"
+                  >
+                    <option value="Unclassified">Unclassified — review required</option>
+                    {(["Asset", "Liability"].includes(newType)
+                      ? ["Current", "Noncurrent"]
+                      : ["Not Applicable"]
+                    ).map((v) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm">
+                  Parent account (optional)
+                  <select
+                    aria-label="Parent account"
+                    value={details.parentCode || ""}
+                    onChange={(e) =>
+                      setDetails((d) => ({ ...d, parentCode: e.target.value || undefined }))
+                    }
+                    className="mt-1 w-full rounded border border-line p-2"
+                  >
+                    <option value="">No parent</option>
+                    {accounts
+                      .filter((a) => a.code !== editingCode && a.type === newType)
+                      .map((a) => (
+                        <option key={a.code} value={a.code}>
+                          {a.code} · {a.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div className="space-y-2 text-sm">
+                  <label className="flex gap-2">
+                    <input
+                      type="checkbox"
+                      checked={details.isContra ?? false}
+                      onChange={(e) => {
+                        const contra = e.target.checked;
+                        setDetails((d) => ({ ...d, isContra: contra }));
+                        const debit = [
+                          "Asset",
+                          "COGS",
+                          "Operating Expense",
+                          "Other Expense",
+                        ].includes(newType);
+                        setNewBalanceType((contra ? !debit : debit) ? "Debit" : "Credit");
+                      }}
+                    />
+                    Contra account
+                  </label>
+                  <label className="flex gap-2">
+                    <input
+                      type="checkbox"
+                      checked={details.track1099 ?? false}
+                      onChange={(e) => setDetails((d) => ({ ...d, track1099: e.target.checked }))}
+                    />
+                    Track 1099 (review vendor eligibility)
+                  </label>
+                </div>
+              </div>
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                   Description and Accounting Scope

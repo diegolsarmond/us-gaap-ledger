@@ -1,3 +1,4 @@
+import { US_GAAP_COA, totalByType, resolveAccount, validateCoa } from "./coa";
 import { customerSchema, type Customer, type CustomerInput } from "./customer-model";
 import { vendorSchema, type Vendor, type VendorInput } from "./vendor-model";
 import { parseStatementCsv } from "./statement-csv";
@@ -30,6 +31,11 @@ export interface Account {
   type: AccountType;
   balanceType: "Debit" | "Credit";
   description: string;
+  subgroup?: string | undefined;
+  maturity?: "Current" | "Noncurrent" | "Not Applicable" | "Unclassified" | undefined;
+  isContra?: boolean | undefined;
+  track1099?: boolean | undefined;
+  parentCode?: string | undefined;
 }
 
 export interface JournalLine {
@@ -323,6 +329,7 @@ export interface AccountingContextType {
   userPersona: UserPersona;
 
   accounts: Account[];
+  installUsGaapCoa: () => void;
   addAccount: (account: Account) => void;
   updateAccount: (code: string, data: Omit<Account, "code">) => void;
   deleteAccount: (code: string) => void;
@@ -746,7 +753,7 @@ export function createAccountingEngine(
     }[] = [];
 
     jeLines.push({
-      accountCode: "1100",
+      accountCode: resolveAccount(currentData.accounts, "11000", "1100"),
       debit: newInvoice.total,
       credit: 0,
       memo: `AR — ${newInvoice.customerName}`,
@@ -754,7 +761,7 @@ export function createAccountingEngine(
     });
 
     const isService = newInvoice.kind === "Service";
-    const revenueAccount = isService ? "4000" : "4100";
+    const revenueAccount = isService ? resolveAccount(currentData.accounts, "40200", "4000") : resolveAccount(currentData.accounts, "40100", "4100");
     jeLines.push({
       accountCode: revenueAccount,
       debit: 0,
@@ -765,7 +772,7 @@ export function createAccountingEngine(
 
     if (newInvoice.taxAmount > 0) {
       jeLines.push({
-        accountCode: "2200",
+        accountCode: resolveAccount(currentData.accounts, "22100", "2200"),
         debit: 0,
         credit: newInvoice.taxAmount,
         memo: `Sales tax collected (${newInvoice.taxRate}%) on ${invId}`,
@@ -775,14 +782,14 @@ export function createAccountingEngine(
     if (totalCogsToRelieve > 0) {
       const roundedCogs = Math.round(totalCogsToRelieve * 100) / 100;
       jeLines.push({
-        accountCode: "5000",
+        accountCode: resolveAccount(currentData.accounts, "50100", "5000"),
         debit: roundedCogs,
         credit: 0,
         memo: `COGS recognized for items on ${invId}`,
         projectId: newInvoice.projectId,
       });
       jeLines.push({
-        accountCode: "1300",
+        accountCode: resolveAccount(currentData.accounts, "13000", "1300"),
         debit: 0,
         credit: roundedCogs,
         memo: `Inventory reduction for ${invId}`,
@@ -824,12 +831,12 @@ export function createAccountingEngine(
 
     const jeLines = [
       {
-        accountCode: "1000",
+        accountCode: resolveAccount(currentData.accounts, "10200", "1000"),
         debit: inv.total,
         credit: 0,
         memo: `Cash receipt from ${inv.customerName} for ${inv.id}`,
       },
-      { accountCode: "1100", debit: 0, credit: inv.total, memo: `Clear AR for ${inv.id}` },
+      { accountCode: resolveAccount(currentData.accounts, "11000", "1100"), debit: 0, credit: inv.total, memo: `Clear AR for ${inv.id}` },
     ];
 
     const postResult = postJournalEntry({
@@ -916,7 +923,7 @@ export function createAccountingEngine(
     });
 
     jeLines.push({
-      accountCode: "2000",
+      accountCode: resolveAccount(currentData.accounts, "20100", "2000"),
       debit: 0,
       credit: usdAmount,
       memo: `AP to ${newBill.vendorName} (Ref: ${newBill.billNumber})`,
@@ -992,7 +999,7 @@ export function createAccountingEngine(
     }[] = [];
 
     jeLines.push({
-      accountCode: "2000",
+      accountCode: resolveAccount(currentData.accounts, "20100", "2000"),
       debit: originalApUsd,
       credit: 0,
       memo: `Clear AP on ${bill.id} (${bill.vendorName})`,
@@ -1000,7 +1007,7 @@ export function createAccountingEngine(
     });
 
     jeLines.push({
-      accountCode: "1000",
+      accountCode: resolveAccount(currentData.accounts, "10200", "1000"),
       debit: 0,
       credit: actualCashPaidUsd,
       memo: `Cash wire in ${bill.currency} @ rate ${effectiveSettlementRate}`,
@@ -1009,14 +1016,14 @@ export function createAccountingEngine(
     if (Math.abs(diff) >= 0.01) {
       if (diff > 0) {
         jeLines.push({
-          accountCode: "6300",
+          accountCode: resolveAccount(currentData.accounts, "80300", "6300"),
           debit: 0,
           credit: diff,
           memo: `Realized FX Gain on settlement of ${bill.id}`,
         });
       } else {
         jeLines.push({
-          accountCode: "6300",
+          accountCode: resolveAccount(currentData.accounts, "80300", "6300"),
           debit: Math.abs(diff),
           credit: 0,
           memo: `Realized FX Loss on settlement of ${bill.id}`,
@@ -1086,13 +1093,13 @@ export function createAccountingEngine(
 
     const jeLines = [
       {
-        accountCode: "1300",
+        accountCode: resolveAccount(currentData.accounts, "13000", "1300"),
         debit: isIncrease ? adjustmentValue : 0,
         credit: isIncrease ? 0 : adjustmentValue,
         memo: `Inventory adjustment for ${item.sku}: ${memo}`,
       },
       {
-        accountCode: "5000",
+        accountCode: resolveAccount(currentData.accounts, "50100", "5000"),
         debit: isIncrease ? 0 : adjustmentValue,
         credit: isIncrease ? adjustmentValue : 0,
         memo: `COGS offset for ${item.sku} count variance`,
@@ -1274,13 +1281,13 @@ export function createAccountingEngine(
 
     const jeLines = [
       {
-        accountCode: "2200",
+        accountCode: resolveAccount(currentData.accounts, "22100", "2200"),
         debit: tax.dueAmount,
         credit: 0,
         memo: `Tax remittance: ${tax.jurisdiction}`,
       },
       {
-        accountCode: "1000",
+        accountCode: resolveAccount(currentData.accounts, "10200", "1000"),
         debit: 0,
         credit: tax.dueAmount,
         memo: `Payment of ${tax.period} sales tax`,
@@ -1317,7 +1324,13 @@ export function createAccountingEngine(
     );
   };
 
+  const installUsGaapCoa = () => {
+    if (currentData.accounts.length) throw new Error("Install the template only in an empty chart to preserve existing account mappings.");
+    updateCompanyData(prev => ({ ...prev, accounts: structuredClone(US_GAAP_COA) }));
+    addAuditLog("INSTALL_COA", "Account", "US-GAAP", "Installed the five-digit company CoA template.");
+  };
   const addAccount = (acct: Account) => {
+    validateCoa([...currentData.accounts, acct]);
     if (currentData.accounts.some((a) => a.code.toLowerCase() === acct.code.toLowerCase()))
       throw new Error("An account with this code already exists for this company.");
     updateCompanyData((prev) => ({
@@ -1333,6 +1346,7 @@ export function createAccountingEngine(
   };
 
   const updateAccount = (code: string, data: Omit<Account, "code">) => {
+    validateCoa(currentData.accounts.map(a => a.code === code ? { ...data, code } : a));
     const existing = currentData.accounts.find((a) => a.code === code);
     if (!existing) throw new Error("Account not found for this company.");
     if (
@@ -1352,7 +1366,7 @@ export function createAccountingEngine(
   const deleteAccount = (code: string) => {
     if (!currentData.accounts.some((a) => a.code === code))
       throw new Error("Account not found for this company.");
-    const used =
+    const used = currentData.accounts.some(a => a.parentCode === code) ||
       currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) ||
       currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
       currentData.statements.some((s) => s.accountCode === code) ||
@@ -1704,19 +1718,20 @@ export function createAccountingEngine(
     };
   })();
 
-  const totalRevenue = (accountBalances["4000"]?.net || 0) + (accountBalances["4100"]?.net || 0);
-  const totalCOGS = accountBalances["5000"]?.net || 0;
+  const sumType = (type: AccountType) => totalByType(currentData.accounts, accountBalances, type);
+  const totalRevenue = sumType("Revenue");
+  const totalCOGS = sumType("COGS");
   const grossProfit = totalRevenue - totalCOGS;
-  const totalOpEx = (accountBalances["6100"]?.net || 0) + (accountBalances["6200"]?.net || 0);
+  const totalOpEx = sumType("Operating Expense");
   const operatingIncome = grossProfit - totalOpEx;
-  const rawFx = (accountBalances["6300"]?.credit || 0) - (accountBalances["6300"]?.debit || 0);
-  const totalFXVariance = Math.round(rawFx * 100) / 100;
-  const netIncome = Math.round((operatingIncome + totalFXVariance) * 100) / 100;
-
-  const cashOnHand = (accountBalances["1000"]?.net || 0) + (accountBalances["1050"]?.net || 0);
-  const totalAR = accountBalances["1100"]?.net || 0;
-  const totalAP = accountBalances["2000"]?.net || 0;
-  const totalInventoryValuation = accountBalances["1300"]?.net || 0;
+  const fx = accountBalances[resolveAccount(currentData.accounts, "80300", "6300")];
+  const totalFXVariance = (fx?.credit || 0) - (fx?.debit || 0);
+  const netIncome = Math.round((operatingIncome + sumType("Other Income") - sumType("Other Expense")) * 100) / 100;
+  const net = (preferred: string, legacy: string) => accountBalances[resolveAccount(currentData.accounts, preferred, legacy)]?.net || 0;
+  const cashOnHand = ["10100", "10200", "10300", "10400", "1000", "1050"].reduce((sum, code) => sum + (accountBalances[code]?.net || 0), 0);
+  const totalAR = net("11000", "1100");
+  const totalAP = net("20100", "2000");
+  const totalInventoryValuation = net("13000", "1300");
 
   return {
     getState: () => nextData,
@@ -1750,6 +1765,7 @@ export function createAccountingEngine(
       setCurrentRole,
       userPersona,
       accounts: currentData.accounts,
+      installUsGaapCoa,
       addAccount,
       updateAccount,
       deleteAccount,

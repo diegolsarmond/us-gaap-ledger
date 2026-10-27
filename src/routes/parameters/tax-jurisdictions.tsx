@@ -48,7 +48,7 @@ function TaxJurisdictionsPage() {
   const [taxType, setTaxType] = useState<"State Sales Tax" | "Local Surcharge" | "Combined">(
     "State Sales Tax",
   );
-  const [glAccountCode, setGlAccountCode] = useState("2200");
+  const [glAccountCode, setGlAccountCode] = useState("");
   const [filingFrequency, setFilingFrequency] = useState<"Monthly" | "Quarterly" | "Annual">(
     "Monthly",
   );
@@ -64,7 +64,7 @@ function TaxJurisdictionsPage() {
     setName("");
     setRate("6.0");
     setTaxType("State Sales Tax");
-    setGlAccountCode("2200");
+    setGlAccountCode("");
     setFilingFrequency("Monthly");
     setStatus("Active");
     setModalOpen(true);

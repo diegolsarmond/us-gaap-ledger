@@ -22,6 +22,11 @@ export const account = z.object({
   ]),
   balanceType: z.enum(["Debit", "Credit"]),
   description: text,
+  subgroup: z.string().trim().max(120).optional(),
+  maturity: z.enum(["Current", "Noncurrent", "Not Applicable", "Unclassified"]).optional(),
+  isContra: z.boolean().optional(),
+  track1099: z.boolean().optional(),
+  parentCode: z.string().trim().min(1).max(120).optional(),
 });
 const line = z.object({
   id: key,
@@ -199,6 +204,7 @@ export const commandArgs = {
   updateCustomer: z.tuple([key, customerSchema]),
   addVendor: z.tuple([vendorSchema]),
   updateVendor: z.tuple([key, vendorSchema]),
+  installUsGaapCoa: z.tuple([]),
   addAccount: z.tuple([account]),
   updateAccount: z.tuple([key, account.omit({ code: true })]),
   deleteAccount: z.tuple([key]),

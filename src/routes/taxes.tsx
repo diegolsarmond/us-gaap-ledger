@@ -36,7 +36,7 @@ function TaxesPage() {
   const totalExemptSales = invoices.filter((i) => i.taxExempt).reduce((s, i) => s + i.subtotal, 0);
 
   const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
-  const salesTaxPayableBalance = accountBalances["2200"]?.net || 0;
+  const salesTaxPayableBalance = (accountBalances["22100"]?.net || 0) + (accountBalances["2200"]?.net || 0);
 
   const handleRemitPayment = async (taxId: string) => {
     try {

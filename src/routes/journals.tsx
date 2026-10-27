@@ -54,7 +54,7 @@ function JournalsPage() {
   const isBalanced = diff < 0.01 && totalDebits > 0;
 
   const handleAddLine = () => {
-    setLines([...lines, { accountCode: "6200", debit: "0.00", credit: "0.00", memo: "" }]);
+    setLines([...lines, { accountCode: "", debit: "0.00", credit: "0.00", memo: "" }]);
   };
 
   const handleRemoveLine = (idx: number) => {
@@ -115,8 +115,8 @@ function JournalsPage() {
         setMemo("");
         setOverrideReason("");
         setLines([
-          { accountCode: "1000", debit: "0.00", credit: "0.00", memo: "" },
-          { accountCode: "6200", debit: "0.00", credit: "0.00", memo: "" },
+          { accountCode: "", debit: "0.00", credit: "0.00", memo: "" },
+          { accountCode: "", debit: "0.00", credit: "0.00", memo: "" },
         ]);
         setView("list");
         await modal.showAlert({

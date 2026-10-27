@@ -43,7 +43,7 @@ function ExpenseCategoriesPage() {
   // Form State
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [glAccountCode, setGlAccountCode] = useState("6200");
+  const [glAccountCode, setGlAccountCode] = useState("");
   const [taxDeductibility, setTaxDeductibility] = useState<
     "100% Deductible" | "50% Meals & Ent." | "Non-Deductible"
   >("100% Deductible");
@@ -60,7 +60,7 @@ function ExpenseCategoriesPage() {
     setEditingId(null);
     setCode("");
     setName("");
-    setGlAccountCode("6200");
+    setGlAccountCode("");
     setTaxDeductibility("100% Deductible");
     setDescription("");
     setStatus("Active");

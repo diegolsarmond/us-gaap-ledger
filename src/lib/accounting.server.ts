@@ -1,3 +1,4 @@
+import { validateCoa } from "./coa";
 import { validateCustomers } from "./customer-model";
 import { db } from "./db.server";
 import { authorizeCompany, setActor } from "./companies.server";
@@ -72,6 +73,7 @@ export async function cashAccountLinks(
 }
 
 export function validateState(state: CompanyState) {
+  validateCoa(state.accounts);
   validateCustomers(
     state.customers,
     state.currencies.map((c) => c.code),

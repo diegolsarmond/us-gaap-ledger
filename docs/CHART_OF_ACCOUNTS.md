@@ -34,3 +34,15 @@ npm.cmd run build
 ```
 
 O teste usa um schema PostgreSQL isolado e o remove ao terminar. Verifica plano vazio, persistência, edição, exclusão, duplicidade, dados inválidos, proteção do histórico, auditoria, concorrência, permissões e isolamento entre empresas.
+
+## Modelo de cinco dígitos US GAAP
+
+Execute a migração idempotente `database/014_us_gaap_coa.sql` após as anteriores. Ela mantém os dados JSON existentes, acrescenta chave estrangeira de conta superior por empresa, valida metadados e oferece a view SQL `chart_of_accounts`. Não renumera contas nem substitui históricos.
+
+Em um plano vazio, **Install US GAAP CoA · 81 accounts** instala atomicamente a estrutura fornecida pelo usuário (10000–99999), com auditoria e autorização contábil. Em planos existentes, os novos campos podem ser preenchidos na edição. A instalação é recusada se já houver contas, para evitar conflito de mapeamentos.
+
+Campos: subgrupo, circulante/não circulante, conta redutora, acompanhamento 1099 e conta superior opcional. A hierarquia não permite ciclos ou pais de outra classificação. O saldo de cada conta superior corresponde aos lançamentos nela registrados, sem somar novamente os filhos. Contas antigas sem classificação de prazo aparecem como **Unclassified** no balanço. A DRE usa todas as contas por tipo e filtra projetos; o balanço respeita a data de corte e inclui imobilizado, depreciação e passivos de longo prazo.
+
+Lançamentos automáticos usam 10200 (banco), 11000 (A/R), 13000 (estoque), 20100 (A/P), 22100 (sales tax), 40100/40200 (produtos/serviços), 50100 (custo de materiais/baixa de estoque) e 80300 (FX). Se a conta nova não existir, mantêm os códigos legados correspondentes. Não instalar os dois esquemas em paralelo sem revisar esses mapeamentos.
+
+A numeração e os agrupamentos são política da empresa; não constituem um plano universal obrigatório do US GAAP ou certificação de compatibilidade com QuickBooks. A marcação 1099 não determina obrigação fiscal nem emite formulários. Fretes de aquisição e tarifas podem compor o custo do estoque antes da baixa; o cadastro de contas não faz essa capitalização automaticamente. A classificação de merchant fees em COGS segue o modelo fornecido e pode ser revista conforme a política contábil. A conta 38000 é transitória de abertura e deve ser conciliada.
