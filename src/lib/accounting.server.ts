@@ -1,3 +1,4 @@
+import { validateCustomers } from "./customer-model";
 import { db } from "./db.server";
 import { authorizeCompany, setActor } from "./companies.server";
 import {
@@ -71,6 +72,12 @@ export async function cashAccountLinks(
 }
 
 export function validateState(state: CompanyState) {
+  validateCustomers(
+    state.customers,
+    state.currencies.map((c) => c.code),
+    state.paymentTerms.map((t) => t.id),
+    state.taxJurisdictions.map((t) => t.code),
+  );
   const accounts = new Set(state.accounts.map((a) => a.code));
   const projects = new Set(state.projects.map((p) => p.id));
   const files = new Set(state.statements.map((s) => s.id));
@@ -135,7 +142,25 @@ export function validateState(state: CompanyState) {
       if (l.isProduct && (!l.sku || !skus.has(l.sku)))
         throw new Error("Produto não pertence à empresa.");
   }
+  for (const v of state.vendors) {
+    ref("vendors", v.id, v.defaultExpenseAccountCode);
+    if (
+      v.defaultExpenseAccountCode &&
+      !state.accounts.some(
+        (a) =>
+          a.code === v.defaultExpenseAccountCode &&
+          ["COGS", "Operating Expense", "Other Expense"].includes(a.type),
+      )
+    )
+      throw new Error("Selecione uma conta de despesa.");
+    if (v.paymentTermId && !state.paymentTerms.some((t) => t.id === v.paymentTermId))
+      throw new Error("Termo de pagamento não pertence à empresa.");
+    if (v.currency && !state.currencies.some((c) => c.code === v.currency))
+      throw new Error("Moeda não pertence à empresa.");
+  }
   for (const b of state.bills) {
+    if (b.vendorId && !state.vendors.some((v) => v.id === b.vendorId))
+      throw new Error("Fornecedor não pertence à empresa.");
     ref("bills", b.id, undefined, b.projectId);
     if (Math.abs(b.items.reduce((s, l) => s + l.amount, 0) - b.usdAmount) > 0.011)
       throw new Error("Total da conta a pagar inválido.");

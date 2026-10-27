@@ -1,3 +1,5 @@
+import { customerSchema } from "./customer-model";
+import { vendorSchema } from "./vendor-model";
 import { z } from "zod";
 import { dateSchema as date } from "./cash-flow-model";
 const text = z.string().max(2000),
@@ -93,6 +95,7 @@ export const invoice = z.object({
 });
 export const bill = z.object({
   id: key,
+  vendorId: key.optional(),
   vendorName: key,
   billNumber: key,
   date,
@@ -192,6 +195,10 @@ export const period = z.object({
   notes: text.optional(),
 });
 export const commandArgs = {
+  addCustomer: z.tuple([customerSchema]),
+  updateCustomer: z.tuple([key, customerSchema]),
+  addVendor: z.tuple([vendorSchema]),
+  updateVendor: z.tuple([key, vendorSchema]),
   addAccount: z.tuple([account]),
   updateAccount: z.tuple([key, account.omit({ code: true })]),
   deleteAccount: z.tuple([key]),
@@ -238,6 +245,8 @@ export const commandArgs = {
 };
 export type AccountingCommand = keyof typeof commandArgs;
 export const domains = [
+  "customers",
+  "vendors",
   "accounts",
   "journals",
   "inventory",

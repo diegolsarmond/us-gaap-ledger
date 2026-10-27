@@ -21,6 +21,8 @@ function PayablesPage() {
   const {
     activeCompany,
     bills,
+    vendors,
+    paymentTerms,
     accounts,
     projects,
     inventory,
@@ -36,6 +38,7 @@ function PayablesPage() {
   const [currencyFilter, setCurrencyFilter] = useState<string>("ALL");
 
   // Bill creation form state
+  const [vendorId, setVendorId] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -82,6 +85,7 @@ function PayablesPage() {
       }
 
       const result = await createBill({
+        vendorId: vendorId || undefined,
         vendorName: vendorName.trim(),
         billNumber: billNumber.trim(),
         date,
@@ -407,12 +411,42 @@ function PayablesPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Nome / Razão Social do Fornecedor (Vendor Legal Name) *
+                    Nome de exibição do fornecedor (Vendor Display Name) *
                   </label>
+                  <select
+                    aria-label="Fornecedor cadastrado"
+                    className="mb-2 w-full rounded-md border border-line p-2 text-sm"
+                    value={vendorId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setVendorId(id);
+                      const vendor = vendors.find((v) => v.id === id);
+                      if (!vendor) return;
+                      setVendorName(vendor.displayName);
+                      setAccountCode(vendor.defaultExpenseAccountCode);
+                      handleCurrencyChange(vendor.currency || "USD");
+                      const term = paymentTerms.find(
+                        (t) => t.id === vendor.paymentTermId && t.status === "Active",
+                      );
+                      const due = new Date(date + "T00:00:00Z");
+                      due.setUTCDate(due.getUTCDate() + (term?.days ?? 0));
+                      setDueDate(due.toISOString().slice(0, 10));
+                    }}
+                  >
+                    <option value="">Selecionar fornecedor ou informar nome</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.displayName}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="text"
                     value={vendorName}
-                    onChange={(e) => setVendorName(e.target.value)}
+                    onChange={(e) => {
+                      setVendorName(e.target.value);
+                      setVendorId("");
+                    }}
                     placeholder="Ex: Grainger Industrial Supply, AWS Cloud..."
                     required
                     className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"

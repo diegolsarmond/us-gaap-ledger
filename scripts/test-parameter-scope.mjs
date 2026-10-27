@@ -51,6 +51,8 @@ try {
     "003_access_audit",
     "004_companies",
     "006_system_parameters",
+    "012_vendors",
+    "013_customers",
   ])
     await pool.query(
       readFileSync(new URL("../database/" + name + ".sql", import.meta.url), "utf8"),
@@ -102,7 +104,7 @@ try {
   assert.equal((await readParameters(companies[0])).costCenters[0].name, "Shared update");
   await mutate("update", { ...a, companyIds: [companies[0]] });
   assert.equal((await readParameters(companies[1])).costCenters.length, 0);
-  await assert.rejects(mutate("update", { ...value, companyIds: [] }), /Selecione/);
+  await assert.rejects(mutate("update", { ...value, companyIds: [] }), /Selecione|Select at least one company/);
   await assert.rejects(
     mutate("update", { ...value, companyIds: [companies[0], randomUUID()] }),
     /permissão/,

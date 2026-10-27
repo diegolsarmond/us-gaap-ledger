@@ -75,3 +75,6 @@ Execute `database/009_required_password_change.sql` após as migrações anterio
 Execute `database/010_cash_flow_management.sql` após as migrações anteriores antes de usar esta versão. Veja [operação, fórmulas e reconciliação](CASH_FLOW_MANAGEMENT.md). A migração preserva os lançamentos existentes e estabelece a previsão original dos que estiverem planejados.
 
 Execute em seguida `database/011_cash_chart_links.sql` para vincular contas bancárias e movimentos previstos/realizados ao plano de contas da mesma empresa. Registros existentes ficam pendentes de vinculação, sem alteração dos valores históricos. Veja [Chart of Accounts](CHART_OF_ACCOUNTS.md).
+
+
+Execute `database/012_vendors.sql` antes de usar o cadastro **Settings → Vendors / Fornecedores**. A migração cria fornecedores por empresa e armazenamento separado de anexos (20 MB por arquivo), sem alterar faturas existentes. Apenas nome de exibição é obrigatório. Termos, moedas e contas de despesa usam os cadastros da empresa. Dados bancários são referenciais; não há integração de pagamento automático. Validação: `node --env-file-if-exists=.env scripts/test-vendors-db.mjs`.

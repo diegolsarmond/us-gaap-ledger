@@ -17,6 +17,7 @@ import { Route as BalanceSheetRouteImport } from './routes/balance-sheet'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
 import { Route as CompaniesRouteImport } from './routes/companies'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DreRouteImport } from './routes/dre'
 import { Route as InventoryRouteImport } from './routes/inventory'
@@ -30,6 +31,7 @@ import { Route as StatementsRouteImport } from './routes/statements'
 import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as VendorsRouteImport } from './routes/vendors'
 import { Route as ParametersIndexRouteImport } from './routes/parameters/index'
 import { Route as ParametersCashCategoriesRouteImport } from './routes/parameters/cash-categories'
 import { Route as ParametersCostCentersRouteImport } from './routes/parameters/cost-centers'
@@ -77,6 +79,11 @@ const CashFlowRoute = CashFlowRouteImport.update({
 const CompaniesRoute = CompaniesRouteImport.update({
   id: '/companies',
   path: '/companies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -144,6 +151,11 @@ const UsersRoute = UsersRouteImport.update({
   path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VendorsRoute = VendorsRouteImport.update({
+  id: '/vendors',
+  path: '/vendors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ParametersIndexRoute = ParametersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -197,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
@@ -210,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
+  '/vendors': typeof VendorsRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -228,6 +242,7 @@ export interface FileRoutesByTo {
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
@@ -240,6 +255,7 @@ export interface FileRoutesByTo {
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
+  '/vendors': typeof VendorsRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -259,6 +275,7 @@ export interface FileRoutesById {
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
   '/inventory': typeof InventoryRoute
@@ -272,6 +289,7 @@ export interface FileRoutesById {
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
+  '/vendors': typeof VendorsRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -292,6 +310,7 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
+    | '/customers'
     | '/dashboard'
     | '/dre'
     | '/inventory'
@@ -305,6 +324,7 @@ export interface FileRouteTypes {
     | '/taxes'
     | '/trial-balance'
     | '/users'
+    | '/vendors'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -323,6 +343,7 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
+    | '/customers'
     | '/dashboard'
     | '/dre'
     | '/inventory'
@@ -335,6 +356,7 @@ export interface FileRouteTypes {
     | '/taxes'
     | '/trial-balance'
     | '/users'
+    | '/vendors'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -353,6 +375,7 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
+    | '/customers'
     | '/dashboard'
     | '/dre'
     | '/inventory'
@@ -366,6 +389,7 @@ export interface FileRouteTypes {
     | '/taxes'
     | '/trial-balance'
     | '/users'
+    | '/vendors'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -385,6 +409,7 @@ export interface RootRouteChildren {
   CadastroRoute: typeof CadastroRoute
   CashFlowRoute: typeof CashFlowRoute
   CompaniesRoute: typeof CompaniesRoute
+  CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   DreRoute: typeof DreRoute
   InventoryRoute: typeof InventoryRoute
@@ -398,6 +423,7 @@ export interface RootRouteChildren {
   TaxesRoute: typeof TaxesRoute
   TrialBalanceRoute: typeof TrialBalanceRoute
   UsersRoute: typeof UsersRoute
+  VendorsRoute: typeof VendorsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -456,6 +482,13 @@ declare module '@tanstack/react-router' {
       path: '/companies'
       fullPath: '/companies'
       preLoaderRoute: typeof CompaniesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -547,6 +580,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vendors': {
+      id: '/vendors'
+      path: '/vendors'
+      fullPath: '/vendors'
+      preLoaderRoute: typeof VendorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/parameters/': {
@@ -643,6 +683,7 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroRoute: CadastroRoute,
   CashFlowRoute: CashFlowRoute,
   CompaniesRoute: CompaniesRoute,
+  CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   DreRoute: DreRoute,
   InventoryRoute: InventoryRoute,
@@ -656,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   TaxesRoute: TaxesRoute,
   TrialBalanceRoute: TrialBalanceRoute,
   UsersRoute: UsersRoute,
+  VendorsRoute: VendorsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

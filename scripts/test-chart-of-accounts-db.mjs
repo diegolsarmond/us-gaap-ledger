@@ -43,6 +43,8 @@ try {
     "003_access_audit",
     "004_companies",
     "011_cash_chart_links",
+    "012_vendors",
+    "013_customers",
   ])
     await pool.query(
       readFileSync(new URL("../database/" + migration + ".sql", import.meta.url), "utf8"),

@@ -1,3 +1,5 @@
+import { customerSchema, type Customer, type CustomerInput } from "./customer-model";
+import { vendorSchema, type Vendor, type VendorInput } from "./vendor-model";
 import { parseStatementCsv } from "./statement-csv";
 
 export type UserRole = "platform_admin" | "accounting_admin" | "accounting_staff" | "client_portal";
@@ -116,6 +118,7 @@ export interface BillItem {
 
 export interface Bill {
   id: string;
+  vendorId?: string | undefined;
   vendorName: string;
   billNumber: string;
   date: string;
@@ -266,6 +269,8 @@ export interface FiscalPeriodParam extends ParameterScope {
 }
 
 export interface CompanyState {
+  customers: Customer[];
+  vendors: Vendor[];
   accounts: Account[];
   journals: JournalEntry[];
   inventory: InventoryItem[];
@@ -285,12 +290,14 @@ export interface CompanyState {
 }
 export function createInitialCompanyData(_companyId?: string): CompanyState {
   return {
+    customers: [],
     accounts: [],
     journals: [],
     inventory: [],
     projects: [],
     invoices: [],
     bills: [],
+    vendors: [],
     statements: [],
     stagingRows: [],
     taxes: [],
@@ -305,6 +312,9 @@ export function createInitialCompanyData(_companyId?: string): CompanyState {
 }
 
 export interface AccountingContextType {
+  customers: Customer[];
+  addCustomer: (data: CustomerInput) => void;
+  updateCustomer: (id: string, data: CustomerInput) => void;
   activeCompany: ClientCompany;
   companies: ClientCompany[];
   setActiveCompanyId: (id: string) => void;
@@ -360,6 +370,9 @@ export interface AccountingContextType {
     paymentDate: string,
   ) => { success: boolean; error?: string | undefined };
 
+  vendors: Vendor[];
+  addVendor: (input: VendorInput) => string;
+  updateVendor: (id: string, input: VendorInput) => void;
   bills: Bill[];
   createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => {
     success: boolean;
@@ -844,6 +857,31 @@ export function createAccountingEngine(
     );
 
     return { success: true };
+  };
+
+  const saveVendor = (input: VendorInput, id?: string) => {
+    if (!userPersona.canCreateJournals) throw new Error("Acesso negado.");
+    const data = vendorSchema.parse(input);
+    if (id && !nextData.vendors.some((v) => v.id === id))
+      throw new Error("Fornecedor não encontrado.");
+    const vendorId = id ?? crypto.randomUUID();
+    updateCompanyData((prev) => ({
+      ...prev,
+      vendors: id
+        ? prev.vendors.map((v) => (v.id === id ? { ...data, id } : v))
+        : [...prev.vendors, { ...data, id: vendorId }],
+    }));
+    addAuditLog(
+      id ? "Update Vendor" : "Create Vendor",
+      "Vendor",
+      vendorId,
+      "Cadastro do fornecedor atualizado.",
+    );
+    return vendorId;
+  };
+  const addVendor = (input: VendorInput) => saveVendor(input);
+  const updateVendor = (id: string, input: VendorInput) => {
+    saveVendor(input, id);
   };
 
   const createBill: AccountingContextType["createBill"] = (billData) => {
@@ -1684,6 +1722,27 @@ export function createAccountingEngine(
     getState: () => nextData,
     getCompany: () => activeCompany,
     value: {
+      customers: currentData.customers || [],
+      addCustomer: (data: CustomerInput) => {
+        const customer = customerSchema.parse(data);
+        if (customer.shippingSameAsBilling)
+          customer.shippingAddress = { ...customer.billingAddress };
+        updateCompanyData((prev) => ({
+          ...prev,
+          customers: [...(prev.customers || []), { ...customer, id: crypto.randomUUID() }],
+        }));
+      },
+      updateCustomer: (id: string, data: CustomerInput) => {
+        if (!currentData.customers.some((c) => c.id === id))
+          throw new Error("Cliente não encontrado.");
+        const customer = customerSchema.parse(data);
+        if (customer.shippingSameAsBilling)
+          customer.shippingAddress = { ...customer.billingAddress };
+        updateCompanyData((prev) => ({
+          ...prev,
+          customers: prev.customers.map((c) => (c.id === id ? { ...customer, id } : c)),
+        }));
+      },
       activeCompany,
       companies,
       setActiveCompanyId,
@@ -1705,6 +1764,9 @@ export function createAccountingEngine(
       invoices: currentData.invoices,
       createInvoice,
       recordInvoicePayment,
+      vendors: currentData.vendors,
+      addVendor,
+      updateVendor,
       bills: currentData.bills,
       createBill,
       payBill,
