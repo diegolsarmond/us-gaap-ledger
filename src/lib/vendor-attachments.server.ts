@@ -25,7 +25,7 @@ async function mutate(
       "SELECT id FROM ledger_vendors WHERE company_id=$1 AND id=$2",
       [data.companyId, data.vendorId],
     );
-    if (!vendor.rowCount) throw new Error("Fornecedor não encontrado.");
+    if (!vendor.rowCount) throw new Error("Vendor not found.");
     const result =
       operation === "upload"
         ? await client.query(
@@ -36,7 +36,7 @@ async function mutate(
             "DELETE FROM vendor_attachments WHERE company_id=$1 AND vendor_id=$2 AND id=$3 RETURNING id",
             [data.companyId, data.vendorId, file.id],
           );
-    if (!result.rowCount) throw new Error("Anexo não encontrado.");
+    if (!result.rowCount) throw new Error("Attachment not found.");
     await client.query(
       "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,'VendorAttachment',$4,$5)",
       [auth.user.id, auth.user.name, operation, result.rows[0].id, data.companyId],
@@ -57,7 +57,7 @@ export async function upload(data: Scope & { name: string; content: string }) {
     content.length > MAX_VENDOR_ATTACHMENT_BYTES ||
     content.toString("base64") !== data.content
   )
-    throw new Error("Arquivo inválido. Limite de 20 MB por arquivo.");
+    throw new Error("Invalid file. Maximum size is 20 MB per file.");
   return mutate(data, "upload", { name: data.name, content });
 }
 export async function remove(data: Scope & { id: string }) {
@@ -69,7 +69,7 @@ export async function download(data: Scope & { id: string }) {
     "SELECT name,content FROM vendor_attachments WHERE company_id=$1 AND vendor_id=$2 AND id=$3",
     [data.companyId, data.vendorId, data.id],
   );
-  if (!result.rowCount) throw new Error("Anexo não encontrado.");
+  if (!result.rowCount) throw new Error("Attachment not found.");
   return {
     name: String(result.rows[0].name),
     content: (result.rows[0].content as Buffer).toString("base64"),

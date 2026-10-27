@@ -15,7 +15,7 @@ const blankAddress = { street: "", city: "", state: "", zip: "", country: "" };
 function initial(): CustomerInput {
   return {
     ...customerSchema.parse({
-      displayName: "Novo",
+      displayName: "New",
       billingAddress: blankAddress,
       shippingAddress: blankAddress,
     }),
@@ -66,9 +66,9 @@ function CustomersPage() {
       if (editing === "new") await addCustomer(data);
       else await updateCustomer(editing!, data);
       setEditing(null);
-      setNotice("Cliente salvo com sucesso.");
+      setNotice("Customer saved successfully.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(e instanceof Error ? e.message : "Unable to save.");
     } finally {
       setPending(false);
     }
@@ -79,9 +79,9 @@ function CustomersPage() {
     setUploading(true);
     try {
       if (files.length + form.attachments.length > 20)
-        throw new Error("Limite de 20 anexos por cliente.");
+        throw new Error("Maximum 20 attachments per customer.");
       if (Array.from(files).some((f) => f.size > MAX_ATTACHMENT_BYTES))
-        throw new Error("Cada anexo deve ter até 20 MB.");
+        throw new Error("Each attachment must be 20 MB or smaller.");
       const attachments = await Promise.all(
         Array.from(files).map(async (file) => ({
           id: crypto.randomUUID(),
@@ -90,14 +90,14 @@ function CustomersPage() {
           content: await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-            reader.onerror = () => reject(new Error("Falha ao ler anexo."));
+            reader.onerror = () => reject(new Error("Unable to read attachment."));
             reader.readAsDataURL(file);
           }),
         })),
       );
       setForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...attachments] }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha no upload.");
+      setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -145,7 +145,7 @@ function CustomersPage() {
           value={form[key]}
           onChange={(e) => change(key, e.target.value as never)}
         >
-          <option value="">Não definido</option>
+          <option value="">Not specified</option>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -162,11 +162,11 @@ function CustomersPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {(
             [
-              ["street", "Logradouro / Rua"],
-              ["city", "Cidade"],
-              ["state", "Estado / Província"],
-              ["zip", "CEP / ZIP Code"],
-              ["country", "País"],
+              ["street", "Street address"],
+              ["city", "City"],
+              ["state", "State / Province"],
+              ["zip", "ZIP / Postal code"],
+              ["country", "Country"],
             ] as const
           ).map(([field, name]) => (
             <label className="text-sm" key={field}>
@@ -192,12 +192,12 @@ function CustomersPage() {
   return (
     <div className="space-y-5">
       <PageTitle
-        title="Customers · Clientes"
-        description="Cadastro de clientes por empresa. Somente o nome de exibição é obrigatório."
+        title="Customers"
+        description="Manage customers by company. Only the display name is required."
         actions={
           allowed && !editing ? (
             <button className={button} onClick={() => open()}>
-              Novo cliente
+              New customer
             </button>
           ) : undefined
         }
@@ -215,72 +215,71 @@ function CustomersPage() {
       {editing ? (
         <form onSubmit={save}>
           <fieldset disabled={pending || uploading} className="space-y-5 min-w-0">
-            <Panel title="Dados principais e contato">
+            <Panel title="Basic information and contact">
               <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                {input("displayName", "Nome de exibição do cliente *")}
-                {input("title", "Tratamento / Título")}
-                {input("firstName", "Nome")}
-                {input("middleName", "Nome do meio")}
-                {input("lastName", "Sobrenome")}
-                {input("suffix", "Sufixo")}
-                {input("companyName", "Empresa")}
-                {input("printOnChecksAs", "Nome na checagem / impressão")}
-                {input("email", "E-mail", "email")}
-                {input("phone", "Telefone principal", "tel")}
-                {input("mobile", "Celular", "tel")}
+                {input("displayName", "Customer display name *")}
+                {input("title", "Title")}
+                {input("firstName", "Name")}
+                {input("middleName", "Middle name")}
+                {input("lastName", "Last name")}
+                {input("suffix", "Suffix")}
+                {input("companyName", "Company")}
+                {input("printOnChecksAs", "Print on checks as")}
+                {input("email", "Email", "email")}
+                {input("phone", "Primary phone", "tel")}
+                {input("mobile", "Mobile", "tel")}
                 {input("fax", "Fax")}
                 {input("website", "Website")}
               </div>
             </Panel>
-            <Panel title="Endereços">
+            <Panel title="Addresses">
               <div className="space-y-4 p-4">
-                {address("billingAddress", "Endereço de cobrança")}
+                {address("billingAddress", "Billing address")}
                 <label className="flex gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={form.shippingSameAsBilling}
                     onChange={(e) => change("shippingSameAsBilling", e.target.checked)}
                   />
-                  Mesmo que o endereço de cobrança
+                  Same as billing address
                 </label>
-                {!form.shippingSameAsBilling &&
-                  address("shippingAddress", "Endereço de envio / entrega")}
+                {!form.shippingSameAsBilling && address("shippingAddress", "Shipping address")}
               </div>
             </Panel>
-            <Panel title="Pagamento e faturamento">
+            <Panel title="Payment and billing">
               <div className="grid gap-4 p-4 sm:grid-cols-2">
                 {select(
                   "currency",
-                  "Moeda preferencial",
+                  "Preferred currency",
                   currencies
                     .filter((c) => c.status === "Active" || c.code === form.currency)
                     .map((c) => ({ value: c.code, label: c.code + " · " + c.name })),
                 )}
                 {select(
                   "paymentTermId",
-                  "Termos de pagamento",
+                  "Payment terms",
                   paymentTerms
                     .filter((t) => t.status === "Active" || t.id === form.paymentTermId)
                     .map((t) => ({ value: t.id, label: t.name })),
                 )}
-                {select("paymentMethod", "Método de pagamento preferencial", [
-                  { value: "Credit card", label: "Cartão de crédito" },
-                  { value: "Check", label: "Cheque" },
-                  { value: "ACH", label: "Transferência / ACH" },
-                  { value: "Cash", label: "Dinheiro" },
+                {select("paymentMethod", "Preferred payment method", [
+                  { value: "Credit card", label: "Credit card" },
+                  { value: "Check", label: "Check" },
+                  { value: "ACH", label: "Bank transfer / ACH" },
+                  { value: "Cash", label: "Cash" },
                 ])}
-                {select("deliveryMethod", "Entrega das faturas", [
-                  { value: "Send later", label: "Enviar por e-mail posteriormente" },
-                  { value: "Print later", label: "Imprimir posteriormente" },
+                {select("deliveryMethod", "Invoice delivery", [
+                  { value: "Send later", label: "Email later" },
+                  { value: "Print later", label: "Print later" },
                 ])}
               </div>
             </Panel>
-            <Panel title="Impostos e identificação fiscal">
+            <Panel title="Taxes and tax identification">
               <div className="grid gap-4 p-4 sm:grid-cols-2">
-                {input("taxId", "Identificação fiscal · SSN / EIN / CNPJ / RFC")}
+                {input("taxId", "Tax ID · SSN / EIN / CNPJ / RFC")}
                 {select(
                   "defaultTaxCode",
-                  "Código de imposto padrão",
+                  "Default tax code",
                   taxJurisdictions
                     .filter((t) => t.status === "Active" || t.code === form.defaultTaxCode)
                     .map((t) => ({ value: t.code, label: t.code + " · " + t.name })),
@@ -291,15 +290,15 @@ function CustomersPage() {
                     checked={form.taxExempt}
                     onChange={(e) => change("taxExempt", e.target.checked)}
                   />
-                  Isento de imposto sobre vendas
+                  Exempt from sales tax
                 </label>
-                {form.taxExempt && input("exemptionReason", "Razão de isenção")}
+                {form.taxExempt && input("exemptionReason", "Exemption reason")}
               </div>
             </Panel>
-            <Panel title="Observações, anexos e sub-cliente">
+            <Panel title="Notes, attachments and sub-customer">
               <div className="space-y-4 p-4">
                 <label className="block text-sm">
-                  Notas internas (não visíveis na fatura)
+                  Internal notes (not shown on invoices)
                   <textarea
                     className={control}
                     rows={4}
@@ -309,7 +308,7 @@ function CustomersPage() {
                   />
                 </label>
                 <label className="block text-sm">
-                  Anexos · até 20 MB por arquivo (máximo de 20)
+                  Attachments · up to 20 MB per file (maximum 20)
                   <input
                     className={control}
                     type="file"
@@ -340,7 +339,7 @@ function CustomersPage() {
                           )
                         }
                       >
-                        Remover
+                        Remove
                       </button>
                     </li>
                   ))}
@@ -357,26 +356,26 @@ function CustomersPage() {
                       }
                     }}
                   />
-                  É sub-cliente
+                  Is a sub-customer
                 </label>
                 {sub && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     {select(
                       "parentCustomerId",
-                      "Cliente pai",
+                      "Parent customer",
                       customers
                         .filter((c) => c.id !== editing)
                         .map((c) => ({ value: c.id, label: c.displayName })),
                     )}
                     <label className="text-sm">
-                      Faturamento
+                      Billing
                       <select
                         className={control}
                         value={form.billWithParent ? "parent" : "individual"}
                         onChange={(e) => change("billWithParent", e.target.value === "parent")}
                       >
-                        <option value="individual">Faturar este cliente individualmente</option>
-                        <option value="parent">Agrupar com o cliente pai</option>
+                        <option value="individual">Bill this customer individually</option>
+                        <option value="parent">Bill with parent customer</option>
                       </select>
                     </label>
                   </div>
@@ -384,32 +383,32 @@ function CustomersPage() {
               </div>
             </Panel>
             <div className="flex gap-4">
-              <button className={button}>{pending ? "Salvando…" : "Salvar cliente"}</button>
+              <button className={button}>{pending ? "Saving…" : "Save customer"}</button>
               <button type="button" onClick={() => setEditing(null)}>
-                Cancelar
+                Cancel
               </button>
             </div>
           </fieldset>
-          {uploading && <p role="status">Carregando anexos…</p>}
+          {uploading && <p role="status">Loading attachments…</p>}
         </form>
       ) : (
         <>
           <input
             className={control}
-            aria-label="Buscar clientes"
-            placeholder="Buscar nome, empresa, e-mail ou identificação fiscal…"
+            aria-label="Search customers"
+            placeholder="Search by name, company, email or tax ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Panel title={"Clientes (" + rows.length + ")"}>
+          <Panel title={"Customers (" + rows.length + ")"}>
             <Table>
               <thead>
                 <tr>
-                  <Th>Cliente</Th>
-                  <Th>Empresa</Th>
-                  <Th>E-mail / Telefone</Th>
-                  <Th>Cliente pai</Th>
-                  <Th>Ações</Th>
+                  <Th>Customer</Th>
+                  <Th>Company</Th>
+                  <Th>Email / Phone</Th>
+                  <Th>Parent customer</Th>
+                  <Th>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -424,17 +423,17 @@ function CustomersPage() {
                     <Td>
                       {allowed ? (
                         <button className="text-brand underline" onClick={() => open(c)}>
-                          Editar
+                          Edit
                         </button>
                       ) : (
-                        "Somente consulta"
+                        "Read-only"
                       )}
                     </Td>
                   </tr>
                 ))}
                 {!rows.length && (
                   <tr>
-                    <Td colSpan={5}>Nenhum cliente encontrado.</Td>
+                    <Td colSpan={5}>No customers found.</Td>
                   </tr>
                 )}
               </tbody>

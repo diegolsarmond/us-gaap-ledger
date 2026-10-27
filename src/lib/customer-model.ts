@@ -3,7 +3,7 @@ const text = z.string().trim().max(2000).default("");
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const address = z.object({ street: text, city: text, state: text, zip: text, country: text });
 export const customerSchema = z.object({
-  displayName: z.string().trim().min(1, "Informe o nome de exibição.").max(120),
+  displayName: z.string().trim().min(1, "Enter a display name.").max(120),
   title: text,
   firstName: text,
   middleName: text,
@@ -46,7 +46,7 @@ export const customerSchema = z.object({
           const bytes =
             (file.content.length * 3) / 4 -
             (file.content.endsWith("==") ? 2 : file.content.endsWith("=") ? 1 : 0);
-          if (bytes !== file.size) ctx.addIssue({ code: "custom", message: "Anexo inválido." });
+          if (bytes !== file.size) ctx.addIssue({ code: "custom", message: "Invalid attachment." });
         }),
     )
     .max(20)
@@ -64,22 +64,22 @@ export function validateCustomers(
   for (const c of customers) {
     customerSchema.parse(c);
     const name = c.displayName.toLowerCase();
-    if (names.has(name)) throw new Error("Nome de exibição de cliente já cadastrado.");
+    if (names.has(name)) throw new Error("A customer with this display name already exists.");
     names.add(name);
     if (c.currency && !currencies.includes(c.currency))
-      throw new Error("Moeda não pertence à empresa.");
+      throw new Error("Currency does not belong to this company.");
     if (c.paymentTermId && !terms.includes(c.paymentTermId))
-      throw new Error("Termo não pertence à empresa.");
+      throw new Error("Payment term does not belong to this company.");
     if (c.defaultTaxCode && !taxes.includes(c.defaultTaxCode))
-      throw new Error("Imposto não pertence à empresa.");
-    if (c.billWithParent && !c.parentCustomerId) throw new Error("Selecione o cliente pai.");
+      throw new Error("Tax does not belong to this company.");
+    if (c.billWithParent && !c.parentCustomerId) throw new Error("Select a parent customer.");
     const seen = new Set([c.id]);
     let parent = c.parentCustomerId;
     while (parent) {
-      if (seen.has(parent)) throw new Error("Vínculo circular de clientes.");
+      if (seen.has(parent)) throw new Error("Circular customer relationship.");
       seen.add(parent);
       const row = customers.find((r) => r.id === parent);
-      if (!row) throw new Error("Cliente pai não pertence à empresa.");
+      if (!row) throw new Error("Parent customer does not belong to this company.");
       parent = row.parentCustomerId;
     }
   }

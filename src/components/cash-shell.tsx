@@ -28,13 +28,7 @@ const groups = [
   },
   {
     label: "Settings",
-    items: [
-      "Customers / Clientes",
-      "Vendors / Fornecedores",
-      "Companies",
-      "Access profiles",
-      "Users",
-    ],
+    items: ["Customers", "Vendors", "Companies", "Access profiles", "Users"],
   },
   {
     label: "Audit",
@@ -55,8 +49,8 @@ const groups = [
   },
 ];
 const menuRoutes: Record<string, string> = {
-  "Customers / Clientes": "/customers",
-  "Vendors / Fornecedores": "/vendors",
+  Customers: "/customers",
+  Vendors: "/vendors",
   Dashboard: "/dashboard",
   "Invoices & AR": "/invoices",
   "Bills & AP": "/payables",

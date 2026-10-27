@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const optionalText = z.string().trim().max(300).default("");
 export const vendorSchema = z.object({
-  displayName: z.string().trim().min(1, "Informe o nome de exibição.").max(120),
+  displayName: z.string().trim().min(1, "Enter a display name.").max(120),
   title: optionalText,
   firstName: optionalText,
   middleName: optionalText,
@@ -22,7 +22,7 @@ export const vendorSchema = z.object({
         .trim()
         .url()
         .max(500)
-        .refine((v) => /^https?:\/\//i.test(v), "Use http:// ou https://."),
+        .refine((v) => /^https?:\/\//i.test(v), "Use http:// or https://."),
     ])
     .default(""),
   streetAddress: optionalText,

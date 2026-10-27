@@ -18,47 +18,47 @@ import {
 export const Route = createFileRoute("/vendors")({ component: VendorsPage });
 const groups: { title: string; fields: [keyof VendorInput, string][] }[] = [
   {
-    title: "1. Dados principais e contato",
+    title: "1. Basic information and contact",
     fields: [
-      ["displayName", "Nome de exibição / Vendor Display Name *"],
-      ["title", "Tratamento / Title"],
-      ["firstName", "Nome / First Name"],
-      ["middleName", "Nome do meio / Middle Name"],
-      ["lastName", "Sobrenome / Last Name"],
-      ["suffix", "Sufixo / Suffix"],
-      ["companyName", "Empresa / Company Name"],
-      ["printOnCheckAs", "Nome no cheque / Print on check as"],
-      ["email", "E-mail"],
-      ["phone", "Telefone principal / Phone"],
-      ["mobile", "Celular / Mobile"],
+      ["displayName", "Vendor display name *"],
+      ["title", "Title"],
+      ["firstName", "First name"],
+      ["middleName", "Middle name"],
+      ["lastName", "Last name"],
+      ["suffix", "Suffix"],
+      ["companyName", "Company name"],
+      ["printOnCheckAs", "Print on check as"],
+      ["email", "Email"],
+      ["phone", "Primary phone"],
+      ["mobile", "Mobile"],
       ["fax", "Fax"],
       ["website", "Website (https://)"],
     ],
   },
   {
-    title: "2. Endereço / Address",
+    title: "2. Address",
     fields: [
-      ["streetAddress", "Logradouro e número / Street Address"],
-      ["city", "Cidade / City"],
-      ["stateProvince", "Estado ou província / State / Province"],
-      ["zipCode", "CEP / ZIP Code"],
-      ["country", "País / Country"],
+      ["streetAddress", "Street address"],
+      ["city", "City"],
+      ["stateProvince", "State / Province"],
+      ["zipCode", "ZIP / Postal code"],
+      ["country", "Country"],
     ],
   },
   {
-    title: "3. Termos de pagamento e contabilidade",
-    fields: [["accountNumber", "Número da conta no fornecedor / Account No."]],
+    title: "3. Payment terms and accounting",
+    fields: [["accountNumber", "Vendor account number"]],
   },
   {
-    title: "4. Informações fiscais / Tax Information",
-    fields: [["taxId", "Identificação fiscal / SSN / EIN / CNPJ / RFC"]],
+    title: "4. Tax information",
+    fields: [["taxId", "Tax ID / SSN / EIN / CNPJ / RFC"]],
   },
   {
-    title: "5. Dados bancários / Payments",
+    title: "5. Banking details / Payments",
     fields: [
-      ["bankName", "Nome do banco / Bank Name"],
-      ["routingNumber", "Roteamento / Routing Number / ABA"],
-      ["bankAccountNumber", "Número da conta bancária / Account Number"],
+      ["bankName", "Bank name"],
+      ["routingNumber", "Routing number / ABA"],
+      ["bankAccountNumber", "Bank account number"],
     ],
   },
 ];
@@ -84,7 +84,7 @@ function VendorsPage() {
     setDraft(
       vendor
         ? vendorSchema.parse(vendor)
-        : { ...vendorSchema.parse({ displayName: "Novo" }), displayName: "" },
+        : { ...vendorSchema.parse({ displayName: "New" }), displayName: "" },
     );
     setEditingId(vendor?.id);
     setError("");
@@ -104,9 +104,9 @@ function VendorsPage() {
     try {
       if (editingId) await updateVendor(editingId, parsed.data);
       else setEditingId(await addVendor(parsed.data));
-      setSaved("Fornecedor salvo. Você pode gerenciar os anexos abaixo.");
+      setSaved("Vendor saved. You can manage attachments below.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(e instanceof Error ? e.message : "Unable to save.");
     }
   }
   function select(
@@ -119,9 +119,9 @@ function VendorsPage() {
       <label className="space-y-1 text-sm">
         {label}
         <select className={inputClass} value={value} onChange={(e) => change(key, e.target.value)}>
-          <option value="">Não informado</option>
+          <option value="">Not specified</option>
           {value && !options.some((o) => o.value === value) && (
-            <option value={value}>{value} (atual)</option>
+            <option value={value}>{value} (current)</option>
           )}
           {options.map((o) => (
             <option key={o.value} value={o.value}>
@@ -136,29 +136,29 @@ function VendorsPage() {
     <div className="space-y-5 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Vendors / Fornecedores</h1>
+          <h1 className="text-2xl font-semibold">Vendors</h1>
           <p className="text-sm text-ink3">
-            {activeCompany.name} · Apenas o nome de exibição é obrigatório.
+            {activeCompany.name} · Only the display name is required.
           </p>
         </div>
         {writable && (
           <button
             className="rounded bg-brand px-4 py-2 text-white"
             onClick={() => {
-              setDraft({ ...vendorSchema.parse({ displayName: "Novo" }), displayName: "" });
+              setDraft({ ...vendorSchema.parse({ displayName: "New" }), displayName: "" });
               setEditingId(undefined);
               setError("");
               setSaved("");
             }}
           >
-            Novo fornecedor
+            New vendor
           </button>
         )}
       </div>
       {draft ? (
         <>
           <button className="text-brand underline" onClick={() => setDraft(null)}>
-            Voltar à lista
+            Back to list
           </button>
           <form onSubmit={save} className="space-y-4">
             <fieldset disabled={!writable} className="space-y-4">
@@ -201,24 +201,24 @@ function VendorsPage() {
                       <>
                         {select(
                           "paymentTermId",
-                          "Termos / Terms",
+                          "Payment terms",
                           paymentTerms
                             .filter((t) => t.status === "Active")
                             .map((t) => ({
                               value: t.id,
-                              label: t.name + " (" + t.days + " dias)",
+                              label: t.name + " (" + t.days + " days)",
                             })),
                         )}
                         {select(
                           "currency",
-                          "Moeda / Currency",
+                          "Currency",
                           currencies
                             .filter((c) => c.status === "Active")
                             .map((c) => ({ value: c.code, label: c.code + " · " + c.name })),
                         )}
                         {select(
                           "defaultExpenseAccountCode",
-                          "Conta de despesa padrão / Default Expense Account",
+                          "Default expense account",
                           accounts
                             .filter((a) =>
                               ["COGS", "Operating Expense", "Other Expense"].includes(a.type),
@@ -234,18 +234,18 @@ function VendorsPage() {
                           checked={draft.track1099}
                           onChange={(e) => change("track1099", e.target.checked)}
                         />
-                        Track 1099 / Prestador independente (EUA)
+                        Track 1099 / Independent contractor (US)
                       </label>
                     )}
                     {index === 4 && (
                       <>
-                        {select("bankAccountType", "Tipo de conta / Account Type", [
-                          { value: "Checking", label: "Checking / Corrente" },
-                          { value: "Savings", label: "Savings / Poupança" },
+                        {select("bankAccountType", "Account type", [
+                          { value: "Checking", label: "Checking" },
+                          { value: "Savings", label: "Savings" },
                         ])}
                         <p className="text-xs text-ink3">
-                          Dados para referência da equipe. Pagamento automático depende de
-                          integração com um provedor de pagamentos.
+                          For team reference. Automatic payments require integration with a payment
+                          provider.
                         </p>
                       </>
                     )}
@@ -253,9 +253,9 @@ function VendorsPage() {
                 </section>
               ))}
               <section className="rounded-lg border border-line bg-white p-4">
-                <h2 className="mb-3 font-semibold">6. Observações e anexos</h2>
+                <h2 className="mb-3 font-semibold">6. Notes and attachments</h2>
                 <label className="text-sm" htmlFor="notes">
-                  Notas internas / Notes
+                  Internal notes
                 </label>
                 <textarea
                   id="notes"
@@ -268,7 +268,7 @@ function VendorsPage() {
               </section>
               {writable && (
                 <button className="rounded bg-brand px-4 py-2 text-white" type="submit">
-                  Salvar fornecedor
+                  Save vendor
                 </button>
               )}
             </fieldset>
@@ -283,26 +283,26 @@ function VendorsPage() {
             <Attachments companyId={activeCompany.id} vendorId={editingId} writable={writable} />
           ) : (
             <p className="text-sm text-ink3">
-              Salve o fornecedor para adicionar anexos de até 20 MB cada.
+              Save the vendor to add attachments up to 20 MB each.
             </p>
           )}
         </>
       ) : (
         <>
           <label className="block text-sm">
-            Buscar fornecedor
+            Search vendors
             <input
               className={inputClass}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nome, empresa, e-mail ou identificação fiscal"
+              placeholder="Name, company, email or tax ID"
             />
           </label>
           <div className="overflow-x-auto rounded-lg border border-line bg-white">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr>
-                  {["Nome de exibição", "Empresa", "Contato", "Moeda", "Ação"].map((h) => (
+                  {["Display name", "Company", "Contact", "Currency", "Action"].map((h) => (
                     <th className="p-3" key={h}>
                       {h}
                     </th>
@@ -325,7 +325,7 @@ function VendorsPage() {
                       <td className="p-3">{v.currency || "—"}</td>
                       <td className="p-3">
                         <button className="text-brand underline" onClick={() => open(v)}>
-                          {writable ? "Editar" : "Ver cadastro"}
+                          {writable ? "Edit" : "View details"}
                         </button>
                       </td>
                     </tr>
@@ -333,7 +333,7 @@ function VendorsPage() {
               </tbody>
             </table>
             {!vendors.length && (
-              <p className="p-4 text-sm text-ink3">Nenhum fornecedor cadastrado nesta empresa.</p>
+              <p className="p-4 text-sm text-ink3">No vendors registered for this company.</p>
             )}
           </div>
         </>
@@ -365,20 +365,20 @@ function Attachments({
       await work();
       await client.invalidateQueries({ queryKey: key });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao processar anexo.");
+      setError(e instanceof Error ? e.message : "Unable to process attachment.");
     } finally {
       setBusy(false);
     }
   }
   return (
     <section className="space-y-3 rounded-lg border border-line bg-white p-4">
-      <h2 className="font-semibold">Anexos / Attachments</h2>
+      <h2 className="font-semibold">Attachments</h2>
       <p className="text-sm text-ink3">
-        W-9, W-8BEN, contratos e tabelas de preços. Até 20 MB por arquivo.
+        W-9, W-8BEN, contracts and price lists. Up to 20 MB per file.
       </p>
       {writable && (
         <label className="block text-sm">
-          Adicionar arquivo
+          Add file
           <input
             className="block"
             type="file"
@@ -389,7 +389,7 @@ function Attachments({
               if (!file) return;
               void action(async () => {
                 if (!file.size || file.size > MAX_VENDOR_ATTACHMENT_BYTES)
-                  throw new Error("Selecione um arquivo de até 20 MB, não vazio.");
+                  throw new Error("Select a non-empty file up to 20 MB.");
                 const content = await new Promise<string>((resolve, reject) => {
                   const reader = new FileReader();
                   reader.onload = () => resolve(String(reader.result).split(",")[1]!);
@@ -404,11 +404,11 @@ function Attachments({
           />
         </label>
       )}
-      {query.isPending && <p role="status">Carregando anexos…</p>}
+      {query.isPending && <p role="status">Loading attachments…</p>}
       {query.isError && (
         <p role="alert">
-          Não foi possível carregar os anexos.{" "}
-          <button onClick={() => void query.refetch()}>Tentar novamente</button>
+          Unable to load attachments.{" "}
+          <button onClick={() => void query.refetch()}>Try again</button>
         </p>
       )}
       {query.data?.map((file) => (
@@ -436,25 +436,25 @@ function Attachments({
               })
             }
           >
-            Baixar
+            Download
           </button>
           {writable && (
             <button
               disabled={busy}
               className="text-down underline"
               onClick={() => {
-                if (window.confirm("Excluir este anexo?"))
+                if (window.confirm("Delete this attachment?"))
                   void action(() =>
                     removeVendorAttachment({ data: { companyId, vendorId, id: file.id } }),
                   );
               }}
             >
-              Excluir
+              Delete
             </button>
           )}
         </div>
       ))}
-      {busy && <p role="status">Processando anexo…</p>}
+      {busy && <p role="status">Processing attachment…</p>}
       {error && (
         <p role="alert" className="text-down">
           {error}

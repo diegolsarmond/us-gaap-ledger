@@ -15,7 +15,7 @@ export async function authorizeCompany(
     WHERE c.id=$1 AND c.active AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id))`,
     [companyId, auth.user.id],
   );
-  if (!result.rowCount) throw new Error("Empresa indisponível ou sem permissão de acesso.");
+  if (!result.rowCount) throw new Error("Company unavailable or access denied.");
   return { ...auth, company: mapCompany(result.rows[0]) };
 }
 export function mapCompany(row: {
@@ -67,7 +67,7 @@ export async function saveCompany(data: z.infer<typeof companySchema>) {
         `SELECT c.id FROM companies c JOIN app_users u ON u.id=$2 JOIN access_profiles p ON p.id=u.profile_id WHERE c.id=$1 AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id)) FOR UPDATE OF c`,
         [id, user.id],
       );
-      if (!accessible.rowCount) throw new Error("Empresa sem permissão de acesso.");
+      if (!accessible.rowCount) throw new Error("Company access denied.");
       await client.query("UPDATE companies SET data=$2,active=$3,revision=revision+1 WHERE id=$1", [
         id,
         JSON.stringify(data),

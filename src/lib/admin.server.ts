@@ -12,14 +12,16 @@ import type {
 } from "./admin-model";
 export async function authorize(permission?: keyof Permissions) {
   const user = await readSession();
-  if (user?.must_change_password) throw new Error("Altere sua senha antes de acessar o sistema.");
-  if (!user) throw new Error("Sessão expirada. Entre novamente.");
+  if (user?.must_change_password)
+    throw new Error("Change your password before accessing the system.");
+  if (!user) throw new Error("Session expired. Sign in again.");
   const result = await db().query(
     "SELECT p.* FROM app_users u LEFT JOIN access_profiles p ON p.id=u.profile_id WHERE u.id=$1 AND u.active=true",
     [user.id],
   );
   const profile = result.rows[0];
-  if (permission && !profile?.[permission]) throw new Error("Seu perfil não permite esta ação.");
+  if (permission && !profile?.[permission])
+    throw new Error("Your profile does not allow this action.");
   return {
     user,
     permissions: {
@@ -79,7 +81,7 @@ export async function saveProfile(data: z.infer<typeof profileSchema>) {
         "UPDATE access_profiles SET name=$1,manage_users=$2,manage_profiles=$3,view_audit=$4,write_cash=$5  ,manage_companies=$6,write_accounting=$7,close_periods=$8,all_companies=$9 WHERE id=$10 AND NOT system_admin RETURNING id",
         [...values, data.id],
       );
-      if (!r.rowCount) throw new Error("Perfil protegido ou não encontrado.");
+      if (!r.rowCount) throw new Error("Profile is protected or was not found.");
     } else {
       const created = await client.query(
         "INSERT INTO access_profiles(name,manage_users,manage_profiles,view_audit,write_cash,manage_companies,write_accounting,close_periods,all_companies) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",
@@ -107,7 +109,7 @@ export async function saveProfile(data: z.infer<typeof profileSchema>) {
   } catch (e) {
     await client.query("ROLLBACK");
     if ((e as { code?: string }).code === "23505")
-      throw new Error("Já existe um perfil com esse nome.");
+      throw new Error("A profile with this name already exists.");
     throw e;
   } finally {
     client.release();
@@ -116,10 +118,9 @@ export async function saveProfile(data: z.infer<typeof profileSchema>) {
 }
 export async function saveUser(data: z.infer<typeof userSchema>) {
   const { user } = await authorize("manage_users");
-  if (!data.id && !data.password)
-    throw new Error("Informe uma senha com pelo menos 12 caracteres.");
+  if (!data.id && !data.password) throw new Error("Enter a password with at least 12 characters.");
   if (data.id === user.id && !data.active)
-    throw new Error("Você não pode desativar seu próprio acesso.");
+    throw new Error("You cannot deactivate your own access.");
   const client = await db().connect();
   try {
     await client.query("BEGIN");
@@ -128,7 +129,7 @@ export async function saveUser(data: z.infer<typeof userSchema>) {
     const profile = await client.query("SELECT id FROM access_profiles WHERE id=$1", [
       data.profile_id,
     ]);
-    if (!profile.rowCount) throw new Error("Perfil não encontrado.");
+    if (!profile.rowCount) throw new Error("Profile not found.");
     let hash: string | null = null;
     if (data.password) {
       const salt = randomBytes(16).toString("hex");
@@ -139,7 +140,7 @@ export async function saveUser(data: z.infer<typeof userSchema>) {
         "UPDATE app_users SET name=$1,email=$2,profile_id=$3,active=$4,password_hash=coalesce($5,password_hash) WHERE id=$6 RETURNING id",
         [data.name, data.email.toLowerCase(), data.profile_id, data.active, hash, data.id],
       );
-      if (!r.rowCount) throw new Error("Usuário não encontrado.");
+      if (!r.rowCount) throw new Error("User not found.");
     } else
       await client.query(
         "INSERT INTO app_users(name,email,profile_id,active,password_hash) VALUES($1,$2,$3,$4,$5)",
@@ -158,7 +159,7 @@ export async function saveUser(data: z.infer<typeof userSchema>) {
   } catch (e) {
     await client.query("ROLLBACK");
     if ((e as { code?: string }).code === "23505")
-      throw new Error("Já existe um usuário com esse e-mail.");
+      throw new Error("A user with this email already exists.");
     throw e;
   } finally {
     client.release();
@@ -191,7 +192,7 @@ export async function resetPassword(id: string) {
       "UPDATE app_users SET password_hash=$1,must_change_password=true WHERE id=$2 RETURNING id",
       [hash, id],
     );
-    if (!result.rowCount) throw new Error("Usuário não encontrado.");
+    if (!result.rowCount) throw new Error("User not found.");
     await client.query("DELETE FROM app_sessions WHERE user_id=$1", [id]);
     await client.query("COMMIT");
     return { password };

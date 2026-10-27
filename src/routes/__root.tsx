@@ -147,7 +147,11 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient, user } = Route.useRouteContext();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The URL can change while the previous page is still rendered during navigation.
+  // Keep its providers until the new route matches are committed with the Outlet.
+  const pathname = useRouterState({
+    select: (s) => s.matches[s.matches.length - 1]?.pathname ?? "/",
+  });
   if (pathname === "/" || pathname.startsWith("/cadastro") || !user) return <Outlet />;
   return (
     <QueryClientProvider client={queryClient}>

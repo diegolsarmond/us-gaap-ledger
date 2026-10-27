@@ -19,11 +19,11 @@ export const companySchema = z.object({
       "Tax Exempt",
     ])
     .default("Unspecified"),
-  state: z.string().refine((s) => US_STATES.includes(s), "Estado inválido"),
+  state: z.string().refine((s) => US_STATES.includes(s), "Invalid state"),
   ein: z
     .string()
     .trim()
-    .regex(/^(?:\d{2}-?\d{7})?$/, "EIN deve conter nove dígitos")
+    .regex(/^(?:\d{2}-?\d{7})?$/, "EIN must contain nine digits")
     .transform((s) => s.replace(/-/g, ""))
     .default(""),
   address: z.string().trim().max(300).default(""),
@@ -51,4 +51,4 @@ export type Company = z.infer<typeof companySchema> & {
   activePeriod: string;
 };
 export const formatEin = (ein: string) =>
-  ein ? `${ein.slice(0, 2)}-${ein.slice(2)}` : "EIN não informado";
+  ein ? `${ein.slice(0, 2)}-${ein.slice(2)}` : "EIN not provided";

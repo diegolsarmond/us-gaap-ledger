@@ -34,7 +34,7 @@ function CompaniesPage() {
       if (editing === "new" && data.active) selectCompany(result.id);
       setEditing(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(e instanceof Error ? e.message : "Unable to save.");
     } finally {
       setPending(false);
     }
@@ -44,8 +44,8 @@ function CompaniesPage() {
   return (
     <div className="space-y-4">
       <PageTitle
-        title="Empresas"
-        description="Empresas dos Estados Unidos · moeda-base USD"
+        title="Companies"
+        description="United States companies · base currency USD"
         actions={
           permissions.manage_companies ? (
             <button
@@ -55,7 +55,7 @@ function CompaniesPage() {
                 setError("");
               }}
             >
-              Nova empresa
+              New company
             </button>
           ) : undefined
         }
@@ -66,13 +66,13 @@ function CompaniesPage() {
         </p>
       )}
       <input
-        aria-label="Buscar empresas"
+        aria-label="Search companies"
         className={control}
-        placeholder="Buscar por nome ou EIN"
+        placeholder="Search by name or EIN"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <Panel title="Empresas cadastradas">
+      <Panel title="Registered companies">
         <div className="divide-y divide-line">
           {companies
             .filter((c) => `${c.name} ${c.ein}`.toLowerCase().includes(search.toLowerCase()))
@@ -81,7 +81,7 @@ function CompaniesPage() {
                 <div>
                   <p className="font-medium">{c.name}</p>
                   <p className="text-xs text-ink3">
-                    {c.entity} · {c.state} · {formatEin(c.ein)} · {c.active ? "Ativa" : "Inativa"}
+                    {c.entity} · {c.state} · {formatEin(c.ein)} · {c.active ? "Active" : "Inactive"}
                   </p>
                 </div>
                 {permissions.manage_companies && (
@@ -92,16 +92,16 @@ function CompaniesPage() {
                       setError("");
                     }}
                   >
-                    Editar
+                    Edit
                   </button>
                 )}
               </div>
             ))}
-          {!companies.length && <p className="p-4">Nenhuma empresa cadastrada ou autorizada.</p>}
+          {!companies.length && <p className="p-4">No companies registered or authorized.</p>}
         </div>
       </Panel>
       {editing && permissions.manage_companies && (
-        <Panel title={editing === "new" ? "Nova empresa" : "Editar empresa"}>
+        <Panel title={editing === "new" ? "New company" : "Edit company"}>
           <form
             key={editing === "new" ? "new" : editing.id}
             onSubmit={submit}
@@ -109,14 +109,14 @@ function CompaniesPage() {
           >
             <fieldset disabled={pending} className="contents">
               {[
-                ["name", "Nome legal", true],
-                ["tradeName", "Nome comercial / DBA", false],
-                ["ein", "EIN (opcional)", false],
-                ["address", "Endereço", false],
-                ["city", "Cidade", false],
+                ["name", "Legal name", true],
+                ["tradeName", "Trade name / DBA", false],
+                ["ein", "EIN (optional)", false],
+                ["address", "Address", false],
+                ["city", "City", false],
                 ["zip", "ZIP Code", false],
-                ["phone", "Telefone", false],
-                ["email", "E-mail", false],
+                ["phone", "Phone", false],
+                ["email", "Email", false],
               ].map(([name, label, required]) => (
                 <label key={String(name)} className="text-sm">
                   {label}
@@ -133,7 +133,7 @@ function CompaniesPage() {
                 </label>
               ))}
               <label className="text-sm">
-                Tipo jurídico
+                Legal entity type
                 <select name="entity" className={control} defaultValue={value("entity") || "LLC"}>
                   {companySchema.shape.entity.options.map((v) => (
                     <option key={v}>{v}</option>
@@ -141,7 +141,7 @@ function CompaniesPage() {
                 </select>
               </label>
               <label className="text-sm">
-                Classificação tributária federal
+                Federal tax classification
                 <select
                   name="federalTaxClassification"
                   className={control}
@@ -153,8 +153,8 @@ function CompaniesPage() {
                 </select>
               </label>
               {[
-                ["state", "Estado de constituição", true],
-                ["addressState", "Estado do endereço", false],
+                ["state", "State of formation", true],
+                ["addressState", "Address state", false],
               ].map(([name, label, required]) => (
                 <label key={String(name)} className="text-sm">
                   {label}
@@ -164,7 +164,7 @@ function CompaniesPage() {
                     defaultValue={value(name as keyof Company)}
                     className={control}
                   >
-                    <option value="">Selecione</option>
+                    <option value="">Select</option>
                     {US_STATES.map((v) => (
                       <option key={v}>{v}</option>
                     ))}
@@ -172,14 +172,14 @@ function CompaniesPage() {
                 </label>
               ))}
               <label className="text-sm">
-                Regime contábil
+                Accounting basis
                 <select name="basis" className={control} defaultValue={value("basis") || "Accrual"}>
-                  <option value="Accrual">Competência (Accrual)</option>
-                  <option value="Cash">Caixa (Cash)</option>
+                  <option value="Accrual">Accrual</option>
+                  <option value="Cash">Cash</option>
                 </select>
               </label>
               <label className="text-sm">
-                Mês de encerramento do exercício
+                Fiscal year-end month
                 <select
                   name="fiscalYearEndMonth"
                   className={control}
@@ -198,18 +198,18 @@ function CompaniesPage() {
                   name="active"
                   defaultChecked={editing === "new" || editing.active}
                 />{" "}
-                Empresa ativa
+                Active company
               </label>
               <p className="text-xs text-ink3">
-                EIN validado apenas pelo formato. Uma nova empresa começa sem contas, parâmetros,
-                saldos ou transações.
+                EIN is validated for format only. A new company starts without accounts, parameters,
+                balances or transactions.
               </p>
               <div className="flex gap-4">
                 <button disabled={pending} className="bg-brand text-white rounded px-3 py-2">
-                  {pending ? "Salvando…" : "Salvar"}
+                  {pending ? "Saving…" : "Save"}
                 </button>
                 <button type="button" disabled={pending} onClick={() => setEditing(null)}>
-                  Cancelar
+                  Cancel
                 </button>
               </div>
             </fieldset>

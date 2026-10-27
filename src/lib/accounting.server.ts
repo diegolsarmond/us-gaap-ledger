@@ -154,15 +154,15 @@ export function validateState(state: CompanyState) {
           ["COGS", "Operating Expense", "Other Expense"].includes(a.type),
       )
     )
-      throw new Error("Selecione uma conta de despesa.");
+      throw new Error("Select an expense account.");
     if (v.paymentTermId && !state.paymentTerms.some((t) => t.id === v.paymentTermId))
-      throw new Error("Termo de pagamento não pertence à empresa.");
+      throw new Error("Payment term does not belong to this company.");
     if (v.currency && !state.currencies.some((c) => c.code === v.currency))
-      throw new Error("Moeda não pertence à empresa.");
+      throw new Error("Currency does not belong to this company.");
   }
   for (const b of state.bills) {
     if (b.vendorId && !state.vendors.some((v) => v.id === b.vendorId))
-      throw new Error("Fornecedor não pertence à empresa.");
+      throw new Error("Vendor does not belong to this company.");
     ref("bills", b.id, undefined, b.projectId);
     if (Math.abs(b.items.reduce((s, l) => s + l.amount, 0) - b.usdAmount) > 0.011)
       throw new Error("Total da conta a pagar inválido.");

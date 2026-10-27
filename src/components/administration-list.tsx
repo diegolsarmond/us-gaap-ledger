@@ -6,13 +6,13 @@ import { PageTitle, Panel, Table, Th, Td, Badge } from "./ui-kit";
 const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";
 const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
 const permissions = {
-  manage_users: "Gerenciar usuários",
-  manage_profiles: "Gerenciar perfis",
-  view_audit: "Consultar auditoria",
-  write_cash: "Alterar fluxo de caixa",
-  manage_companies: "Gerenciar empresas",
-  write_accounting: "Operar módulos contábeis",
-  close_periods: "Gerenciar e encerrar períodos",
+  manage_users: "Manage users",
+  manage_profiles: "Manage profiles",
+  view_audit: "View audit log",
+  write_cash: "Edit cash flow",
+  manage_companies: "Manage companies",
+  write_accounting: "Use accounting modules",
+  close_periods: "Manage and close periods",
 } as const;
 export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
   const query = useQuery({ queryKey: ["administration"], queryFn: () => loadAdministration() });
@@ -34,7 +34,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
       setGeneratedPassword(result.password);
       setCopied(false);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Não foi possível redefinir a senha.");
+      setError(error instanceof Error ? error.message : "Unable to reset password.");
     } finally {
       setPending(false);
     }
@@ -45,7 +45,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
       setCopied(true);
       setError("");
     } catch {
-      setError("Não foi possível copiar. Selecione a senha e copie manualmente.");
+      setError("Unable to copy. Select the password and copy it manually.");
     }
   }
   const users = kind === "users";
@@ -93,9 +93,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
       await client.invalidateQueries({ queryKey: ["companies"] });
       await client.invalidateQueries({ queryKey: ["accounting"] });
       setEditing(null);
-      setNotice("Alterações salvas e registradas na auditoria.");
+      setNotice("Changes saved and recorded in the audit log.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(e instanceof Error ? e.message : "Unable to save.");
     } finally {
       setPending(false);
     }
@@ -107,8 +107,8 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
   return (
     <div className="space-y-4">
       <PageTitle
-        title={users ? "Configurações · Usuários" : "Configurações · Perfis de acesso"}
-        description="Gerencie os acessos ao sistema em listas."
+        title={users ? "Settings · Users" : "Settings · Access profiles"}
+        description="Manage system users and access profiles."
         actions={
           allowed ? (
             <button
@@ -119,22 +119,22 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 setNotice("");
               }}
             >
-              {users ? "Novo usuário" : "Novo perfil"}
+              {users ? "New user" : "New profile"}
             </button>
           ) : undefined
         }
       />
-      {query.isPending && <p role="status">Carregando…</p>}
+      {query.isPending && <p role="status">Loading…</p>}
       {query.isError && (
         <p role="alert">
-          Não foi possível carregar. Verifique a conexão e a migração 003_access_audit.sql.{" "}
+          Unable to load. Check the connection and migration 003_access_audit.sql.{" "}
           <button onClick={() => void query.refetch()} className="underline">
-            Tentar novamente
+            Try again
           </button>
         </p>
       )}
       {query.isSuccess && !allowed && (
-        <p role="alert">Seu perfil não permite gerenciar esta lista.</p>
+        <p role="alert">Your profile does not allow you to manage this list.</p>
       )}
       {error && (
         <p role="alert" className="text-down">
@@ -149,30 +149,30 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
       {allowed && (
         <>
           <input
-            aria-label="Buscar na lista"
-            placeholder="Buscar por nome ou e-mail…"
+            aria-label="Search list"
+            placeholder="Search by name or email…"
             className={control}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Panel title={`${users ? "Usuários" : "Perfis de acesso"} (${rows.length})`}>
+          <Panel title={`${users ? "Users" : "Access profiles"} (${rows.length})`}>
             <Table>
               <thead>
                 <tr>
-                  <Th>Nome</Th>
+                  <Th>Name</Th>
                   {users ? (
                     <>
-                      <Th>E-mail</Th>
-                      <Th>Perfil</Th>
+                      <Th>Email</Th>
+                      <Th>Profile</Th>
                       <Th>Status</Th>
                     </>
                   ) : (
                     <>
-                      <Th>Permissões</Th>
-                      <Th>Usuários / manutenção</Th>
+                      <Th>Permissions</Th>
+                      <Th>Users / maintenance</Th>
                     </>
                   )}
-                  <Th>Ações</Th>
+                  <Th>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -184,11 +184,11 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                         <Td>{r.email}</Td>
                         <Td>
                           {query.data?.profiles.find((p) => p.id === r.profile_id)?.name ??
-                            "Sem perfil"}
+                            "No profile"}
                         </Td>
                         <Td>
                           <Badge tone={r.active ? "brand" : "neutral"}>
-                            {r.active ? "Ativo" : "Inativo"}
+                            {r.active ? "Active" : "Inactive"}
                           </Badge>
                         </Td>
                       </>
@@ -198,9 +198,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                           {Object.entries(permissions)
                             .filter(([key]) => r[key as keyof typeof permissions])
                             .map(([, label]) => label)
-                            .join(" · ") || "Somente consulta"}
+                            .join(" · ") || "Read-only"}
                         </Td>
-                        <Td>{r.system_admin ? "Administrador protegido" : "Personalizável"}</Td>
+                        <Td>{r.system_admin ? "Protected administrator" : "Customizable"}</Td>
                       </>
                     )}
                     <Td>
@@ -213,7 +213,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                           setNotice("");
                         }}
                       >
-                        Editar
+                        Edit
                       </button>
                       {"email" in r && (
                         <button
@@ -228,7 +228,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                             setNotice("");
                           }}
                         >
-                          Redefinir senha
+                          Reset password
                         </button>
                       )}
                     </Td>
@@ -236,25 +236,25 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 ))}
                 {!rows.length && (
                   <tr>
-                    <Td colSpan={5}>Nenhum registro encontrado.</Td>
+                    <Td colSpan={5}>No records found.</Td>
                   </tr>
                 )}
               </tbody>
             </Table>
           </Panel>
           {resetTarget && (
-            <Panel title={`Redefinir senha · ${resetTarget.name}`}>
+            <Panel title={`Reset password · ${resetTarget.name}`}>
               <div className="space-y-3 p-4">
                 <p className="text-sm text-ink2">{resetTarget.email}</p>
                 {generatedPassword ? (
                   <>
                     <p role="status" className="text-sm text-up">
-                      Senha redefinida com sucesso. Copie antes de fechar.
+                      Password reset successfully. Copy it before closing.
                     </p>
                     <label className="block text-xs">
-                      Nova senha forte
+                      New strong password
                       <input
-                        aria-label="Nova senha forte"
+                        aria-label="New strong password"
                         className={`${control} font-mono`}
                         readOnly
                         value={generatedPassword}
@@ -262,15 +262,15 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       />
                     </label>
                     <button type="button" className={button} onClick={() => void copyPassword()}>
-                      {copied ? "Senha copiada!" : "Copiar senha"}
+                      {copied ? "Password copied!" : "Copy password"}
                     </button>
                   </>
                 ) : (
                   <>
                     <p className="text-sm">
-                      Uma senha forte de 20 caracteres será gerada. A senha atual será substituída e
-                      as sessões deste usuário serão encerradas. Ele deverá alterar a senha no
-                      próximo login.
+                      A strong 20-character password will be generated. The current password will be
+                      replaced and this user's sessions will be ended. They must change the password
+                      at their next login.
                     </p>
                     <button
                       type="button"
@@ -278,7 +278,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       disabled={pending}
                       onClick={() => void resetPassword()}
                     >
-                      {pending ? "Redefinindo…" : "Confirmar redefinição"}
+                      {pending ? "Resetting…" : "Confirm reset"}
                     </button>
                   </>
                 )}
@@ -292,20 +292,20 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     setCopied(false);
                   }}
                 >
-                  {generatedPassword ? "Fechar" : "Cancelar"}
+                  {generatedPassword ? "Close" : "Cancel"}
                 </button>
               </div>
             </Panel>
           )}
           {editing && (
-            <Panel title={editing === "new" ? "Novo registro" : "Editar registro"}>
+            <Panel title={editing === "new" ? "New record" : "Edit record"}>
               <form
                 key={editing === "new" ? "new" : editing.id}
                 onSubmit={submit}
                 className="space-y-3 p-4"
               >
                 <label className="block text-xs">
-                  Nome
+                  Name
                   <input
                     name="name"
                     required
@@ -318,7 +318,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 {users ? (
                   <>
                     <label className="block text-xs">
-                      E-mail
+                      Email
                       <input
                         name="email"
                         type="email"
@@ -329,7 +329,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       />
                     </label>
                     <label className="block text-xs">
-                      Perfil de acesso
+                      Access profile
                       <select
                         name="profile_id"
                         required
@@ -341,7 +341,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                         className={control}
                       >
                         <option value="" disabled>
-                          Selecione um perfil
+                          Select a profile
                         </option>
                         {query.data?.profiles.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -352,8 +352,8 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     </label>
                     <label className="block text-xs">
                       {editing === "new"
-                        ? "Senha (mínimo de 12 caracteres)"
-                        : "Nova senha (opcional)"}
+                        ? "Password (at least 12 characters)"
+                        : "New password (optional)"}
                       <input
                         name="password"
                         type="password"
@@ -372,7 +372,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                           editing === "new" || ("active" in editing && editing.active)
                         }
                       />
-                      Usuário ativo
+                      Active user
                     </label>
                   </>
                 ) : (
@@ -386,10 +386,10 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                             editing !== "new" && "all_companies" in editing && editing.all_companies
                           }
                         />{" "}
-                        Acesso a todas as empresas (inclusive futuras)
+                        Access to all companies (including future companies)
                       </label>
                       <p className="text-xs">
-                        Se desmarcado, somente as empresas selecionadas abaixo serão acessíveis.
+                        If unchecked, only the companies selected below will be accessible.
                       </p>
                       {query.data?.companies.map((c) => (
                         <label key={c.id} className="block">
@@ -427,7 +427,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 )}
                 <div className="flex gap-2">
                   <button className={button} disabled={pending}>
-                    {pending ? "Salvando…" : "Salvar"}
+                    {pending ? "Saving…" : "Save"}
                   </button>
                   <button
                     type="button"
@@ -435,7 +435,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     className="text-sm text-ink2"
                     onClick={() => setEditing(null)}
                   >
-                    Cancelar
+                    Cancel
                   </button>
                 </div>
               </form>
