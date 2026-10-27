@@ -4,7 +4,65 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuditEvents } from "@/lib/admin";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
+import {
+  auditAction,
+  auditChanges,
+  auditLabel,
+  auditValue,
+  parseAuditData,
+} from "@/lib/audit-display";
+import type { AuditEvent } from "@/lib/admin-model";
 export const Route = createFileRoute("/audit-log")({ component: AuditPage });
+function ChangeDetails({ event }: { event: AuditEvent }) {
+  const before = parseAuditData(event.before_data);
+  const after = parseAuditData(event.after_data);
+  const changes = auditChanges(before, after);
+  if (!changes.length)
+    return (
+      <span className="text-xs text-ink3">
+        {event.action === "LOGIN"
+          ? "Sign-in recorded."
+          : before === null && after === null
+            ? "No details were recorded for this event."
+            : "No field changes recorded."}
+      </span>
+    );
+  return (
+    <details className="min-w-64">
+      <summary className="cursor-pointer text-brand">
+        View details · {changes.length} {changes.length === 1 ? "field" : "fields"}
+      </summary>
+      <div className="mt-2 max-h-96 overflow-auto rounded-md border border-line bg-white">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              <Th>Field</Th>
+              {before !== null && <Th>Before</Th>}
+              {after !== null && <Th>After</Th>}
+            </tr>
+          </thead>
+          <tbody>
+            {changes.map((change) => (
+              <tr key={change.key} className="border-t border-line">
+                <Td className="align-top font-medium">{change.label}</Td>
+                {before !== null && (
+                  <Td className="min-w-40 max-w-80 whitespace-pre-wrap break-all align-top text-ink3">
+                    {auditValue(change.before)}
+                  </Td>
+                )}
+                {after !== null && (
+                  <Td className="min-w-40 max-w-80 whitespace-pre-wrap break-all align-top">
+                    {auditValue(change.after)}
+                  </Td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
 function AuditPage() {
   const { activeCompany } = useCompanies();
   const [page, setPage] = useState(1);
@@ -18,94 +76,90 @@ function AuditPage() {
     query.data?.events.filter(
       (r) =>
         (!action || r.action === action) &&
-        `${r.actor_name} ${r.entity} ${r.target_id}`.toLowerCase().includes(search.toLowerCase()),
+        `${r.actor_name} ${r.entity} ${auditLabel(r.entity)} ${auditAction(r.action)} ${r.target_id}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
     ) ?? [];
   return (
     <div className="space-y-4">
       <PageTitle
-        title="Auditoria · Logs de ações"
-        description="Histórico de logins e alterações de usuários, perfis, contas e lançamentos. Datas no horário local."
+        title="Audit · Action logs"
+        description="History of sign-ins and changes to users, profiles, accounts, and journal entries. Dates are shown in local time."
       />
-      {query.isPending && <p role="status">Carregando logs…</p>}
+      {query.isPending && <p role="status">Loading records…</p>}
       {query.isError && (
         <p role="alert">
-          Não foi possível consultar a auditoria. Verifique sua permissão, a conexão e a migração
-          003_access_audit.sql.{" "}
+          Unable to load the audit log. Check your access permissions and try again.{" "}
           <button className="underline" onClick={() => void query.refetch()}>
-            Tentar novamente
+            Try again
           </button>
         </p>
       )}
       <div className="flex flex-wrap gap-3">
         <input
-          aria-label="Buscar logs nesta página"
-          placeholder="Buscar nesta página por usuário, entidade ou ID…"
+          aria-label="Search records on this page"
+          placeholder="Search this page by user, entity, action, or ID…"
           className="min-w-64 flex-1 rounded-md border border-line bg-white p-2 text-sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <select
-          aria-label="Ação"
+          aria-label="Action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
           className="rounded-md border border-line bg-white p-2 text-sm"
         >
-          <option value="">Todas as ações</option>
-          <option value="LOGIN">Login</option>
-          <option value="INSERT">Criação</option>
-          <option value="UPDATE">Alteração</option>
-          <option value="DELETE">Exclusão</option>
+          <option value="">All actions</option>
+          {Array.from(
+            new Set([
+              "LOGIN",
+              "INSERT",
+              "UPDATE",
+              "DELETE",
+              ...(query.data?.events.map((event) => event.action) ?? []),
+            ]),
+          )
+            .sort((a, b) => auditAction(a).localeCompare(auditAction(b), "en-US"))
+            .map((value) => (
+              <option key={value} value={value}>
+                {auditAction(value)}
+              </option>
+            ))}
         </select>
       </div>
       {query.isSuccess && (
         <Panel
-          title={`Registros · página ${page}`}
-          subtitle={`${rows.length} registros exibidos · até 100 por página`}
+          title={`Records · page ${page}`}
+          subtitle={`${rows.length} records shown · up to 100 per page`}
         >
           <Table>
             <thead>
               <tr>
-                <Th>Data e hora</Th>
-                <Th>Responsável</Th>
-                <Th>Ação</Th>
-                <Th>Entidade / registro</Th>
-                <Th>Detalhes</Th>
+                <Th>Date and time</Th>
+                <Th>Performed by</Th>
+                <Th>Action</Th>
+                <Th>Entity / record</Th>
+                <Th>Details</Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <Td>{new Date(r.occurred_at).toLocaleString("pt-BR")}</Td>
+                  <Td>{new Date(r.occurred_at).toLocaleString("en-US")}</Td>
                   <Td>{r.actor_name}</Td>
+                  <Td>{auditAction(r.action)}</Td>
                   <Td>
-                    {{ LOGIN: "Login", INSERT: "Criação", UPDATE: "Alteração", DELETE: "Exclusão" }[
-                      r.action
-                    ] ?? r.action}
-                  </Td>
-                  <Td>
-                    {r.entity}
+                    {auditLabel(r.entity)}
                     <span className="block font-mono text-xs text-ink3">{r.target_id}</span>
                   </Td>
                   <Td>
-                    <details>
-                      <summary className="cursor-pointer text-brand">Ver alterações</summary>
-                      <pre className="max-w-sm overflow-auto whitespace-pre-wrap text-xs">
-                        {JSON.stringify(
-                          {
-                            antes: r.before_data ? JSON.parse(r.before_data) : null,
-                            depois: r.after_data ? JSON.parse(r.after_data) : null,
-                          },
-                          null,
-                          2,
-                        )}
-                      </pre>
-                    </details>
+                    <ChangeDetails event={r} />
                   </Td>
                 </tr>
               ))}
               {!rows.length && (
                 <tr>
-                  <Td colSpan={5}>Nenhum log encontrado.</Td>
+                  <Td colSpan={5}>No records found.</Td>
                 </tr>
               )}
             </tbody>
@@ -118,15 +172,15 @@ function AuditPage() {
           onClick={() => setPage((p) => p - 1)}
           className="text-brand disabled:opacity-40"
         >
-          Anterior
+          Previous
         </button>
-        <span>Página {page}</span>
+        <span>Page {page}</span>
         <button
           disabled={!query.data?.hasMore || query.isFetching}
           onClick={() => setPage((p) => p + 1)}
           className="text-brand disabled:opacity-40"
         >
-          Próxima
+          Next
         </button>
       </div>
     </div>
