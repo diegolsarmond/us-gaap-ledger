@@ -65,7 +65,13 @@ try {
   process.env.DATABASE_URL = url.href;
   ({ db: pool } = await import("../src/lib/db.server.ts"));
   const connection = pool();
-  for (const migration of ["001_auth", "002_cash_flow", "003_access_audit", "004_companies"])
+  for (const migration of [
+    "001_auth",
+    "002_cash_flow",
+    "003_access_audit",
+    "004_companies",
+    "017_company_columns",
+  ])
     await connection.query(
       readFileSync(new URL("../database/" + migration + ".sql", import.meta.url), "utf8"),
     );
@@ -110,12 +116,22 @@ try {
     readFileSync(new URL("../database/006_system_parameters.sql", import.meta.url), "utf8"),
   );
   if (existsSync(new URL("../database/007_cash_categories.sql", import.meta.url))) {
-    await connection.query(readFileSync(new URL("../database/007_cash_categories.sql", import.meta.url),"utf8"));
+    await connection.query(
+      readFileSync(new URL("../database/007_cash_categories.sql", import.meta.url), "utf8"),
+    );
   }
-  await connection.query(readFileSync(new URL("../database/010_cash_flow_management.sql", import.meta.url), "utf8"));
-  await connection.query(readFileSync(new URL("../database/011_cash_chart_links.sql", import.meta.url), "utf8"));
-  await connection.query(readFileSync(new URL("../database/012_vendors.sql", import.meta.url), "utf8"));
-  await connection.query(readFileSync(new URL("../database/013_customers.sql", import.meta.url), "utf8"));
+  await connection.query(
+    readFileSync(new URL("../database/010_cash_flow_management.sql", import.meta.url), "utf8"),
+  );
+  await connection.query(
+    readFileSync(new URL("../database/011_cash_chart_links.sql", import.meta.url), "utf8"),
+  );
+  await connection.query(
+    readFileSync(new URL("../database/012_vendors.sql", import.meta.url), "utf8"),
+  );
+  await connection.query(
+    readFileSync(new URL("../database/013_customers.sql", import.meta.url), "utf8"),
+  );
   const companies = await import("../src/lib/companies.server.ts");
   const accounting = await import("../src/lib/accounting.server.ts");
   const adminService = await import("../src/lib/admin.server.ts");
@@ -305,7 +321,7 @@ try {
     opening_balance: 0,
   });
   const bank = (await cash.load(a)).accounts[0];
-  if (cash.writeCategory) await cash.writeCategory({companyId:a,name:'Sales',company_id:a});
+  if (cash.writeCategory) await cash.writeCategory({ companyId: a, name: "Sales", company_id: a });
   await assert.rejects(
     cash.saveTransaction({
       companyId: b,

@@ -8,8 +8,8 @@ try {
   await c.connect();
   await c.query("BEGIN");
   const company = (
-    await c.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [
-      JSON.stringify({ name: "Temporary parameter test" }),
+    await c.query("INSERT INTO companies(name,entity,state) VALUES($1,'LLC','FL') RETURNING id", [
+      "Temporary parameter test",
     ])
   ).rows[0].id;
   for (const domain of [

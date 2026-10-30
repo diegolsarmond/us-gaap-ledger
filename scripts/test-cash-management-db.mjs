@@ -39,6 +39,7 @@ try {
     "002_cash_flow",
     "003_access_audit",
     "004_companies",
+    "017_company_columns",
     "006_system_parameters",
     "007_cash_categories",
     "012_vendors",
@@ -55,7 +56,9 @@ try {
   ).rows[0];
   globalThis.testLedgerSession = user;
   const company = (
-    await pool.query('INSERT INTO companies(data) VALUES(\'{"name":"Cash test"}\') RETURNING id')
+    await pool.query(
+      "INSERT INTO companies(name,entity,state) VALUES('Cash test','LLC','FL') RETURNING id",
+    )
   ).rows[0].id;
   const account = (
     await pool.query(
@@ -142,7 +145,9 @@ try {
   await service.saveAccount(bank);
   await assert.rejects(service.saveAccount({ ...bank, gl_account_code: "4000" }), /Asset/);
   const other = (
-    await pool.query('INSERT INTO companies(data) VALUES(\'{"name":"Other"}\') RETURNING id')
+    await pool.query(
+      "INSERT INTO companies(name,entity,state) VALUES('Other','LLC','FL') RETURNING id",
+    )
   ).rows[0].id;
   await pool.query(
     "INSERT INTO ledger_accounts(company_id,id,position,data) VALUES($1,'9999',0,$2)",

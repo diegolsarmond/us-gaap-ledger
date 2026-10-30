@@ -50,6 +50,7 @@ try {
     "002_cash_flow",
     "003_access_audit",
     "004_companies",
+    "017_company_columns",
     "006_system_parameters",
     "012_vendors",
     "013_customers",
@@ -69,9 +70,10 @@ try {
   for (const name of ["A", "B"])
     companies.push(
       (
-        await pool.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [
-          JSON.stringify({ name }),
-        ])
+        await pool.query(
+          "INSERT INTO companies(name,entity,state) VALUES($1,'LLC','FL') RETURNING id",
+          ["Company " + name],
+        )
       ).rows[0].id,
     );
   const { writeParameter, readParameters } = await import("../src/lib/parameters.server.ts");
@@ -104,7 +106,10 @@ try {
   assert.equal((await readParameters(companies[0])).costCenters[0].name, "Shared update");
   await mutate("update", { ...a, companyIds: [companies[0]] });
   assert.equal((await readParameters(companies[1])).costCenters.length, 0);
-  await assert.rejects(mutate("update", { ...value, companyIds: [] }), /Selecione|Select at least one company/);
+  await assert.rejects(
+    mutate("update", { ...value, companyIds: [] }),
+    /Selecione|Select at least one company/,
+  );
   await assert.rejects(
     mutate("update", { ...value, companyIds: [companies[0], randomUUID()] }),
     /permissão/,

@@ -39,6 +39,7 @@ try {
     "002_cash_flow",
     "003_access_audit",
     "004_companies",
+    "017_company_columns",
     "006_system_parameters",
     "007_cash_categories",
     "010_cash_flow_management",
@@ -58,7 +59,7 @@ try {
   globalThis.testLedgerSession = user;
   const company = (
     await pool.query(
-      'INSERT INTO companies(data) VALUES(\'{"name":"Controls test"}\') RETURNING id',
+      "INSERT INTO companies(name,entity,state) VALUES('Controls test','LLC','FL') RETURNING id",
     )
   ).rows[0].id;
   for (const data of [

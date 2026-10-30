@@ -48,7 +48,7 @@ export async function loadAdmin() {
     : { rows: [] };
   return {
     companies: permissions.manage_profiles
-      ? ((await db().query("SELECT id,data->>'name' AS name FROM companies ORDER BY data->>'name'"))
+      ? ((await db().query("SELECT id,name FROM companies ORDER BY name"))
           .rows as { id: string; name: string }[])
       : [],
     currentUserId: user.id,

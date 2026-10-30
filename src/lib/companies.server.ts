@@ -18,20 +18,41 @@ export async function authorizeCompany(
   if (!result.rowCount) throw new Error("Company unavailable or access denied.");
   return { ...auth, company: mapCompany(result.rows[0]) };
 }
-export function mapCompany(row: {
-  data: Company;
-  id: string;
-  active: boolean;
-  cost_method: Company["costMethod"];
-  period_closed: boolean;
-  active_period: string;
-}): Company {
+type CompanyInput = z.infer<typeof companySchema>;
+// Registration fields and their typed columns in companies (017_company_columns.sql).
+const COLUMNS = [
+  ["name", "name"],
+  ["tradeName", "trade_name"],
+  ["entity", "entity"],
+  ["federalTaxClassification", "federal_tax_classification"],
+  ["state", "state"],
+  ["ein", "ein"],
+  ["address", "address"],
+  ["city", "city"],
+  ["addressState", "address_state"],
+  ["zip", "zip"],
+  ["phone", "phone"],
+  ["email", "email"],
+  ["basis", "basis"],
+  ["fiscalYearEndMonth", "fiscal_year_end_month"],
+  ["active", "active"],
+] as const satisfies readonly (readonly [Exclude<keyof CompanyInput, "id">, string])[];
+const columnValues = (data: CompanyInput) => COLUMNS.map(([field]) => data[field]);
+export function mapCompany(
+  row: Record<(typeof COLUMNS)[number][1], unknown> & {
+    id: string;
+    name: string;
+    cost_method: Company["costMethod"];
+    period_closed: boolean;
+    active_period: string;
+  },
+): Company {
+  const fields = Object.fromEntries(COLUMNS.map(([field, column]) => [field, row[column]]));
   return {
-    ...row["data"],
-    id: row["id"],
-    active: row["active"],
+    ...(fields as Omit<CompanyInput, "id">),
+    id: row.id,
     baseCurrency: "USD",
-    initials: row["data"].name
+    initials: row.name
       .split(/\s+/)
       .slice(0, 2)
       .map((s: string) => s[0])
@@ -46,7 +67,7 @@ export async function listCompanies() {
   const auth = await authorize();
   const result = await db().query(
     `SELECT c.* FROM companies c JOIN app_users u ON u.id=$1 JOIN access_profiles p ON p.id=u.profile_id
-    WHERE (c.active OR $2) AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id)) ORDER BY c.data->>'name'`,
+    WHERE (c.active OR $2) AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id)) ORDER BY c.name`,
     [auth.user.id, auth.permissions.manage_companies],
   );
   return { companies: result.rows.map(mapCompany), permissions: auth.permissions, user: auth.user };
@@ -68,15 +89,15 @@ export async function saveCompany(data: z.infer<typeof companySchema>) {
         [id, user.id],
       );
       if (!accessible.rowCount) throw new Error("Company access denied.");
-      await client.query("UPDATE companies SET data=$2,active=$3,revision=revision+1 WHERE id=$1", [
-        id,
-        JSON.stringify(data),
-        data.active,
-      ]);
+      await client.query(
+        `UPDATE companies SET ${COLUMNS.map(([, c], i) => `${c}=$${i + 2}`).join(",")},revision=revision+1 WHERE id=$1`,
+        [id, ...columnValues(data)],
+      );
     } else {
       const r = await client.query(
-        "INSERT INTO companies(data,active) VALUES($1,$2) RETURNING id",
-        [JSON.stringify(data), data.active],
+        `INSERT INTO companies(${COLUMNS.map(([, c]) => c).join(",")})
+        VALUES(${COLUMNS.map((_, i) => `$${i + 1}`).join(",")}) RETURNING id`,
+        columnValues(data),
       );
       id = r.rows[0].id;
       // Newly created companies inherit parameters explicitly shared globally.

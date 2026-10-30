@@ -42,6 +42,7 @@ try {
     "002_cash_flow",
     "003_access_audit",
     "004_companies",
+    "017_company_columns",
     "011_cash_chart_links",
     "012_vendors",
     "013_customers",
@@ -59,12 +60,18 @@ try {
     )
   ).rows[0];
   globalThis.testLedgerSession = user;
-  const companyData = { name: "COA company", entity: "LLC", state: "FL", baseCurrency: "USD" };
-  const a = (await pool.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [companyData]))
-    .rows[0].id;
+  const companyData = ["COA company", "LLC", "FL"];
+  const a = (
+    await pool.query(
+      "INSERT INTO companies(name,entity,state) VALUES($1,$2,$3) RETURNING id",
+      companyData,
+    )
+  ).rows[0].id;
   const b = (
-    await pool.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [
-      { ...companyData, name: "Other company" },
+    await pool.query("INSERT INTO companies(name,entity,state) VALUES($1,$2,$3) RETURNING id", [
+      "Other company",
+      "LLC",
+      "FL",
     ])
   ).rows[0].id;
   const service = await import("../src/lib/accounting.server.ts");
@@ -75,13 +82,36 @@ try {
     return result;
   }
   assert.deepEqual((await service.load(a)).state.accounts, []);
-  await pool.query(readFileSync(new URL("../database/014_us_gaap_coa.sql", import.meta.url), "utf8"));
-  const installed = await service.execute({ companyId: b, revision: 0, command: "installUsGaapCoa", args: [] });
+  await pool.query(
+    readFileSync(new URL("../database/014_us_gaap_coa.sql", import.meta.url), "utf8"),
+  );
+  const installed = await service.execute({
+    companyId: b,
+    revision: 0,
+    command: "installUsGaapCoa",
+    args: [],
+  });
   assert.equal(installed.state.accounts.length, 81);
-  assert.equal(installed.state.accounts.find(a => a.code === "15200").balanceType, "Credit");
-  assert.equal(installed.state.accounts.find(a => a.code === "30200").type, "Equity");
-  assert.equal((await pool.query("SELECT * FROM chart_of_accounts WHERE company_id=$1 AND account_code='50300'",[b])).rows[0].track_1099, true);
-  await assert.rejects(service.execute({ companyId: b, revision: installed.revision, command: "installUsGaapCoa", args: [] }), /empty chart/);
+  assert.equal(installed.state.accounts.find((a) => a.code === "15200").balanceType, "Credit");
+  assert.equal(installed.state.accounts.find((a) => a.code === "30200").type, "Equity");
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT * FROM chart_of_accounts WHERE company_id=$1 AND account_code='50300'",
+        [b],
+      )
+    ).rows[0].track_1099,
+    true,
+  );
+  await assert.rejects(
+    service.execute({
+      companyId: b,
+      revision: installed.revision,
+      command: "installUsGaapCoa",
+      args: [],
+    }),
+    /empty chart/,
+  );
 
   const account = {
     code: "1000",

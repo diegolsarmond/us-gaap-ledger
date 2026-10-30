@@ -76,7 +76,6 @@ Execute `database/010_cash_flow_management.sql` após as migrações anteriores 
 
 Execute em seguida `database/011_cash_chart_links.sql` para vincular contas bancárias e movimentos previstos/realizados ao plano de contas da mesma empresa. Registros existentes ficam pendentes de vinculação, sem alteração dos valores históricos. Veja [Chart of Accounts](CHART_OF_ACCOUNTS.md).
 
-
 Execute `database/012_vendors.sql` antes de usar o cadastro **Settings → Vendors / Fornecedores**. A migração cria fornecedores por empresa e armazenamento separado de anexos (20 MB por arquivo), sem alterar faturas existentes. Apenas nome de exibição é obrigatório. Termos, moedas e contas de despesa usam os cadastros da empresa. Dados bancários são referenciais; não há integração de pagamento automático. Validação: `node --env-file-if-exists=.env scripts/test-vendors-db.mjs`.
 
 Execute `database/014_us_gaap_coa.sql` após as migrações anteriores para a estrutura de cinco dígitos e metadados do plano de contas. A instalação das 81 contas é feita na tela Chart of Accounts, em planos vazios. Consulte [Chart of Accounts](CHART_OF_ACCOUNTS.md).
@@ -84,3 +83,5 @@ Execute `database/014_us_gaap_coa.sql` após as migrações anteriores para a es
 Execute `database/015_contact_registration.sql` para os campos mapeados das listas de clientes e fornecedores. Consulte [mapeamento dos cadastros](CONTACT_REGISTRATION_MAPPING.md) para campos, lacunas e tratamento dos saldos da origem.
 
 Execute `database/016_cash_flow_controls.sql` **antes** de publicar a versão que a exige: a tela `/cash-flow` passa a ler as colunas de transferência interna (`transfer_id`, `transfer_account_id`). A migração é reexecutável e não altera lançamentos existentes. Teste de integração: `node --env-file-if-exists=.env scripts/test-cash-controls-db.mjs`.
+
+Execute `database/017_company_columns.sql` **antes** de publicar a versão que a exige: os dados cadastrais da empresa saem do JSON `companies.data` e passam para colunas tipadas (`name`, `trade_name`, `entity`, `federal_tax_classification`, `state`, `ein`, `address`, `city`, `address_state`, `zip`, `phone`, `email`, `basis`, `fiscal_year_end_month`), com validação no banco. A migração copia os valores existentes, remove a coluna `data` e é reexecutável. Ela falha, sem alterar nada, se alguma empresa não tiver nome, tipo de entidade ou estado.

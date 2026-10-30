@@ -42,6 +42,7 @@ try {
     "002_cash_flow",
     "003_access_audit",
     "004_companies",
+    "017_company_columns",
     "011_cash_chart_links",
     "012_vendors",
     "013_customers",
@@ -59,12 +60,18 @@ try {
     )
   ).rows[0];
   globalThis.testLedgerSession = user;
-  const companyData = { name: "COA company", entity: "LLC", state: "FL", baseCurrency: "USD" };
-  const a = (await pool.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [companyData]))
-    .rows[0].id;
+  const companyData = ["COA company", "LLC", "FL"];
+  const a = (
+    await pool.query(
+      "INSERT INTO companies(name,entity,state) VALUES($1,$2,$3) RETURNING id",
+      companyData,
+    )
+  ).rows[0].id;
   const b = (
-    await pool.query("INSERT INTO companies(data) VALUES($1) RETURNING id", [
-      { ...companyData, name: "Other company" },
+    await pool.query("INSERT INTO companies(name,entity,state) VALUES($1,$2,$3) RETURNING id", [
+      "Other company",
+      "LLC",
+      "FL",
     ])
   ).rows[0].id;
   const service = await import("../src/lib/accounting.server.ts");

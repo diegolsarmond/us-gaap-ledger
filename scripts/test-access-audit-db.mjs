@@ -48,20 +48,38 @@ try {
     .rows[0];
   assert.equal(deletion.actor_id, user.id);
   assert.equal(deletion.target_id, account.id);
-  const consultation = (await client.query("SELECT id FROM access_profiles WHERE name='Consulta'")).rows[0];
+  const consultation = (await client.query("SELECT id FROM access_profiles WHERE name='Consulta'"))
+    .rows[0];
   await client.query("UPDATE app_users SET profile_id=$1 WHERE id=$2", [consultation.id, user.id]);
   await client.query("UPDATE access_profiles SET view_audit=true WHERE id=$1", [consultation.id]);
-  const logCount = (await client.query("SELECT count(*)::int AS count FROM system_audit_log")).rows[0].count;
-  const migration = (await readFile(new URL("../database/003_access_audit.sql", import.meta.url), "utf8"))
-    .replace(/^BEGIN;\s*/, "").replace(/COMMIT;\s*$/, "");
+  const logCount = (await client.query("SELECT count(*)::int AS count FROM system_audit_log"))
+    .rows[0].count;
+  const migration = (
+    await readFile(new URL("../database/003_access_audit.sql", import.meta.url), "utf8")
+  )
+    .replace(/^BEGIN;\s*/, "")
+    .replace(/COMMIT;\s*$/, "");
   await client.query(migration);
   await client.query(migration);
-  const preserved = (await client.query("SELECT u.profile_id,p.view_audit FROM app_users u JOIN access_profiles p ON p.id=u.profile_id WHERE u.id=$1", [user.id])).rows[0];
+  const preserved = (
+    await client.query(
+      "SELECT u.profile_id,p.view_audit FROM app_users u JOIN access_profiles p ON p.id=u.profile_id WHERE u.id=$1",
+      [user.id],
+    )
+  ).rows[0];
   assert.equal(preserved.profile_id, consultation.id);
   assert.equal(preserved.view_audit, true);
-  assert.equal((await client.query("SELECT count(*)::int AS count FROM system_audit_log")).rows[0].count, logCount);
-  assert.equal((await client.query("SELECT count(*)::int AS count FROM access_profiles")).rows[0].count, 3);
-  console.log("OK: reexecução da migração preserva perfis, permissões e auditoria sem duplicações.");
+  assert.equal(
+    (await client.query("SELECT count(*)::int AS count FROM system_audit_log")).rows[0].count,
+    logCount,
+  );
+  assert.equal(
+    (await client.query("SELECT count(*)::int AS count FROM access_profiles")).rows[0].count,
+    3,
+  );
+  console.log(
+    "OK: reexecução da migração preserva perfis, permissões e auditoria sem duplicações.",
+  );
   console.log(
     "OK: migrações, administrador inicial, auditoria de alterações/exclusões, responsável e exclusão de hash de senha. Teste revertido.",
   );
