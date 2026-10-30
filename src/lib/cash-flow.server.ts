@@ -24,10 +24,10 @@ async function assertOpenPeriods(
   const list = [...new Set(dates.filter((d): d is string => !!d))];
   if (!list.length) return;
   const closed = await client.query(
-    `SELECT data->>'periodCode' AS code, data->>'status' AS status FROM ledger_fiscalperiods
-    WHERE company_id=$1 AND data->>'status' IN ('Locked','Soft-Close')
-    AND EXISTS (SELECT 1 FROM unnest($2::date[]) d WHERE d BETWEEN (data->>'startDate')::date AND (data->>'endDate')::date)
-    ORDER BY data->>'startDate'`,
+    `SELECT period_code AS code, status FROM ledger_fiscalperiods
+    WHERE company_id=$1 AND status IN ('Locked','Soft-Close')
+    AND EXISTS (SELECT 1 FROM unnest($2::date[]) d WHERE d BETWEEN start_date AND end_date)
+    ORDER BY start_date`,
     [companyId, list],
   );
   for (const period of closed.rows) {
@@ -62,7 +62,7 @@ export async function load(companyId: string): Promise<CashData> {
       [id],
     ),
     db().query(
-      "SELECT id AS code,data->>'name' AS name,data->>'type' AS type,data->>'balanceType' AS \"balanceType\" FROM ledger_accounts WHERE company_id=$1 ORDER BY id",
+      'SELECT id AS code,name,type,balance_type AS "balanceType" FROM ledger_accounts WHERE company_id=$1 ORDER BY id',
       [id],
     ),
   ]);
@@ -83,10 +83,13 @@ export async function readReconciliation(
 ): Promise<CashReconciliation | null> {
   await authorizeCompany(data.companyId);
   const result = await db().query(
-    "SELECT inputs FROM cash_flow_reconciliations WHERE company_id=$1 AND period_start=$2 AND period_end=$3 AND currency=$4 AND account_id IS NOT DISTINCT FROM $5::uuid",
+    `SELECT company_id AS "companyId",period_start::text AS start,period_end::text AS end,currency,account_id AS "accountId",
+     net_income::float8,depreciation::float8,receivables::float8,inventory::float8,payables::float8,taxes_payable::float8,
+     other_adjustments::float8,balance_sheet_cash::float8,explanation FROM cash_flow_reconciliations
+     WHERE company_id=$1 AND period_start=$2 AND period_end=$3 AND currency=$4 AND account_id IS NOT DISTINCT FROM $5::uuid`,
     [data.companyId, data.start, data.end, data.currency, data.accountId],
   );
-  return result.rows[0]?.inputs ?? null;
+  return result.rows[0] ?? null;
 }
 /**
  * Compares actual ending cash with the posted GL balance of the linked cash accounts.
@@ -131,9 +134,9 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       [data.companyId, [...ids]],
     );
     const gl = await client.query(
-      `SELECT coalesce(sum((l->>'debit')::numeric - (l->>'credit')::numeric),0)::float8 AS balance
-      FROM ledger_journals j CROSS JOIN LATERAL jsonb_array_elements(j.data->'lines') l
-      WHERE j.company_id=$1 AND j.data->>'date' <= $2 AND l->>'accountCode' = ANY($3::text[])`,
+      `SELECT coalesce(sum(l.debit - l.credit),0)::float8 AS balance
+      FROM ledger_journals j JOIN ledger_journals_lines l ON l.company_id=j.company_id AND l.parent_id=j.id
+      WHERE j.company_id=$1 AND j.date <= $2::date AND l.account_code = ANY($3::text[])`,
       [data.companyId, data.end, codes],
     );
     const report = summarize(accounts, transactions.rows, data.end, data.end, "daily", false);
@@ -173,16 +176,28 @@ export async function writeReconciliation(data: CashReconciliation) {
       if (!account.rowCount) throw new Error("Select an account in this company and currency.");
     }
     await client.query(
-      `INSERT INTO cash_flow_reconciliations(company_id,period_start,period_end,currency,account_id,inputs,updated_by)
-      VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,period_start,period_end,currency,account_id)
-      DO UPDATE SET inputs=EXCLUDED.inputs,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+      `INSERT INTO cash_flow_reconciliations(company_id,period_start,period_end,currency,account_id,
+       net_income,depreciation,receivables,inventory,payables,taxes_payable,other_adjustments,balance_sheet_cash,explanation,updated_by)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(company_id,period_start,period_end,currency,account_id)
+      DO UPDATE SET net_income=EXCLUDED.net_income,depreciation=EXCLUDED.depreciation,receivables=EXCLUDED.receivables,
+      inventory=EXCLUDED.inventory,payables=EXCLUDED.payables,taxes_payable=EXCLUDED.taxes_payable,
+      other_adjustments=EXCLUDED.other_adjustments,balance_sheet_cash=EXCLUDED.balance_sheet_cash,
+      explanation=EXCLUDED.explanation,updated_by=EXCLUDED.updated_by,updated_at=now()`,
       [
         data.companyId,
         data.start,
         data.end,
         data.currency,
         data.accountId,
-        JSON.stringify(data),
+        data.net_income,
+        data.depreciation,
+        data.receivables,
+        data.inventory,
+        data.payables,
+        data.taxes_payable,
+        data.other_adjustments,
+        data.balance_sheet_cash,
+        data.explanation,
         auth.user.id,
       ],
     );
@@ -210,7 +225,7 @@ export async function saveAccount(
       throw new Error("Link this cash account to an Asset account in Chart of Accounts.");
     if (data.gl_account_code) {
       const gl = await client.query(
-        "SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2 AND data->>'type'='Asset'",
+        "SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2 AND type='Asset'",
         [id, data.gl_account_code],
       );
       if (!gl.rowCount)

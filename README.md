@@ -79,6 +79,8 @@ npm run dev
 
 Consulte [instruções de execução](docs/EXECUTAR_PROJETO.md) e os scripts SQL em database/.
 
+Para converter o armazenamento JSON legado em colunas e tabelas filhas, consulte [armazenamento estruturado](docs/STRUCTURED_DATABASE.md) e aplique as migrações `018` e `019` antes de executar a aplicação atual.
+
 ## Configurações e auditoria
 
 Execute `database/003_access_audit.sql` após os scripts 001 e 002. A migração atribui o perfil Administrador à conta existente mais antiga; as demais recebem Operador financeiro. Novos cadastros públicos ficam sem permissões de alteração até um administrador atribuir um perfil.

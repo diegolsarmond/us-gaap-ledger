@@ -12,7 +12,8 @@
     "start": "node .output/server/index.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:companies": "node --env-file-if-exists=.env scripts/test-companies.mjs"
+    "test:companies": "node --env-file-if-exists=.env scripts/test-companies.mjs",
+    "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -10,10 +10,8 @@ import {
 } from "./accounting-engine";
 import { commandArgs, domains, type AccountingCommand } from "./accounting-model";
 import type { PoolClient } from "pg";
+import { readLedger, replaceLedger } from "./ledger-storage.server";
 
-function table(domain: string) {
-  return "ledger_" + domain.toLowerCase();
-}
 export function persona(
   user: { name: string },
   permissions: { write_accounting: boolean; close_periods: boolean; manage_users: boolean },
@@ -31,11 +29,7 @@ export function persona(
 export async function readState(companyId: string, client: Pick<PoolClient, "query"> = db()) {
   const state = createInitialCompanyData();
   for (const domain of domains) {
-    const rows = await client.query(
-      `SELECT data FROM ${table(domain)} WHERE company_id=$1 ORDER BY position`,
-      [companyId],
-    );
-    (state[domain] as unknown[]) = rows.rows.map((r) => r.data);
+    (state[domain] as unknown[]) = await readLedger(client, companyId, domain);
   }
   return state;
 }
@@ -279,21 +273,7 @@ export async function execute(input: {
     await client.query("DELETE FROM ledger_references WHERE company_id=$1", [input.companyId]);
     for (const domain of domains) {
       const values = next[domain] as unknown as Record<string, unknown>[];
-      await client.query(`DELETE FROM ${table(domain)} WHERE company_id=$1`, [input.companyId]);
-      if (values.length)
-        await client.query(
-          `INSERT INTO ${table(domain)}(company_id,id,position,data) SELECT $1, item->>'id', (item->>'position')::integer, item->'data' FROM jsonb_array_elements($2::jsonb) item`,
-          [
-            input.companyId,
-            JSON.stringify(
-              values.map((data, position) => ({
-                id: domain === "accounts" || domain === "currencies" ? data["code"] : data["id"],
-                position,
-                data,
-              })),
-            ),
-          ],
-        );
+      await replaceLedger(client, input.companyId, domain, values);
     }
     for (const r of refs)
       await client.query(

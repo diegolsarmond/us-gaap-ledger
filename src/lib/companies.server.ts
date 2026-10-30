@@ -3,6 +3,7 @@ import { authorize } from "./admin.server";
 import { companySchema, type Company } from "./company-model";
 import type { z } from "zod";
 import type { PoolClient } from "pg";
+import { readLedger, replaceLedger } from "./ledger-storage.server";
 
 export async function authorizeCompany(
   companyId: string,
@@ -103,20 +104,24 @@ export async function saveCompany(data: z.infer<typeof companySchema>) {
       // Newly created companies inherit parameters explicitly shared globally.
       for (const domain of [
         "currencies",
-        "taxjurisdictions",
-        "paymentterms",
-        "costcenters",
-        "expensecategories",
-        "fiscalperiods",
+        "taxJurisdictions",
+        "paymentTerms",
+        "costCenters",
+        "expenseCategories",
+        "fiscalPeriods",
       ]) {
-        await client.query(
-          `INSERT INTO ledger_${domain}(company_id,id,position,data)
-          SELECT $1, id, row_number() OVER (ORDER BY id)::integer - 1, data FROM (
-            SELECT DISTINCT ON (data->>'sharedId') id,data FROM ledger_${domain}
-            WHERE data->>'scope'='global' ORDER BY data->>'sharedId',company_id
-          ) shared`,
-          [id],
+        const sources = await client.query(
+          `SELECT DISTINCT ON (shared_id) company_id,id FROM ledger_${domain.toLowerCase()} WHERE scope='global' ORDER BY shared_id,company_id`,
         );
+        const inherited = [];
+        for (const source of sources.rows) {
+          const records = await readLedger(client, source.company_id, domain);
+          const record = records.find(
+            (row) => (domain === "currencies" ? row["code"] : row["id"]) === source.id,
+          );
+          if (record) inherited.push(record);
+        }
+        await replaceLedger(client, id!, domain, inherited);
       }
       // A profile restricted to selected companies must retain access to a company it creates.
       await client.query(

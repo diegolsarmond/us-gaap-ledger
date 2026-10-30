@@ -3,6 +3,7 @@ import { load, readState, validateState } from "./accounting.server";
 import { parameterSchemas, type mutationSchema } from "./parameters-model";
 import { db } from "./db.server";
 import type { z } from "zod";
+import { readLedger, replaceLedger } from "./ledger-storage.server";
 export async function listParameterCompanies() {
   return (await (await import("./companies.server")).listCompanies()).companies.filter(
     (c) => c.active,
@@ -38,16 +39,15 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
     ]);
     if (revision.rows[0].revision !== input.revision)
       throw new Error("The data was changed in another session. Refresh the page and try again.");
-    const source = await client.query(`SELECT data FROM ${table} WHERE company_id=$1 AND id=$2`, [
-      input.companyId,
-      input.id,
-    ]);
-    const old = source.rows[0]?.data;
+    const source = await readLedger(client, input.companyId, input.domain);
+    const old = source.find(
+      (row) => (input.domain === "currencies" ? row["code"] : row["id"]) === input.id,
+    );
     if (input.operation !== "create" && !old)
       throw new Error("Parameter not found. Refresh the page.");
-    const sharedId = old?.sharedId ?? crypto.randomUUID();
+    const sharedId = old?.["sharedId"] ?? crypto.randomUUID();
     const scope =
-      input.domain === "currencies" ? "companies" : (value?.scope ?? old?.scope ?? "companies");
+      input.domain === "currencies" ? "companies" : (value?.scope ?? old?.["scope"] ?? "companies");
     const all = await client.query("SELECT id FROM companies WHERE active ORDER BY id");
     const targets: string[] =
       input.operation === "delete"
@@ -56,14 +56,19 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
           ? [input.companyId]
           : scope === "global"
             ? all.rows.map((r) => r["id"])
-            : [...new Set(value?.companyIds ?? old?.companyIds ?? [input.companyId])];
+            : [
+                ...new Set(
+                  value?.companyIds ??
+                    ((old?.["companyIds"] as string[] | undefined)?.length
+                      ? (old?.["companyIds"] as string[])
+                      : [input.companyId]),
+                ),
+              ];
     if (input.operation !== "delete" && !targets.length)
       throw new Error("Select at least one company.");
     const linked =
-      input.domain !== "currencies" && old?.sharedId
-        ? await client.query(`SELECT company_id FROM ${table} WHERE data->>'sharedId'=$1`, [
-            sharedId,
-          ])
+      input.domain !== "currencies" && old?.["sharedId"]
+        ? await client.query(`SELECT company_id FROM ${table} WHERE shared_id=$1`, [sharedId])
         : { rows: old ? [{ company_id: input.companyId }] : [] };
     const affected = [...new Set([...targets, ...linked.rows.map((r) => r.company_id)])].sort();
     for (const companyId of affected) {
@@ -72,7 +77,7 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
     }
     for (const companyId of affected) {
       const state = await readState(companyId, client);
-      const rows = state[input.domain] as unknown as Record<string, any>[];
+      const rows = state[input.domain] as unknown as Record<string, unknown>[];
       const existing = rows.find(
         (r) =>
           r["sharedId"] === sharedId ||
@@ -81,7 +86,7 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
       );
       const remaining = rows.filter((r) => r !== existing);
       if (targets.includes(companyId) && value) {
-        const next: Record<string, any> = {
+        const next: Record<string, unknown> = {
           ...value,
           sharedId,
           scope,
@@ -104,17 +109,7 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
           "INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,project_id,statement_id) VALUES($1,$2,$3,$4,$5,$6)",
           [companyId, r.source_domain, r.source_id, r.account_id, r.project_id, r.statement_id],
         );
-      await client.query(`DELETE FROM ${table} WHERE company_id=$1`, [companyId]);
-      for (const [position, row] of remaining.entries())
-        await client.query(
-          `INSERT INTO ${table}(company_id,id,position,data) VALUES($1,$2,$3,$4)`,
-          [
-            companyId,
-            input.domain === "currencies" ? row["code"] : row["id"],
-            position,
-            JSON.stringify(row),
-          ],
-        );
+      await replaceLedger(client, companyId, input.domain, remaining);
       await client.query("UPDATE companies SET revision=revision+1 WHERE id=$1", [companyId]);
       await client.query(
         "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,$4,$5,$6)",
