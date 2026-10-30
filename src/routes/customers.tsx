@@ -126,7 +126,7 @@ function CustomersPage() {
           type={type}
           required={key === "displayName"}
           maxLength={key === "displayName" ? 120 : key === "email" ? 254 : 2000}
-          value={String(form[key])}
+          value={String(form[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
         />
       </label>
@@ -230,6 +230,7 @@ function CustomersPage() {
                 {input("lastName", "Last name")}
                 {input("suffix", "Suffix")}
                 {input("companyName", "Company")}
+                {input("customerType", "Customer type")}
                 {input("printOnChecksAs", "Print on checks as")}
                 {input("email", "Email", "email")}
                 {input("phone", "Primary phone", "tel")}

@@ -80,3 +80,5 @@ Execute em seguida `database/011_cash_chart_links.sql` para vincular contas banc
 Execute `database/012_vendors.sql` antes de usar o cadastro **Settings → Vendors / Fornecedores**. A migração cria fornecedores por empresa e armazenamento separado de anexos (20 MB por arquivo), sem alterar faturas existentes. Apenas nome de exibição é obrigatório. Termos, moedas e contas de despesa usam os cadastros da empresa. Dados bancários são referenciais; não há integração de pagamento automático. Validação: `node --env-file-if-exists=.env scripts/test-vendors-db.mjs`.
 
 Execute `database/014_us_gaap_coa.sql` após as migrações anteriores para a estrutura de cinco dígitos e metadados do plano de contas. A instalação das 81 contas é feita na tela Chart of Accounts, em planos vazios. Consulte [Chart of Accounts](CHART_OF_ACCOUNTS.md).
+
+Execute `database/015_contact_registration.sql` para os campos mapeados das listas de clientes e fornecedores. Consulte [mapeamento dos cadastros](CONTACT_REGISTRATION_MAPPING.md) para campos, lacunas e tratamento dos saldos da origem.

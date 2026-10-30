@@ -9,6 +9,8 @@ export const vendorSchema = z.object({
   lastName: optionalText,
   suffix: optionalText,
   companyName: optionalText,
+  sourceOpenBalance: z.number().finite().nullable().optional(),
+  sourceBalanceDate: z.string().date().nullable().optional(),
   printOnCheckAs: optionalText,
   email: z.union([z.literal(""), z.string().trim().email().max(254)]).default(""),
   phone: optionalText,
