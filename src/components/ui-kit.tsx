@@ -52,7 +52,15 @@ export function Kpi({
 
 type BadgeTone = "neutral" | "brand" | "up" | "down";
 
-export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: BadgeTone }) {
+export function Badge({
+  children,
+  tone = "neutral",
+  className = "",
+}: {
+  children: ReactNode;
+  tone?: BadgeTone;
+  className?: string;
+}) {
   const map: Record<BadgeTone, string> = {
     neutral: "bg-white/80 text-ink2 ring-line",
     brand: "bg-brand/10 text-brand ring-brand/20",
@@ -60,7 +68,9 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
     down: "bg-down/10 text-down ring-down/20",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${map[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 whitespace-nowrap ${map[tone]} ${className}`}
+    >
       {children}
     </span>
   );

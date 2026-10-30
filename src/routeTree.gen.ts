@@ -27,6 +27,7 @@ import { Route as ParametersRouteImport } from './routes/parameters'
 import { Route as PayablesRouteImport } from './routes/payables'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ReceivablesRouteImport } from './routes/receivables'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as StatementsRouteImport } from './routes/statements'
 import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
@@ -131,6 +132,11 @@ const ReceivablesRoute = ReceivablesRouteImport.update({
   path: '/receivables',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StatementsRoute = StatementsRouteImport.update({
   id: '/statements',
   path: '/statements',
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/payables': typeof PayablesRoute
   '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
+  '/reports': typeof ReportsRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/payables': typeof PayablesRoute
   '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
+  '/reports': typeof ReportsRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/payables': typeof PayablesRoute
   '/projects': typeof ProjectsRoute
   '/receivables': typeof ReceivablesRoute
+  '/reports': typeof ReportsRoute
   '/statements': typeof StatementsRoute
   '/taxes': typeof TaxesRoute
   '/trial-balance': typeof TrialBalanceRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/payables'
     | '/projects'
     | '/receivables'
+    | '/reports'
     | '/statements'
     | '/taxes'
     | '/trial-balance'
@@ -352,6 +362,7 @@ export interface FileRouteTypes {
     | '/payables'
     | '/projects'
     | '/receivables'
+    | '/reports'
     | '/statements'
     | '/taxes'
     | '/trial-balance'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/payables'
     | '/projects'
     | '/receivables'
+    | '/reports'
     | '/statements'
     | '/taxes'
     | '/trial-balance'
@@ -419,6 +431,7 @@ export interface RootRouteChildren {
   PayablesRoute: typeof PayablesRoute
   ProjectsRoute: typeof ProjectsRoute
   ReceivablesRoute: typeof ReceivablesRoute
+  ReportsRoute: typeof ReportsRoute
   StatementsRoute: typeof StatementsRoute
   TaxesRoute: typeof TaxesRoute
   TrialBalanceRoute: typeof TrialBalanceRoute
@@ -552,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: '/receivables'
       fullPath: '/receivables'
       preLoaderRoute: typeof ReceivablesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/statements': {
@@ -693,6 +713,7 @@ const rootRouteChildren: RootRouteChildren = {
   PayablesRoute: PayablesRoute,
   ProjectsRoute: ProjectsRoute,
   ReceivablesRoute: ReceivablesRoute,
+  ReportsRoute: ReportsRoute,
   StatementsRoute: StatementsRoute,
   TaxesRoute: TaxesRoute,
   TrialBalanceRoute: TrialBalanceRoute,

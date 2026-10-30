@@ -1,5 +1,7 @@
 // Keep navigation availability aligned with the workspace route guard.
 const availableModulePaths = new Set([
+  "/reports",
+  "/dashboard",
   "/customers",
   "/companies",
   "/vendors",

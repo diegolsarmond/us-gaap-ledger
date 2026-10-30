@@ -386,57 +386,63 @@ function FiscalPeriodsPage() {
       >
         <Table>
           <thead>
-            <tr>
-              <Th>Period</Th>
-              <Th>Fiscal Year</Th>
-              <Th>Start</Th>
-              <Th>End</Th>
-              <Th>Governance Status</Th>
-              <Th>Closed By</Th>
-              <Th>Closing Date</Th>
+            <tr className="border-b border-line/60">
+              <Th className="whitespace-nowrap">Period</Th>
+              <Th className="whitespace-nowrap">Fiscal Year</Th>
+              <Th className="whitespace-nowrap">Start</Th>
+              <Th className="whitespace-nowrap">End</Th>
+              <Th className="whitespace-nowrap">Governance Status</Th>
+              <Th className="whitespace-nowrap">Closed By</Th>
+              <Th className="whitespace-nowrap">Closing Date</Th>
               <Th>Audit Notes</Th>
-              <Th>Scope / Companies</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="whitespace-nowrap">Scope / Companies</Th>
+              <Th className="text-right whitespace-nowrap">Actions</Th>
             </tr>
           </thead>
-          <tbody>
-            {filteredPeriods.map((p) => {
-              const isCurrent = p.periodCode === activeCompany.activePeriod;
-              return (
-                <tr
-                  key={p.id}
-                  className={`hover:bg-ink/[0.015] ${isCurrent ? "bg-brand/[0.02]" : ""}`}
-                >
-                  <Td className="font-mono font-bold text-ink">
-                    <div className="flex items-center gap-2">
-                      <span>{p.periodCode}</span>
-                      {isCurrent && (
-                        <span className="rounded bg-brand/10 px-1.5 py-0.2 text-[10px] font-semibold text-brand">
-                          Current
-                        </span>
-                      )}
-                    </div>
-                  </Td>
-                  <Td className="font-mono text-[12px] text-ink2">{p.fiscalYear}</Td>
-                  <Td className="font-mono text-[11.5px] text-ink3">{p.startDate}</Td>
-                  <Td className="font-mono text-[11.5px] text-ink3">{p.endDate}</Td>
-                  <Td>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(p)}
-                      title="Click to change the period status"
-                      className="cursor-pointer"
-                    >
-                      <Badge
-                        tone={
-                          p.status === "Locked"
-                            ? "down"
-                            : p.status === "Soft-Close"
-                              ? "neutral"
-                              : "brand"
-                        }
+          <tbody className="divide-y divide-line/40">
+            {filteredPeriods.length === 0 ? (
+              <tr>
+                <Td colSpan={10} className="py-8 text-center text-ink3">
+                  No fiscal periods found matching your filters.
+                </Td>
+              </tr>
+            ) : (
+              filteredPeriods.map((p) => {
+                const isCurrent = p.periodCode === activeCompany.activePeriod;
+                return (
+                  <tr
+                    key={p.id}
+                    className={`hover:bg-ink/[0.015] transition-colors ${isCurrent ? "bg-brand/[0.02]" : ""}`}
+                  >
+                    <Td className="font-mono font-bold text-ink whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span>{p.periodCode}</span>
+                        {isCurrent && (
+                          <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    </Td>
+                    <Td className="font-mono text-[12px] text-ink2 whitespace-nowrap">{p.fiscalYear}</Td>
+                    <Td className="font-mono text-[11.5px] text-ink3 whitespace-nowrap">{p.startDate}</Td>
+                    <Td className="font-mono text-[11.5px] text-ink3 whitespace-nowrap">{p.endDate}</Td>
+                    <Td className="whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(p)}
+                        title="Click to change the period status"
+                        className="inline-flex cursor-pointer transition-opacity hover:opacity-80"
                       >
-                        <span className="flex items-center gap-1">
+                        <Badge
+                          tone={
+                            p.status === "Locked"
+                              ? "down"
+                              : p.status === "Soft-Close"
+                                ? "neutral"
+                                : "brand"
+                          }
+                        >
                           {p.status === "Locked" ? (
                             <>
                               <Lock className="size-3" /> Locked
@@ -450,40 +456,42 @@ function FiscalPeriodsPage() {
                               <Unlock className="size-3" /> Open
                             </>
                           )}
-                        </span>
-                      </Badge>
-                    </button>
-                  </Td>
-                  <Td className="text-[12px] text-ink2">{p.closedBy || "—"}</Td>
-                  <Td className="font-mono text-[11px] text-ink3">{p.closingDate || "—"}</Td>
-                  <Td className="text-[11.5px] text-ink3 max-w-xs truncate">{p.notes || "—"}</Td>
-                  <Td>
-                    <ParameterScopeLabel value={p} />
-                  </Td>
-                  <Td className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(p)}
-                        className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors"
-                        title="Edit Period"
-                      >
-                        <Edit2 className="size-3.5" />
+                        </Badge>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(p)}
-                        disabled={isCurrent}
-                        className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={isCurrent ? "The current period cannot be deleted" : "Delete Period"}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  </Td>
-                </tr>
-              );
-            })}
+                    </Td>
+                    <Td className="text-[12px] text-ink2 whitespace-nowrap">{p.closedBy || "—"}</Td>
+                    <Td className="font-mono text-[11px] text-ink3 whitespace-nowrap">{p.closingDate || "—"}</Td>
+                    <Td className="text-[11.5px] text-ink3 max-w-xs truncate" title={p.notes || undefined}>
+                      {p.notes || "—"}
+                    </Td>
+                    <Td className="text-[12px] text-ink2 whitespace-nowrap">
+                      <ParameterScopeLabel value={p} />
+                    </Td>
+                    <Td className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(p)}
+                          className="rounded p-1 text-ink3 hover:bg-canvas hover:text-ink transition-colors cursor-pointer"
+                          title="Edit Period"
+                        >
+                          <Edit2 className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p)}
+                          disabled={isCurrent}
+                          className="rounded p-1 text-ink3 hover:bg-down/10 hover:text-down transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                          title={isCurrent ? "The current period cannot be deleted" : "Delete Period"}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </Table>
       </Panel>

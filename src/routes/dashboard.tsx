@@ -1,13 +1,25 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link as RouterLink } from "@tanstack/react-router";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { acct, dash, pct, usd, formatDate } from "@/lib/format";
+import { acct, pct, usd, formatDate } from "@/lib/format";
+import { useState, type ComponentProps } from "react";
+import { DashboardPeriodFilter } from "@/components/dashboard-period";
+import { currentMonth } from "@/lib/dashboard-period";
+import { reportRows } from "@/lib/financial-report";
+import { isModuleAvailable } from "@/lib/module-availability";
+import { IncomeOverviewChart } from "@/components/dashboard-charts";
+import { DashboardCash } from "@/components/dashboard-cash";
 import { pageHead } from "@/lib/head";
+
+function Link(props: ComponentProps<typeof RouterLink>) {
+  if (typeof props.to === "string" && !isModuleAvailable(props.to)) return null;
+  return <RouterLink {...props} />;
+}
 
 export const Route = createFileRoute("/dashboard")({
   head: () =>
     pageHead(
-      "Financial Operations Dashboard · LedgerX",
+      "Dashboard · World Business",
       "Real-time US GAAP financial ledger dashboard with double-entry audit trails and multi-currency tracking.",
     ),
   component: () => (
@@ -20,25 +32,52 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const {
     activeCompany,
-    cashOnHand,
-    totalRevenue,
-    totalCOGS,
-    grossProfit,
-    totalOpEx,
-    totalFXVariance,
-    netIncome,
-    journals,
+    accounts,
+    journals: allJournals,
     isLedgerBalanced,
-    bills,
-    invoices,
+    bills: allBills,
+    invoices: allInvoices,
     projects,
     userPersona,
   } = useAccounting();
 
+  const [period, setPeriod] = useState(currentMonth);
+  const inPeriod = (date: string) => date >= period.start && date <= period.end;
+  const journals = allJournals.filter((journal) => inPeriod(journal.date));
+  const bills = allBills.filter((bill) => inPeriod(bill.dueDate));
+  const invoices = allInvoices.filter((invoice) => inPeriod(invoice.dueDate));
+  const rows = reportRows(accounts, journals);
+  const sum = (type: string) =>
+    Math.round(
+      rows.filter((row) => row.type === type).reduce((total, row) => total + row.amount, 0) * 100,
+    ) / 100;
+  const totalRevenue = sum("Revenue"),
+    totalCOGS = sum("COGS"),
+    totalOpEx = sum("Operating Expense");
+  const grossProfit = totalRevenue - totalCOGS;
+  const netIncome =
+    Math.round((grossProfit - totalOpEx + sum("Other Income") - sum("Other Expense")) * 100) / 100;
+  const fxCode = accounts.some((a) => a.code === "80300") ? "80300" : "6300";
+  const totalFXVariance = journals.reduce(
+    (total, j) =>
+      total +
+      j.lines.filter((l) => l.accountCode === fxCode).reduce((s, l) => s + l.credit - l.debit, 0),
+    0,
+  );
+  const cashOnHand = reportRows(accounts, allJournals, period.end)
+    .filter((row) => ["10100", "10200", "10300", "10400", "1000", "1050"].includes(row.code))
+    .reduce((total, row) => total + row.amount, 0);
+
   const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
   const netMarginPct = totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0;
 
-  const recentJournals = journals.slice(0, 6);
+  const recentJournals = [...journals].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const pendingInvoices = invoices
+    .filter((i) => i.status !== "Paid")
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const pendingBills = bills
+    .filter((b) => b.status === "Open")
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const openInvoicesCount = invoices.filter(
     (i) => i.status === "Open" || i.status === "Overdue",
   ).length;
@@ -97,16 +136,23 @@ function Dashboard() {
         </div>
       )}
 
+      <DashboardPeriodFilter period={period} onChange={setPeriod} />
+      <p className="text-xs text-ink3">
+        {formatDate(period.start)} – {formatDate(period.end)} · Income and journals by posting date
+        · AR/AP by due date · Cash balances through end date · Projects show all budgets.
+      </p>
+      <DashboardCash start={period.start} end={period.end} />
+
       {/* Core KPIs */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
-          label="Cash & Liquid Reserves"
+          label="Ledger Cash (USD)"
           value={usd(cashOnHand)}
-          hint="Operating & Reserve accounts"
+          hint={`Operating & Reserve accounts · As of ${formatDate(period.end)}`}
           tone="up"
         />
         <Kpi
-          label="Gross Revenue (YTD/MTD)"
+          label="Ledger Revenue (Selected Period)"
           value={usd(totalRevenue)}
           hint={`${openInvoicesCount} open customer receivables`}
           tone="up"
@@ -118,12 +164,20 @@ function Dashboard() {
           tone="neutral"
         />
         <Kpi
-          label="Net Operating Income"
+          label="Net Income (Selected Period)"
           value={usd(netIncome)}
           hint={`Net Margin: ${pct(netMarginPct)}`}
           tone={netIncome >= 0 ? "up" : "down"}
         />
       </section>
+
+      <IncomeOverviewChart
+        periodLabel={`${formatDate(period.start)} – ${formatDate(period.end)}`}
+        revenue={totalRevenue}
+        cogs={totalCOGS}
+        opex={totalOpEx}
+        netIncome={netIncome}
+      />
 
       {/* Second Row: Ledger Status & Operational Highlights */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -150,6 +204,11 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
+              {!recentJournals.length && (
+                <tr>
+                  <Td colSpan={6}>No journal entries recorded for this company.</Td>
+                </tr>
+              )}
               {recentJournals.map((j) => {
                 const totalDebits = j.lines.reduce((s, l) => s + l.debit, 0);
                 return (
@@ -189,7 +248,7 @@ function Dashboard() {
         {/* FX Variance & Multi-Currency Panel */}
         <Panel
           title="Foreign Exchange (Realized)"
-          subtitle="Account 6300 · Realized FX Gain/Loss"
+          subtitle="Realized FX Gain/Loss · USD"
           aside={
             <Badge tone={totalFXVariance >= 0 ? "up" : "down"}>
               {totalFXVariance >= 0 ? "Net Gain" : "Net Loss"}
@@ -203,14 +262,10 @@ function Dashboard() {
             </p>
 
             <div className="rounded-lg bg-ink/[0.03] p-3 ring-1 ring-line/60 space-y-2">
-              <div className="flex items-center justify-between text-[12px]">
-                <span className="text-ink3">Baja Components (MXN Wire)</span>
-                <span className="font-medium text-up">+$35.04 (Gain)</span>
-              </div>
-              <div className="flex items-center justify-between text-[12px]">
-                <span className="text-ink3">Pemberton Freight (GBP Bill)</span>
-                <span className="font-mono text-ink2">0.7900 Rate</span>
-              </div>
+              <p className="text-[12px] text-ink3">
+                {bills.filter((b) => b.status === "Paid" && b.realizedFxDiff !== undefined).length}{" "}
+                settled bills with recorded FX differences.
+              </p>
               <div className="flex items-center justify-between text-[12.5px] font-semibold border-t border-line/60 pt-2">
                 <span>Net Realized FX Variance</span>
                 <span
@@ -223,9 +278,10 @@ function Dashboard() {
 
             <div className="pt-2">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                Active Projects Health ({projects.length})
+                Project Budgets ({projects.length})
               </p>
               <div className="space-y-1.5 text-[11.5px]">
+                {!projects.length && <p className="text-ink3">No projects registered.</p>}
                 {projects.slice(0, 2).map((p) => (
                   <div
                     key={p.id}
@@ -269,7 +325,12 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {invoices.slice(0, 4).map((i) => (
+              {!pendingInvoices.length && (
+                <tr>
+                  <Td colSpan={5}>No invoices pending collection.</Td>
+                </tr>
+              )}
+              {pendingInvoices.slice(0, 4).map((i) => (
                 <tr key={i.id} className="border-b border-line/40 last:border-0">
                   <Td className="font-mono text-[11.5px] font-medium">{i.id}</Td>
                   <Td className="text-ink2 text-[12px]">{i.customerName}</Td>
@@ -310,7 +371,12 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {bills.slice(0, 4).map((b) => (
+              {!pendingBills.length && (
+                <tr>
+                  <Td colSpan={5}>No bills pending payment.</Td>
+                </tr>
+              )}
+              {pendingBills.slice(0, 4).map((b) => (
                 <tr key={b.id} className="border-b border-line/40 last:border-0">
                   <Td className="font-mono text-[11.5px] font-medium">{b.id}</Td>
                   <Td className="text-ink2 text-[12px]">{b.vendorName}</Td>

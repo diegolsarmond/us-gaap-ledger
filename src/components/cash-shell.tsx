@@ -7,6 +7,7 @@ import { SignOutButton } from "./sign-out-button";
 import { CurrencyRateTicker } from "./currency-rate-ticker";
 import { isModuleAvailable } from "@/lib/module-availability";
 const groups = [
+  { label: "Relatórios", items: ["Central de relatórios"] },
   {
     label: "Operations",
     items: ["Dashboard", "Invoices & AR", "Bills & AP", "Inventory Catalog", "Projects & Margin"],
@@ -49,6 +50,7 @@ const groups = [
   },
 ];
 const menuRoutes: Record<string, string> = {
+  "Central de relatórios": "/reports",
   Customers: "/customers",
   Vendors: "/vendors",
   Dashboard: "/dashboard",
