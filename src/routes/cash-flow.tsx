@@ -22,6 +22,7 @@ import {
   type Interval,
 } from "@/lib/cash-flow-model";
 import { PageTitle, Panel, Kpi, Table, Th, Td } from "@/components/ui-kit";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -113,6 +114,7 @@ function CashFlowPage() {
   const [projected, setProjected] = useState(true);
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
+  const [activeTab, setActiveTab] = useState("over-time");
   const [form, setForm] = useState<"account" | "transaction" | null>(null);
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [cashFlowLine, setCashFlowLine] = useState<CashFlowLine | "">("");

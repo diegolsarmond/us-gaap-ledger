@@ -3,24 +3,24 @@ import { load as loadCash } from "./cash-flow.server";
 import { authorizeCompany } from "./companies.server";
 import { flatten, type Source } from "./report-engine";
 const labels: Record<string, string> = {
-  customers: "Clientes",
-  vendors: "Fornecedores",
-  accounts: "Plano de contas",
-  journals: "Lançamentos",
-  inventory: "Estoque",
-  projects: "Projetos",
-  invoices: "Faturas / contas a receber",
-  bills: "Contas a pagar",
-  statements: "Extratos",
-  stagingRows: "Transações importadas",
-  taxes: "Impostos",
-  auditLogs: "Auditoria",
-  currencies: "Moedas",
-  taxJurisdictions: "Jurisdições fiscais",
-  paymentTerms: "Condições de pagamento",
-  costCenters: "Centros de custo",
-  expenseCategories: "Categorias de despesas",
-  fiscalPeriods: "Períodos fiscais",
+  customers: "Customers",
+  vendors: "Vendors",
+  accounts: "Chart of accounts",
+  journals: "Journal entries",
+  inventory: "Inventory",
+  projects: "Projects",
+  invoices: "Invoices / accounts receivable",
+  bills: "Accounts payable",
+  statements: "Bank statements",
+  stagingRows: "Imported transactions",
+  taxes: "Taxes",
+  auditLogs: "Audit logs",
+  currencies: "Currencies",
+  taxJurisdictions: "Tax jurisdictions",
+  paymentTerms: "Payment terms",
+  costCenters: "Cost centers",
+  expenseCategories: "Expense categories",
+  fiscalPeriods: "Fiscal periods",
 };
 export async function loadSources(companyId: string): Promise<Source[]> {
   const auth = await authorizeCompany(companyId);
@@ -45,14 +45,14 @@ export async function loadSources(companyId: string): Promise<Source[]> {
       if (children.length)
         add(
           `${id}_${field}`,
-          `${labels[id] ?? id} · ${field === "costLots" ? "lotes" : "itens"}`,
+          `${labels[id] ?? id} · ${field === "costLots" ? "lots" : "items"}`,
           children,
         );
     }
   }
-  add("cashTransactions", "Fluxo de caixa · movimentações", cash.transactions);
-  add("cashAccounts", "Contas bancárias", cash.accounts);
-  add("cashCategories", "Categorias de caixa", cash.categories);
-  add("company", "Empresa ativa", [ledger.company]);
+  add("cashTransactions", "Cash flow · transactions", cash.transactions);
+  add("cashAccounts", "Bank accounts", cash.accounts);
+  add("cashCategories", "Cash categories", cash.categories);
+  add("company", "Active company", [ledger.company]);
   return sources;
 }

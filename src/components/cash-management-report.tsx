@@ -39,6 +39,7 @@ export function CashManagementReport({
   companyId,
   accountId,
   asOf,
+  section = "all",
 }: {
   accounts: CashAccount[];
   transactions: CashTransaction[];
@@ -49,6 +50,7 @@ export function CashManagementReport({
   companyId: string;
   accountId: string;
   asOf: string;
+  section?: "statement" | "weekly" | "reconciliation" | "all";
 }) {
   const money = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
@@ -201,171 +203,219 @@ export function CashManagementReport({
   }
   return (
     <div className="space-y-5">
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Kpi
-          label={showProjected ? "Forecast free cash flow" : "Free cash flow"}
-          value={
-            direct.unclassifiedCount
-              ? "Pending classification"
-              : money(direct.operating - direct.capex)
-          }
-          hint="Operating cash flow − gross PP&E purchases (includes capitalized interest). Management measure."
-        />
-        <Kpi
-          label="Monthly net burn · actual"
-          value={burn === null ? "Unavailable" : money(burn)}
-          hint={`Operating + investing cash consumption ÷ ${days} elapsed days × 30.4375. Excludes financing.`}
-        />
-        <Kpi
-          label="Cash runway · months"
-          value={runway === null ? (burn === 0 ? "No net burn" : "Unavailable") : runway.toFixed(1)}
-          hint={`Actual cash at ${elapsedEnd} ÷ monthly net burn. Historical-rate estimate.`}
-        />
-      </section>
-      <Panel
-        title="Statement of Cash Flows"
-        subtitle={`${showProjected ? "Management forecast · actual + planned" : "Actual cash flows"} · ${currency} · ${start} to ${end}`}
-        aside={
-          <button className={button} onClick={exportStatement}>
-            Export statement CSV
-          </button>
-        }
-      >
-        <div className="space-y-2 p-4 text-sm">
-          <label className="flex items-center gap-3">
-            Presentation{" "}
-            <select
-              className={control + " max-w-xs"}
-              value={method}
-              onChange={(e) => setMethod(e.target.value as typeof method)}
-            >
-              <option value="direct">Direct method</option>
-              <option value="indirect">Indirect reconciliation · actual</option>
-            </select>
-          </label>
-          {!!direct.unclassifiedCount && (
-            <p role="alert" className="text-amber-800">
-              {direct.unclassifiedCount} unclassified transaction(s). Review before using activity
-              totals or management indicators.
-            </p>
-          )}
-          <p className="text-xs text-ink3">
-            Interest paid and received and returns on investments are operating; dividends paid are
-            financing. Capitalized interest is investing. Equity-method returns of investment
-            require accounting review and are investing.
-          </p>
-        </div>
-        {method === "direct" ? (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Activity / cash receipts and payments</Th>
-                <Th align="right">Inflows</Th>
-                <Th align="right">Outflows</Th>
-                <Th align="right">Net</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {(["operating", "investing", "financing", "transfer", "unclassified"] as const).map(
-                (activity) => (
-                  <ActivityRows key={activity} activity={activity} direct={direct} money={money} />
-                ),
+      {(section === "all" || section === "statement") && (
+        <>
+          <section className="grid gap-3 sm:grid-cols-3">
+            <Kpi
+              label={showProjected ? "Forecast free cash flow" : "Free cash flow"}
+              value={
+                direct.unclassifiedCount
+                  ? "Pending classification"
+                  : money(direct.operating - direct.capex)
+              }
+              hint="Operating cash flow − gross PP&E purchases (includes capitalized interest). Management measure."
+            />
+            <Kpi
+              label="Monthly net burn · actual"
+              value={burn === null ? "Unavailable" : money(burn)}
+              hint={`Operating + investing cash consumption ÷ ${days} elapsed days × 30.4375. Excludes financing.`}
+            />
+            <Kpi
+              label="Cash runway · months"
+              value={runway === null ? (burn === 0 ? "No net burn" : "Unavailable") : runway.toFixed(1)}
+              hint={`Actual cash at ${elapsedEnd} ÷ monthly net burn. Historical-rate estimate.`}
+            />
+          </section>
+          <Panel
+            title="Statement of Cash Flows"
+            subtitle={`${showProjected ? "Management forecast · actual + planned" : "Actual cash flows"} · ${currency} · ${start} to ${end}`}
+            aside={
+              <button className={button} onClick={exportStatement}>
+                Export statement CSV
+              </button>
+            }
+          >
+            <div className="space-y-2 p-4 text-sm">
+              <label className="flex items-center gap-3">
+                Presentation{" "}
+                <select
+                  className={control + " max-w-xs"}
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value as typeof method)}
+                >
+                  <option value="direct">Direct method</option>
+                  <option value="indirect">Indirect reconciliation · actual</option>
+                </select>
+              </label>
+              {!!direct.unclassifiedCount && (
+                <p role="alert" className="text-amber-800">
+                  {direct.unclassifiedCount} unclassified transaction(s). Review before using activity
+                  totals or management indicators.
+                </p>
               )}
-            </tbody>
-          </Table>
-        ) : (
-          <div className="p-4 text-sm space-y-2">
-            {saved ? (
-              <>
+              <p className="text-xs text-ink3">
+                Interest paid and received and returns on investments are operating; dividends paid are
+                financing. Capitalized interest is investing. Equity-method returns of investment
+                require accounting review and are investing.
+              </p>
+            </div>
+            {method === "direct" ? (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Activity / cash receipts and payments</Th>
+                    <Th align="right">Inflows</Th>
+                    <Th align="right">Outflows</Th>
+                    <Th align="right">Net</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(["operating", "investing", "financing", "transfer", "unclassified"] as const).map(
+                    (activity) => (
+                      <ActivityRows key={activity} activity={activity} direct={direct} money={money} />
+                    ),
+                  )}
+                </tbody>
+              </Table>
+            ) : (
+              <div className="p-4 text-sm space-y-2">
+                {saved ? (
+                  <>
+                    <Table>
+                      <thead>
+                        <tr>
+                          <Th>Reconciliation of net income to operating cash · actual</Th>
+                          <Th align="right">Amount</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fields
+                          .filter(([k]) => k !== "balance_sheet_cash")
+                          .map(([key, label]) => (
+                            <tr key={key}>
+                              <Td>{label}</Td>
+                              <Td align="right">{money(saved[key])}</Td>
+                            </tr>
+                          ))}
+                        <tr>
+                          <Td>Net cash provided by / used in operating activities</Td>
+                          <Td align="right">{money(reconciledOperating!)}</Td>
+                        </tr>
+                      </tbody>
+                    </Table>
+                    <p>
+                      Difference from direct operating cash: {money(operatingDifference!)}.{" "}
+                      {operatingDifference === 0 && !actual.unclassifiedCount
+                        ? "Agrees with the manually entered figures (not derived from the GL)."
+                        : "Review required."}
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Enter and save the accounting reconciliation below to enable the indirect
+                    presentation.
+                  </p>
+                )}
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Reconciliation of net income to operating cash · actual</Th>
-                      <Th align="right">Amount</Th>
+                      <Th>Activity / cash receipts and payments · actual</Th>
+                      <Th align="right">Inflows</Th>
+                      <Th align="right">Outflows</Th>
+                      <Th align="right">Net</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {fields
-                      .filter(([k]) => k !== "balance_sheet_cash")
-                      .map(([key, label]) => (
-                        <tr key={key}>
-                          <Td>{label}</Td>
-                          <Td align="right">{money(saved[key])}</Td>
-                        </tr>
-                      ))}
-                    <tr>
-                      <Td>Net cash provided by / used in operating activities</Td>
-                      <Td align="right">{money(reconciledOperating!)}</Td>
-                    </tr>
+                    {["investing", "financing", "transfer", "unclassified"].map((activity) => (
+                      <ActivityRows key={activity} activity={activity} direct={actual} money={money} />
+                    ))}
                   </tbody>
                 </Table>
-                <p>
-                  Difference from direct operating cash: {money(operatingDifference!)}.{" "}
-                  {operatingDifference === 0 && !actual.unclassifiedCount
-                    ? "Agrees with the manually entered figures (not derived from the GL)."
-                    : "Review required."}
-                </p>
-              </>
-            ) : (
-              <p>
-                Enter and save the accounting reconciliation below to enable the indirect
-                presentation.
-              </p>
+              </div>
             )}
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Activity / cash receipts and payments · actual</Th>
-                  <Th align="right">Inflows</Th>
-                  <Th align="right">Outflows</Th>
-                  <Th align="right">Net</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {["investing", "financing", "transfer", "unclassified"].map((activity) => (
-                  <ActivityRows key={activity} activity={activity} direct={actual} money={money} />
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
-        <div className="grid gap-2 border-t border-line p-4 text-sm sm:grid-cols-2">
-          <p>
-            Beginning cash & cash equivalents: <strong>{money(totals.opening)}</strong>
+            <div className="grid gap-2 border-t border-line p-4 text-sm sm:grid-cols-2">
+              <p>
+                Beginning cash & cash equivalents: <strong>{money(totals.opening)}</strong>
+              </p>
+              <p>
+                Net increase / decrease:{" "}
+                <strong>
+                  {money(totals.periods.reduce((s, p) => s + Math.round(p.net * 100), 0) / 100)}
+                </strong>
+              </p>
+              <p>
+                Account opening balances added in period: <strong>{money(adjustments)}</strong>
+              </p>
+              <p>
+                Ending cash & cash equivalents: <strong>{money(closing)}</strong>
+              </p>
+              <p className="text-xs text-ink3 sm:col-span-2">
+                Beginning cash + recorded account openings + net cash change = ending cash. Account
+                openings are setup balances, not operating, investing or financing flows. Scope includes
+                only selected cash accounts and currency; restricted cash and FX reconciliation need
+                accounting review where applicable.
+              </p>
+            </div>
+          </Panel>
+        </>
+      )}
+      {(section === "all" || section === "weekly") && (
+        <Panel
+          title="Weekly forecast vs. actual"
+          subtitle="Original plan is frozen on first planned save. Positive net variance means more cash than planned."
+          aside={
+            <button
+              className={button}
+              onClick={() =>
+                exportToCsv(
+                  `weekly_variance_${currency}_${start}_${end}`,
+                  [
+                    "Week of",
+                    "Status",
+                    "Partial week",
+                    "Forecast receipts",
+                    "Actual receipts",
+                    "Forecast payments",
+                    "Actual payments",
+                    "Forecast net",
+                    "Actual net",
+                    "Net variance",
+                    "Explanation",
+                    "Currency",
+                  ],
+                  weekly.map((w) => [
+                    w.label,
+                    w.state,
+                    w.partial ? "Yes" : "No",
+                    w.forecastIn,
+                    w.actualIn,
+                    w.forecastOut,
+                    w.actualOut,
+                    w.forecastNet,
+                    w.actualNet,
+                    w.variance,
+                    w.notes.join("; "),
+                    currency,
+                  ]),
+                )
+              }
+            >
+              Export comparison CSV
+            </button>
+          }
+        >
+          <p className="px-4 py-3 text-xs text-ink3">
+            Actuals without an original plan appear as unplanned. Existing planned entries establish
+            their baseline when migration 010 runs. Future and current weeks are not final variances.
+            Cancelled plans remain in the baseline. Edit a transaction to record an explanation; do
+            not create a second entry when settling a forecast.
           </p>
-          <p>
-            Net increase / decrease:{" "}
-            <strong>
-              {money(totals.periods.reduce((s, p) => s + Math.round(p.net * 100), 0) / 100)}
-            </strong>
-          </p>
-          <p>
-            Account opening balances added in period: <strong>{money(adjustments)}</strong>
-          </p>
-          <p>
-            Ending cash & cash equivalents: <strong>{money(closing)}</strong>
-          </p>
-          <p className="text-xs text-ink3 sm:col-span-2">
-            Beginning cash + recorded account openings + net cash change = ending cash. Account
-            openings are setup balances, not operating, investing or financing flows. Scope includes
-            only selected cash accounts and currency; restricted cash and FX reconciliation need
-            accounting review where applicable.
-          </p>
-        </div>
-      </Panel>
-      <Panel
-        title="Weekly forecast vs. actual"
-        subtitle="Original plan is frozen on first planned save. Positive net variance means more cash than planned."
-        aside={
-          <button
-            className={button}
-            onClick={() =>
-              exportToCsv(
-                `weekly_variance_${currency}_${start}_${end}`,
-                [
+          <Table>
+            <thead>
+              <tr>
+                {[
                   "Week of",
                   "Status",
-                  "Partial week",
                   "Forecast receipts",
                   "Actual receipts",
                   "Forecast payments",
@@ -374,177 +424,137 @@ export function CashManagementReport({
                   "Actual net",
                   "Net variance",
                   "Explanation",
-                  "Currency",
-                ],
-                weekly.map((w) => [
-                  w.label,
-                  w.state,
-                  w.partial ? "Yes" : "No",
-                  w.forecastIn,
-                  w.actualIn,
-                  w.forecastOut,
-                  w.actualOut,
-                  w.forecastNet,
-                  w.actualNet,
-                  w.variance,
-                  w.notes.join("; "),
-                  currency,
-                ]),
-              )
-            }
-          >
-            Export comparison CSV
-          </button>
-        }
-      >
-        <p className="px-4 py-3 text-xs text-ink3">
-          Actuals without an original plan appear as unplanned. Existing planned entries establish
-          their baseline when migration 010 runs. Future and current weeks are not final variances.
-          Cancelled plans remain in the baseline. Edit a transaction to record an explanation; do
-          not create a second entry when settling a forecast.
-        </p>
-        <Table>
-          <thead>
-            <tr>
-              {[
-                "Week of",
-                "Status",
-                "Forecast receipts",
-                "Actual receipts",
-                "Forecast payments",
-                "Actual payments",
-                "Forecast net",
-                "Actual net",
-                "Net variance",
-                "Explanation",
-              ].map((h) => (
-                <Th key={h}>{h}</Th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {weekly.map((w) => (
-              <tr key={w.label} className="border-t border-line">
-                <Td>
-                  {w.label}
-                  {w.partial ? " (partial)" : ""}
-                </Td>
-                <Td>{w.state}</Td>
-                {[
-                  w.forecastIn,
-                  w.actualIn,
-                  w.forecastOut,
-                  w.actualOut,
-                  w.forecastNet,
-                  w.actualNet,
-                  w.variance,
-                ].map((n, i) => (
-                  <Td key={i} align="right">
-                    {money(n)}
-                  </Td>
+                ].map((h) => (
+                  <Th key={h}>{h}</Th>
                 ))}
-                <Td>{w.notes.join("; ") || "—"}</Td>
               </tr>
-            ))}
-          </tbody>
-        </Table>
-      </Panel>
-      <Panel
-        title="Supplemental accounting reconciliation · actual · manual inputs"
-        subtitle="Required alongside the direct method. Enter accrual accounting data for exactly the selected period, accounts and currency."
-      >
-        <p className="p-4 text-xs text-ink3">
-          Use signed adjustments, excluding noncash acquisitions and other investing / financing
-          movements from working capital. COGS is not automatically a cash payment. For a
-          company-wide statement, select all cash accounts and use company-wide net income.
-          Forecasts are management estimates, not recognized sales or expenses.
-        </p>
-        {reconciliation.isPending ? (
-          <p className="p-4">Loading reconciliation…</p>
-        ) : reconciliation.isError ? (
-          <p role="alert" className="p-4 text-red-700">
-            Unable to load the accounting reconciliation.
+            </thead>
+            <tbody>
+              {weekly.map((w) => (
+                <tr key={w.label} className="border-t border-line">
+                  <Td>
+                    {w.label}
+                    {w.partial ? " (partial)" : ""}
+                  </Td>
+                  <Td>{w.state}</Td>
+                  {[
+                    w.forecastIn,
+                    w.actualIn,
+                    w.forecastOut,
+                    w.actualOut,
+                    w.forecastNet,
+                    w.actualNet,
+                    w.variance,
+                  ].map((n, i) => (
+                    <Td key={i} align="right">
+                      {money(n)}
+                    </Td>
+                  ))}
+                  <Td>{w.notes.join("; ") || "—"}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
+      )}
+      {(section === "all" || section === "reconciliation") && (
+        <Panel
+          title="Supplemental accounting reconciliation · actual · manual inputs"
+          subtitle="Required alongside the direct method. Enter accrual accounting data for exactly the selected period, accounts and currency."
+        >
+          <p className="p-4 text-xs text-ink3">
+            Use signed adjustments, excluding noncash acquisitions and other investing / financing
+            movements from working capital. COGS is not automatically a cash payment. For a
+            company-wide statement, select all cash accounts and use company-wide net income.
+            Forecasts are management estimates, not recognized sales or expenses.
           </p>
-        ) : (
-          <form key={JSON.stringify([scope, saved])} onSubmit={save} className="space-y-4 p-4">
-            <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
-              {fields.map(([key, label]) => (
-                <label key={key} className="space-y-1 text-xs">
-                  {label}
-                  <input
+          {reconciliation.isPending ? (
+            <p className="p-4">Loading reconciliation…</p>
+          ) : reconciliation.isError ? (
+            <p role="alert" className="p-4 text-red-700">
+              Unable to load the accounting reconciliation.
+            </p>
+          ) : (
+            <form key={JSON.stringify([scope, saved])} onSubmit={save} className="space-y-4 p-4">
+              <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
+                {fields.map(([key, label]) => (
+                  <label key={key} className="space-y-1 text-xs">
+                    {label}
+                    <input
+                      className={control}
+                      name={key}
+                      type="number"
+                      step="0.01"
+                      min="-999999999999.99"
+                      max="999999999999.99"
+                      required
+                      defaultValue={saved?.[key] ?? ""}
+                    />
+                  </label>
+                ))}
+                <label className="space-y-1 text-xs sm:col-span-2">
+                  Sources and explanations
+                  <textarea
                     className={control}
-                    name={key}
-                    type="number"
-                    step="0.01"
-                    min="-999999999999.99"
-                    max="999999999999.99"
+                    name="explanation"
                     required
-                    defaultValue={saved?.[key] ?? ""}
+                    maxLength={2000}
+                    defaultValue={saved?.explanation ?? ""}
                   />
                 </label>
-              ))}
-              <label className="space-y-1 text-xs sm:col-span-2">
-                Sources and explanations
-                <textarea
-                  className={control}
-                  name="explanation"
-                  required
-                  maxLength={2000}
-                  defaultValue={saved?.explanation ?? ""}
-                />
-              </label>
-              <button className={button}>
-                {pending ? "Saving…" : "Save accounting reconciliation"}
-              </button>
-            </fieldset>
-            {message && <p role="status">{message}</p>}
-          </form>
-        )}
-        <div className="border-t border-line p-4 text-sm space-y-2">
-          <p>
-            Operating reconciliation difference:{" "}
-            <strong>
-              {operatingDifference === null ? "Not supplied" : money(operatingDifference)}
-            </strong>
-          </p>
-          <p>
-            Actual ending cash vs. balance sheet difference:{" "}
-            <strong>{cashDifference === null ? "Not supplied" : money(cashDifference)}</strong>
-          </p>
-          <p>
-            <strong>Manual reconciliation: </strong>
-            {saved && operatingDifference === 0 && cashDifference === 0 && !actual.unclassifiedCount
-              ? "both checks agree with the figures entered above. This does not prove agreement with the ledger."
-              : "pending or requires review."}
-          </p>
-        </div>
-        <div className="border-t border-line p-4 text-sm space-y-2">
-          <p>
-            <strong>GL-verified cash check · actual at {end}: </strong>
-            {glCheck.isPending
-              ? "Checking…"
-              : glCheck.isError
-                ? "Unable to check the general ledger."
-                : glCheck.data.status === "verified"
-                  ? "Verified"
-                  : glCheck.data.status === "difference"
-                    ? "Difference found"
-                    : "Not verifiable"}
-          </p>
-          {glCheck.data && (
-            <>
-              <p className="text-xs text-ink3">{glCheck.data.reason}</p>
-              {glCheck.data.glBalance !== null && (
-                <p>
-                  GL {glCheck.data.glAccounts.join(", ")}: {money(glCheck.data.glBalance)} · Cash
-                  module: {money(glCheck.data.cashBalance!)} · Difference:{" "}
-                  <strong>{money(glCheck.data.difference!)}</strong>
-                </p>
-              )}
-            </>
+                <button className={button}>
+                  {pending ? "Saving…" : "Save accounting reconciliation"}
+                </button>
+              </fieldset>
+              {message && <p role="status">{message}</p>}
+            </form>
           )}
-        </div>
-      </Panel>
+          <div className="border-t border-line p-4 text-sm space-y-2">
+            <p>
+              Operating reconciliation difference:{" "}
+              <strong>
+                {operatingDifference === null ? "Not supplied" : money(operatingDifference)}
+              </strong>
+            </p>
+            <p>
+              Actual ending cash vs. balance sheet difference:{" "}
+              <strong>{cashDifference === null ? "Not supplied" : money(cashDifference)}</strong>
+            </p>
+            <p>
+              <strong>Manual reconciliation: </strong>
+              {saved && operatingDifference === 0 && cashDifference === 0 && !actual.unclassifiedCount
+                ? "both checks agree with the figures entered above. This does not prove agreement with the ledger."
+                : "pending or requires review."}
+            </p>
+          </div>
+          <div className="border-t border-line p-4 text-sm space-y-2">
+            <p>
+              <strong>GL-verified cash check · actual at {end}: </strong>
+              {glCheck.isPending
+                ? "Checking…"
+                : glCheck.isError
+                  ? "Unable to check the general ledger."
+                  : glCheck.data.status === "verified"
+                    ? "Verified"
+                    : glCheck.data.status === "difference"
+                      ? "Difference found"
+                      : "Not verifiable"}
+            </p>
+            {glCheck.data && (
+              <>
+                <p className="text-xs text-ink3">{glCheck.data.reason}</p>
+                {glCheck.data.glBalance !== null && (
+                  <p>
+                    GL {glCheck.data.glAccounts.join(", ")}: {money(glCheck.data.glBalance)} · Cash
+                    module: {money(glCheck.data.cashBalance!)} · Difference:{" "}
+                    <strong>{money(glCheck.data.difference!)}</strong>
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

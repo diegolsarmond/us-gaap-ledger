@@ -39,7 +39,7 @@ export function flatten(value: Record<string, unknown>, prefix = ""): Row {
 }
 export function runReport(sources: Source[], report: Report) {
   const source = sources.find((s) => s.id === report.source);
-  if (!source) throw new Error("Selecione uma fonte disponível.");
+  if (!source) throw new Error("Select an available source.");
   const qualify = (s: Source, r: Row) =>
     Object.fromEntries(s.fields.map((f) => [`${s.id}.${f}`, r[f] ?? null])) as Row;
   let rows = source.rows.map((r) => qualify(source, r));
@@ -48,13 +48,13 @@ export function runReport(sources: Source[], report: Report) {
   for (const join of report.joins) {
     const target = sources.find((s) => s.id === join.source);
     if (!target || used.has(target.id) || !join.left || !target.fields.includes(join.right))
-      throw new Error("Configure os campos de cada cruzamento e use cada fonte uma vez.");
+      throw new Error("Configure each join and use each source only once.");
     if (
       !Array.from(used).some((id) =>
         sources.find((s) => s.id === id)?.fields.some((f) => `${id}.${f}` === join.left),
       )
     )
-      throw new Error("Campo de origem inválido no cruzamento.");
+      throw new Error("Invalid source field in join.");
     const index = new Map<string, Row[]>();
     for (const row of target.rows) {
       const key = row[join.right];
@@ -73,7 +73,7 @@ export function runReport(sources: Source[], report: Report) {
       else if (join.kind === "left") next.push({ ...row, ...qualify(target, {}) });
       if (next.length > 50000)
         throw new Error(
-          "O cruzamento excede 50.000 linhas. Escolha chaves mais específicas ou outra fonte.",
+          "The join exceeds 50,000 rows. Choose more specific keys or another source.",
         );
     }
     rows = next;
@@ -126,7 +126,7 @@ export function runReport(sources: Source[], report: Report) {
         .map((r) => r[report.metric])
         .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
       if (report.operation !== "count" && bucket.length && !values.length)
-        throw new Error("Selecione um campo numérico para calcular.");
+        throw new Error("Select a numeric field for the calculation.");
       const total = values.reduce((a, b) => a + b, 0);
       const result =
         report.operation === "count"
@@ -153,9 +153,10 @@ export function runReport(sources: Source[], report: Report) {
       return (
         (typeof x === "number" && typeof y === "number"
           ? x - y
-          : String(x ?? "").localeCompare(String(y ?? ""), "pt-BR", { numeric: true })) *
+          : String(x ?? "").localeCompare(String(y ?? ""), "en-US", { numeric: true })) *
         (report.descending ? -1 : 1)
       );
     });
   return { rows, columns, matched, expanded };
 }
+

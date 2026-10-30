@@ -1,600 +1,1 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useCompanies } from "@/components/company-context";
-import { PageTitle, Panel } from "@/components/ui-kit";
-import { loadReportSources } from "@/lib/reports";
-import { runReport, type Report } from "@/lib/report-engine";
-import { Download, Plus, Save, Trash2 } from "lucide-react";
-
-export const Route = createFileRoute("/reports")({ component: ReportsPage });
-const initial: Report = {
-  name: "Meu relatório",
-  source: "cashTransactions",
-  joins: [],
-  columns: [],
-  filters: [],
-  groups: [],
-  metric: "",
-  operation: "count",
-  summary: false,
-  sort: "",
-  descending: false,
-};
-const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-xs";
-const button =
-  "inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs hover:bg-brand/5 disabled:opacity-40";
-function ReportsPage() {
-  const { activeCompany, user } = useCompanies();
-  const companyId = activeCompany!.id;
-  const storageKey = `reports-v1:${user.id}:${companyId}`;
-  const [report, setReport] = useState<Report>(initial);
-  const [saved, setSaved] = useState<Report[]>([]);
-  const [notice, setNotice] = useState("");
-  const [page, setPage] = useState(0);
-  const query = useQuery({
-    queryKey: ["report-sources", companyId],
-    queryFn: () => loadReportSources({ data: { companyId } }),
-  });
-  const sources = query.data ?? [];
-  useEffect(() => {
-    try {
-      const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      if (Array.isArray(value))
-        setSaved(
-          value.filter(
-            (v) =>
-              v &&
-              typeof v.name === "string" &&
-              Array.isArray(v.columns) &&
-              Array.isArray(v.joins) &&
-              Array.isArray(v.filters) &&
-              Array.isArray(v.groups),
-          ),
-        );
-    } catch {
-      setNotice("Não foi possível carregar os modelos salvos neste navegador.");
-    }
-  }, [storageKey]);
-  const patch = (value: Partial<Report>) => {
-    setReport((r) => ({ ...r, ...value }));
-    setPage(0);
-  };
-  const fields = [report.source, ...report.joins.map((j) => j.source)].flatMap(
-    (id) => sources.find((s) => s.id === id)?.fields.map((f) => `${id}.${f}`) ?? [],
-  );
-  const label = (field: string) => {
-    const dot = field.indexOf(".");
-    return field === "resultado"
-      ? "Resultado"
-      : `${sources.find((s) => s.id === field.slice(0, dot))?.label ?? field.slice(0, dot)} · ${field.slice(dot + 1)}`;
-  };
-  const result = useMemo(() => {
-    if (!query.data) return { data: null, error: "" };
-    try {
-      return { data: runReport(query.data, report), error: "" };
-    } catch (e) {
-      return {
-        data: null,
-        error: e instanceof Error ? e.message : "Não foi possível gerar o relatório.",
-      };
-    }
-  }, [query.data, report]);
-  const data = result.data;
-  const selectFields = (
-    value: string,
-    change: (s: string) => void,
-    options = fields,
-    placeholder = "Selecione um campo",
-  ) => (
-    <select className={control} value={value} onChange={(e) => change(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {options.map((f) => (
-        <option key={f} value={f}>
-          {label(f)}
-        </option>
-      ))}
-    </select>
-  );
-  const save = () => {
-    if (!report.name.trim()) {
-      setNotice("Informe um nome para o relatório.");
-      return;
-    }
-    const next = [...saved.filter((s) => s.name !== report.name), report];
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      setSaved(next);
-      setNotice("Modelo salvo neste navegador para esta empresa e usuário.");
-    } catch {
-      setNotice("Não foi possível salvar o modelo neste navegador.");
-    }
-  };
-  const exportCsv = () => {
-    if (!data) return;
-    const cell = (v: unknown) => {
-      let text = String(v ?? "");
-      if (/^[=+\-@\t\r]/.test(text) && typeof v !== "number") text = "'" + text;
-      return '"' + text.replaceAll('"', '""') + '"';
-    };
-    const csv =
-      "\uFEFF" +
-      [data.columns.map(label), ...data.rows.map((row) => data.columns.map((c) => row[c]))]
-        .map((row) => row.map(cell).join(";"))
-        .join("\r\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${report.name.replace(/[^\p{L}\p{N}_-]/gu, "_") || "relatorio"}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  if (query.isPending) return <p role="status">Carregando fontes de relatórios…</p>;
-  if (query.isError)
-    return (
-      <div role="alert">
-        Não foi possível carregar os dados.{" "}
-        <button className={button} onClick={() => void query.refetch()}>
-          Tentar novamente
-        </button>
-      </div>
-    );
-  return (
-    <div className="space-y-4">
-      <PageTitle
-        title="Central de relatórios"
-        description={`Combine dados de ${activeCompany!.name}, escolha campos e personalize suas análises.`}
-        actions={
-          <>
-            <button className={button} onClick={() => void query.refetch()}>
-              Atualizar dados
-            </button>
-            <button className={button} onClick={save}>
-              <Save size={14} />
-              Salvar modelo
-            </button>
-            <button className={button} disabled={!data?.columns.length} onClick={exportCsv}>
-              <Download size={14} />
-              Exportar CSV
-            </button>
-          </>
-        }
-      />
-      {notice && (
-        <p role="status" className="text-xs text-brand">
-          {notice}
-        </p>
-      )}
-      <Panel
-        title="Modelos de relatório"
-        subtitle="Salvos apenas neste navegador. Os dados são consultados novamente ao abrir."
-      >
-        <div className="flex flex-wrap gap-2 p-4">
-          <button className={button} onClick={() => patch(initial)}>
-            <Plus size={14} />
-            Novo relatório
-          </button>
-          {saved.map((s) => (
-            <div key={s.name} className="flex gap-1">
-              <button className={button} onClick={() => patch(s)}>
-                {s.name}
-              </button>
-              <button
-                className={button}
-                aria-label={`Excluir modelo ${s.name}`}
-                onClick={() => {
-                  const next = saved.filter((v) => v.name !== s.name);
-                  try {
-                    localStorage.setItem(storageKey, JSON.stringify(next));
-                    setSaved(next);
-                  } catch {
-                    setNotice("Não foi possível excluir o modelo.");
-                  }
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <Panel
-        title="1. Fontes e cruzamentos"
-        subtitle="Cada linha representa um registro da fonte principal. Itens e lotes estão disponíveis como fontes próprias, ligados por parentId."
-      >
-        <div className="space-y-3 p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-xs">
-              Nome do relatório
-              <input
-                className={control}
-                value={report.name}
-                onChange={(e) => patch({ name: e.target.value })}
-              />
-            </label>
-            <label className="space-y-1 text-xs">
-              Fonte principal
-              <select
-                className={control}
-                value={report.source}
-                onChange={(e) => patch({ ...initial, name: report.name, source: e.target.value })}
-              >
-                {sources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label} ({s.rows.length})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {report.joins.map((j, i) => (
-            <div
-              key={i}
-              className="grid items-end gap-2 rounded-lg border border-line p-3 lg:grid-cols-5"
-            >
-              <label className="text-xs">
-                Cruzar com
-                <select
-                  className={control}
-                  value={j.source}
-                  onChange={(e) =>
-                    patch({
-                      joins: report.joins.map((v, n) =>
-                        n === i ? { ...v, source: e.target.value, right: "" } : v,
-                      ),
-                      columns: [],
-                      groups: [],
-                      filters: [],
-                    })
-                  }
-                >
-                  <option value="">Selecione a fonte</option>
-                  {sources
-                    .filter(
-                      (s) =>
-                        s.id !== report.source &&
-                        !report.joins.some((v, n) => n !== i && v.source === s.id),
-                    )
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="text-xs">
-                Campo de origem
-                {selectFields(
-                  j.left,
-                  (left) =>
-                    patch({ joins: report.joins.map((v, n) => (n === i ? { ...v, left } : v)) }),
-                  [report.source, ...report.joins.slice(0, i).map((v) => v.source)].flatMap(
-                    (id) => sources.find((s) => s.id === id)?.fields.map((f) => `${id}.${f}`) ?? [],
-                  ),
-                )}
-              </label>
-              <label className="text-xs">
-                Campo correspondente
-                <select
-                  className={control}
-                  value={j.right}
-                  onChange={(e) =>
-                    patch({
-                      joins: report.joins.map((v, n) =>
-                        n === i ? { ...v, right: e.target.value } : v,
-                      ),
-                    })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {sources
-                    .find((s) => s.id === j.source)
-                    ?.fields.map((f) => (
-                      <option key={f}>{f}</option>
-                    ))}
-                </select>
-              </label>
-              <label className="text-xs">
-                Tipo
-                <select
-                  className={control}
-                  value={j.kind}
-                  onChange={(e) =>
-                    patch({
-                      joins: report.joins.map((v, n) =>
-                        n === i ? { ...v, kind: e.target.value as "left" | "inner" } : v,
-                      ),
-                    })
-                  }
-                >
-                  <option value="left">Manter todos da origem</option>
-                  <option value="inner">Somente correspondências</option>
-                </select>
-              </label>
-              <button
-                className={button}
-                onClick={() =>
-                  patch({
-                    joins: report.joins.slice(0, i),
-                    columns: [],
-                    groups: [],
-                    filters: [],
-                    metric: "",
-                    sort: "",
-                  })
-                }
-              >
-                Remover cruzamento e seguintes
-              </button>
-            </div>
-          ))}
-          <button
-            className={button}
-            onClick={() =>
-              patch({ joins: [...report.joins, { source: "", left: "", right: "", kind: "left" }] })
-            }
-          >
-            <Plus size={14} />
-            Adicionar cruzamento
-          </button>
-          <p className="text-xs text-ink3">
-            Exemplos: cashTransactions.account_id → cashAccounts.id; bills.vendorId → vendors.id;
-            invoices.projectId → projects.id. Campos sem valor não são relacionados.
-          </p>
-        </div>
-      </Panel>
-      <Panel title="2. Campos e filtros">
-        <div className="space-y-4 p-4">
-          <fieldset>
-            <legend className="mb-2 text-xs">Colunas do relatório</legend>
-            <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
-              {fields.map((f) => (
-                <label key={f} className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={report.columns.includes(f)}
-                    onChange={(e) =>
-                      patch({
-                        columns: e.target.checked
-                          ? [...report.columns, f]
-                          : report.columns.filter((c) => c !== f),
-                      })
-                    }
-                  />
-                  {label(f)}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {report.filters.map((f, i) => (
-            <div key={i} className="grid gap-2 sm:grid-cols-4">
-              {selectFields(f.field, (field) =>
-                patch({ filters: report.filters.map((v, n) => (n === i ? { ...v, field } : v)) }),
-              )}
-              <select
-                className={control}
-                value={f.operator}
-                onChange={(e) =>
-                  patch({
-                    filters: report.filters.map((v, n) =>
-                      n === i ? { ...v, operator: e.target.value as typeof f.operator } : v,
-                    ),
-                  })
-                }
-              >
-                {Object.entries({
-                  contains: "Contém",
-                  eq: "Igual a",
-                  neq: "Diferente de",
-                  gte: "Maior ou igual",
-                  lte: "Menor ou igual",
-                  empty: "Está vazio",
-                }).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <input
-                aria-label="Valor do filtro"
-                className={control}
-                disabled={f.operator === "empty"}
-                placeholder="Valor ou data AAAA-MM-DD"
-                value={f.value}
-                onChange={(e) =>
-                  patch({
-                    filters: report.filters.map((v, n) =>
-                      n === i ? { ...v, value: e.target.value } : v,
-                    ),
-                  })
-                }
-              />
-              <button
-                className={button}
-                onClick={() => patch({ filters: report.filters.filter((_, n) => n !== i) })}
-              >
-                Remover filtro
-              </button>
-            </div>
-          ))}
-          <button
-            className={button}
-            onClick={() =>
-              patch({
-                filters: [
-                  ...report.filters,
-                  { field: fields[0] ?? "", operator: "contains", value: "" },
-                ],
-              })
-            }
-          >
-            <Plus size={14} />
-            Adicionar filtro (E)
-          </button>
-        </div>
-      </Panel>
-      <Panel title="3. Análise e apresentação">
-        <div className="space-y-3 p-4">
-          <label className="flex gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={report.summary}
-              onChange={(e) => patch({ summary: e.target.checked, sort: "" })}
-            />
-            Resumir com agrupamentos e cálculos
-          </label>
-          {report.summary && (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs">
-                  Cálculo
-                  <select
-                    className={control}
-                    value={report.operation}
-                    onChange={(e) => patch({ operation: e.target.value as Report["operation"] })}
-                  >
-                    {Object.entries({
-                      count: "Contagem de linhas",
-                      sum: "Soma",
-                      avg: "Média",
-                      min: "Mínimo",
-                      max: "Máximo",
-                    }).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {report.operation !== "count" && (
-                  <label className="text-xs">
-                    Campo numérico{selectFields(report.metric, (metric) => patch({ metric }))}
-                  </label>
-                )}
-              </div>
-              <fieldset>
-                <legend className="text-xs mb-2">
-                  Agrupar por (selecione moeda ao somar valores monetários)
-                </legend>
-                <div className="grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
-                  {fields.map((f) => (
-                    <label key={f} className="flex gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={report.groups.includes(f)}
-                        onChange={(e) =>
-                          patch({
-                            groups: e.target.checked
-                              ? [...report.groups, f]
-                              : report.groups.filter((g) => g !== f),
-                          })
-                        }
-                      />
-                      {label(f)}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </>
-          )}
-          <div className="flex items-center gap-3">
-            {selectFields(
-              report.sort,
-              (sort) => patch({ sort }),
-              report.summary ? [...report.groups, "resultado"] : report.columns,
-              "Sem ordenação",
-            )}
-            <label className="flex gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={report.descending}
-                onChange={(e) => patch({ descending: e.target.checked })}
-              />
-              Decrescente
-            </label>
-          </div>
-        </div>
-      </Panel>
-      {result.error && (
-        <p role="alert" className="rounded-lg border border-line p-4 text-sm text-down">
-          {result.error}
-        </p>
-      )}
-      {data?.expanded && (
-        <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-          Há múltiplas correspondências: registros da origem foram repetidos no cruzamento. Somas e
-          contagens refletem essas linhas; revise as chaves antes de interpretar os totais.
-        </p>
-      )}
-      {data && (
-        <Panel
-          title={report.name || "Resultado"}
-          subtitle={`${data.matched} linhas após os filtros · ${data.rows.length} linhas no resultado. Valores na unidade e moeda originais, sem conversão.`}
-        >
-          <div className="overflow-x-auto">
-            {!data.columns.length ? (
-              <p className="p-6 text-sm text-ink3">
-                Selecione as colunas ou ative o resumo para visualizar o relatório.
-              </p>
-            ) : (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr>
-                    {data.columns.map((c) => (
-                      <th className="whitespace-nowrap border-b border-line p-3" key={c}>
-                        {label(c)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.slice(page * 50, (page + 1) * 50).map((row, i) => (
-                    <tr key={i}>
-                      {data.columns.map((c) => (
-                        <td
-                          key={c}
-                          className="max-w-md whitespace-pre-wrap border-b border-line/50 p-3"
-                        >
-                          {row[c] == null
-                            ? "—"
-                            : typeof row[c] === "boolean"
-                              ? row[c]
-                                ? "Sim"
-                                : "Não"
-                              : String(row[c])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {!data.rows.length && (
-                    <tr>
-                      <td className="p-6 text-center text-ink3" colSpan={data.columns.length}>
-                        Nenhum registro encontrado para esta combinação.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-          <div className="flex items-center justify-between p-3 text-xs">
-            <button className={button} disabled={!page} onClick={() => setPage((p) => p - 1)}>
-              Anterior
-            </button>
-            <span>
-              Página {page + 1} de {Math.max(1, Math.ceil(data.rows.length / 50))} · CSV inclui
-              todas as linhas
-            </span>
-            <button
-              className={button}
-              disabled={(page + 1) * 50 >= data.rows.length}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Próxima
-            </button>
-          </div>
-        </Panel>
-      )}
-    </div>
-  );
-}
+import { createFileRoute } from "@tanstack/react-router";import { useEffect, useMemo, useState } from "react";import { useQuery } from "@tanstack/react-query";import { useCompanies } from "@/components/company-context";import { PageTitle, Panel } from "@/components/ui-kit";import { loadReportSources } from "@/lib/reports";import { runReport, type Report } from "@/lib/report-engine";import { Download, Eye, Pencil, Plus, Save, Trash2 } from "lucide-react";export const Route = createFileRoute("/reports")({ component: ReportsPage });const initial: Report = {  name: "My report",  source: "cashTransactions",  joins: [],  columns: [],  filters: [],  groups: [],  metric: "",  operation: "count",  summary: false,  sort: "",  descending: false,};const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-xs";const button =  "inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs hover:bg-brand/5 disabled:opacity-40";function ReportsPage() {  const { activeCompany, user } = useCompanies();  const companyId = activeCompany!.id;  const storageKey = `reports-v1:${user.id}:${companyId}`;  const [report, setReport] = useState<Report>(initial);  const [saved, setSaved] = useState<Report[]>([]);  const [mode, setMode] = useState<"list" | "builder" | "view">("list");  const [search, setSearch] = useState("");  const [notice, setNotice] = useState("");  const [page, setPage] = useState(0);  const query = useQuery({    queryKey: ["report-sources", companyId],    queryFn: () => loadReportSources({ data: { companyId } }),  });  const sources = query.data ?? [];  useEffect(() => {    try {      const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");      if (Array.isArray(value))        setSaved(          value.filter(            (v) =>              v &&              typeof v.name === "string" &&              Array.isArray(v.columns) &&              Array.isArray(v.joins) &&              Array.isArray(v.filters) &&              Array.isArray(v.groups),          ),        );    } catch {      setNotice("Unable to load saved templates in this browser.");    }  }, [storageKey]);  const patch = (value: Partial<Report>) => {    setReport((r) => ({ ...r, ...value }));    setPage(0);  };  const fields = [report.source, ...report.joins.map((j) => j.source)].flatMap(    (id) => sources.find((s) => s.id === id)?.fields.map((f) => `${id}.${f}`) ?? [],  );  const label = (field: string) => {    const dot = field.indexOf(".");    return field === "resultado"      ? "Result"      : `${sources.find((s) => s.id === field.slice(0, dot))?.label ?? field.slice(0, dot)} · ${field.slice(dot + 1)}`;  };  const result = useMemo(() => {    if (!query.data) return { data: null, error: "" };    try {      return { data: runReport(query.data, report), error: "" };    } catch (e) {      return {        data: null,        error: e instanceof Error ? e.message : "Unable to generate the report.",      };    }  }, [query.data, report]);  const data = result.data;  const selectFields = (    value: string,    change: (s: string) => void,    options = fields,    placeholder = "Select a field",  ) => (    <select className={control} value={value} onChange={(e) => change(e.target.value)}>      <option value="">{placeholder}</option>      {options.map((f) => (        <option key={f} value={f}>          {label(f)}        </option>      ))}    </select>  );  const save = () => {    if (!report.name.trim()) {      setNotice("Enter a report name.");      return;    }    const next = [...saved.filter((s) => s.name !== report.name), report];    try {      localStorage.setItem(storageKey, JSON.stringify(next));      setSaved(next);      setNotice("Report saved. Open it again from Saved reports.");      setMode("list");    } catch {      setNotice("Unable to save the template in this browser.");    }  };  const exportCsv = () => {    if (!data) return;    const cell = (v: unknown) => {      let text = String(v ?? "");      if (/^[=+\-@\t\r]/.test(text) && typeof v !== "number") text = "'" + text;      return '"' + text.replaceAll('"', '""') + '"';    };    const csv =      "\uFEFF" +      [data.columns.map(label), ...data.rows.map((row) => data.columns.map((c) => row[c]))]        .map((row) => row.map(cell).join(";"))        .join("\r\n");    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));    const link = document.createElement("a");    link.href = url;    link.download = `${report.name.replace(/[^\p{L}\p{N}_-]/gu, "_") || "report"}.csv`;    link.click();    URL.revokeObjectURL(url);  };  if (query.isPending) return <p role="status">Loading report sources…</p>;  if (query.isError)    return (      <div role="alert">        Unable to load data.{" "}        <button className={button} onClick={() => void query.refetch()}>          Try again        </button>      </div>    );  return (    <div className="space-y-4">      <PageTitle        title={mode === "list" ? "Saved reports" : mode === "view" ? report.name : "Report Builder"}        description={`Combine data from ${activeCompany!.name}, choose fields and customize your analysis.`}        actions={          <>            <button className={button} onClick={() => void query.refetch()}>              Refresh data            </button>            {mode !== "list" && (              <button className={button} onClick={() => setMode("list")}>                Saved reports              </button>            )}            {mode === "view" && (              <button className={button} onClick={() => setMode("builder")}>                <Pencil size={14} />                Edit report              </button>            )}            {mode === "builder" && (              <button className={button} onClick={save}>                <Save size={14} />                Save report              </button>            )}            {mode !== "list" && (              <button className={button} disabled={!data?.columns.length} onClick={exportCsv}>                <Download size={14} />                Export CSV              </button>            )}          </>        }      />      {notice && (        <p role="status" className="text-xs text-brand">          {notice}        </p>      )}      {mode === "list" && (        <Panel          title="Saved reports"          subtitle="Report definitions are saved in this browser for this company and user. Opening a report recalculates its results using current data."        >          <div className="flex flex-wrap items-center justify-between gap-3 p-4">            <input              className={control + " sm:max-w-sm"}              aria-label="Search saved reports"              placeholder="Search saved reports…"              value={search}              onChange={(e) => setSearch(e.target.value)}            />            <button              className={button}              onClick={() => {                patch(initial);                setMode("builder");                setNotice("");              }}            >              <Plus size={14} />              New report            </button>          </div>          <div className="overflow-x-auto">            <table className="w-full text-left text-xs">              <thead>                <tr>                  {["Report name", "Primary source", "Type", "Configuration", "Actions"].map(                    (h) => (                      <th key={h} className="border-b border-line p-3">                        {h}                      </th>                    ),                  )}                </tr>              </thead>              <tbody>                {saved                  .filter((s) => s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))                  .map((s) => (                    <tr key={s.name}>                      <td className="border-b border-line/50 p-3 font-medium">{s.name}</td>                      <td className="border-b border-line/50 p-3">                        {sources.find((source) => source.id === s.source)?.label ?? s.source}                      </td>                      <td className="border-b border-line/50 p-3">                        {s.summary ? "Summary" : "Detail"}                      </td>                      <td className="border-b border-line/50 p-3">                        {s.joins.length} joins · {s.filters.length} filters ·{" "}                        {s.summary ? s.groups.length + " groups" : s.columns.length + " columns"}                      </td>                      <td className="border-b border-line/50 p-3">                        <div className="flex gap-2">                          <button                            className={button}                            aria-label={`View report ${s.name}`}                            onClick={() => {                              patch(s);                              setMode("view");                              setNotice("");                              void query.refetch();                            }}                          >                            <Eye size={14} />                            View report                          </button>                          <button                            className={button}                            aria-label={`Edit report ${s.name}`}                            onClick={() => {                              patch(s);                              setMode("builder");                              setNotice("");                            }}                          >                            <Pencil size={14} />                            Edit                          </button>                          <button                            className={button}                            aria-label={`Delete report ${s.name}`}                            onClick={() => {                              const next = saved.filter((v) => v.name !== s.name);                              try {                                localStorage.setItem(storageKey, JSON.stringify(next));                                setSaved(next);                                setNotice("Report deleted.");                              } catch {                                setNotice("Unable to delete the report.");                              }                            }}                          >                            <Trash2 size={14} />                          </button>                        </div>                      </td>                    </tr>                  ))}                {!saved.filter((s) =>                  s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()),                ).length && (                  <tr>                    <td colSpan={5} className="p-8 text-center text-ink3">                      {saved.length                        ? "No saved reports match your search."                        : "No saved reports yet. Create a report and select Save report to find it here."}                    </td>                  </tr>                )}              </tbody>            </table>          </div>        </Panel>      )}      {mode === "builder" && (        <>          <Panel            title="1. Sources and joins"            subtitle="Each row represents a primary source record. Items and lots are separate sources linked by parentId."          >            <div className="space-y-3 p-4">              <div className="grid gap-3 sm:grid-cols-2">                <label className="space-y-1 text-xs">                  Report name                  <input                    className={control}                    value={report.name}                    onChange={(e) => patch({ name: e.target.value })}                  />                </label>                <label className="space-y-1 text-xs">                  Primary source                  <select                    className={control}                    value={report.source}                    onChange={(e) =>                      patch({ ...initial, name: report.name, source: e.target.value })                    }                  >                    {sources.map((s) => (                      <option key={s.id} value={s.id}>                        {s.label} ({s.rows.length})                      </option>                    ))}                  </select>                </label>              </div>              {report.joins.map((j, i) => (                <div                  key={i}                  className="grid items-end gap-2 rounded-lg border border-line p-3 lg:grid-cols-5"                >                  <label className="text-xs">                    Join with                    <select                      className={control}                      value={j.source}                      onChange={(e) =>                        patch({                          joins: report.joins.map((v, n) =>                            n === i ? { ...v, source: e.target.value, right: "" } : v,                          ),                          columns: [],                          groups: [],                          filters: [],                        })                      }                    >                      <option value="">Select a source</option>                      {sources                        .filter(                          (s) =>                            s.id !== report.source &&                            !report.joins.some((v, n) => n !== i && v.source === s.id),                        )                        .map((s) => (                          <option key={s.id} value={s.id}>                            {s.label}                          </option>                        ))}                    </select>                  </label>                  <label className="text-xs">                    Source field                    {selectFields(                      j.left,                      (left) =>                        patch({                          joins: report.joins.map((v, n) => (n === i ? { ...v, left } : v)),                        }),                      [report.source, ...report.joins.slice(0, i).map((v) => v.source)].flatMap(                        (id) =>                          sources.find((s) => s.id === id)?.fields.map((f) => `${id}.${f}`) ?? [],                      ),                    )}                  </label>                  <label className="text-xs">                    Matching field                    <select                      className={control}                      value={j.right}                      onChange={(e) =>                        patch({                          joins: report.joins.map((v, n) =>                            n === i ? { ...v, right: e.target.value } : v,                          ),                        })                      }                    >                      <option value="">Select</option>                      {sources                        .find((s) => s.id === j.source)                        ?.fields.map((f) => (                          <option key={f}>{f}</option>                        ))}                    </select>                  </label>                  <label className="text-xs">                    Type                    <select                      className={control}                      value={j.kind}                      onChange={(e) =>                        patch({                          joins: report.joins.map((v, n) =>                            n === i ? { ...v, kind: e.target.value as "left" | "inner" } : v,                          ),                        })                      }                    >                      <option value="left">Keep all source records</option>                      <option value="inner">Matching records only</option>                    </select>                  </label>                  <button                    className={button}                    onClick={() =>                      patch({                        joins: report.joins.slice(0, i),                        columns: [],                        groups: [],                        filters: [],                        metric: "",                        sort: "",                      })                    }                  >                    Remove this and subsequent joins                  </button>                </div>              ))}              <button                className={button}                onClick={() =>                  patch({                    joins: [...report.joins, { source: "", left: "", right: "", kind: "left" }],                  })                }              >                <Plus size={14} />                Add join              </button>              <p className="text-xs text-ink3">                Examples: cashTransactions.account_id → cashAccounts.id; bills.vendorId →                vendors.id; invoices.projectId → projects.id. Empty values are not matched.              </p>            </div>          </Panel>          <Panel title="2. Fields and filters">            <div className="space-y-4 p-4">              <fieldset>                <legend className="mb-2 text-xs">Report columns</legend>                <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">                  {fields.map((f) => (                    <label key={f} className="flex items-center gap-2 text-xs">                      <input                        type="checkbox"                        checked={report.columns.includes(f)}                        onChange={(e) =>                          patch({                            columns: e.target.checked                              ? [...report.columns, f]                              : report.columns.filter((c) => c !== f),                          })                        }                      />                      {label(f)}                    </label>                  ))}                </div>              </fieldset>              {report.filters.map((f, i) => (                <div key={i} className="grid gap-2 sm:grid-cols-4">                  {selectFields(f.field, (field) =>                    patch({                      filters: report.filters.map((v, n) => (n === i ? { ...v, field } : v)),                    }),                  )}                  <select                    className={control}                    value={f.operator}                    onChange={(e) =>                      patch({                        filters: report.filters.map((v, n) =>                          n === i ? { ...v, operator: e.target.value as typeof f.operator } : v,                        ),                      })                    }                  >                    {Object.entries({                      contains: "Contains",                      eq: "Equals",                      neq: "Does not equal",                      gte: "Greater than or equal to",                      lte: "Less than or equal to",                      empty: "Is empty",                    }).map(([k, v]) => (                      <option key={k} value={k}>                        {v}                      </option>                    ))}                  </select>                  <input                    aria-label="Filter value"                    className={control}                    disabled={f.operator === "empty"}                    placeholder="Value or date YYYY-MM-DD"                    value={f.value}                    onChange={(e) =>                      patch({                        filters: report.filters.map((v, n) =>                          n === i ? { ...v, value: e.target.value } : v,                        ),                      })                    }                  />                  <button                    className={button}                    onClick={() => patch({ filters: report.filters.filter((_, n) => n !== i) })}                  >                    Remove filter                  </button>                </div>              ))}              <button                className={button}                onClick={() =>                  patch({                    filters: [                      ...report.filters,                      { field: fields[0] ?? "", operator: "contains", value: "" },                    ],                  })                }              >                <Plus size={14} />                Add filter (AND)              </button>            </div>          </Panel>          <Panel title="3. Analysis and presentation">            <div className="space-y-3 p-4">              <label className="flex gap-2 text-xs">                <input                  type="checkbox"                  checked={report.summary}                  onChange={(e) => patch({ summary: e.target.checked, sort: "" })}                />                Summarize with groups and calculations              </label>              {report.summary && (                <>                  <div className="grid gap-3 sm:grid-cols-2">                    <label className="text-xs">                      Calculation                      <select                        className={control}                        value={report.operation}                        onChange={(e) =>                          patch({ operation: e.target.value as Report["operation"] })                        }                      >                        {Object.entries({                          count: "Row count",                          sum: "Sum",                          avg: "Average",                          min: "Minimum",                          max: "Maximum",                        }).map(([k, v]) => (                          <option key={k} value={k}>                            {v}                          </option>                        ))}                      </select>                    </label>                    {report.operation !== "count" && (                      <label className="text-xs">                        Numeric field{selectFields(report.metric, (metric) => patch({ metric }))}                      </label>                    )}                  </div>                  <fieldset>                    <legend className="text-xs mb-2">                      Group by (include currency when summing monetary values)                    </legend>                    <div className="grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">                      {fields.map((f) => (                        <label key={f} className="flex gap-2 text-xs">                          <input                            type="checkbox"                            checked={report.groups.includes(f)}                            onChange={(e) =>                              patch({                                groups: e.target.checked                                  ? [...report.groups, f]                                  : report.groups.filter((g) => g !== f),                              })                            }                          />                          {label(f)}                        </label>                      ))}                    </div>                  </fieldset>                </>              )}              <div className="flex items-center gap-3">                {selectFields(                  report.sort,                  (sort) => patch({ sort }),                  report.summary ? [...report.groups, "resultado"] : report.columns,                  "No sorting",                )}                <label className="flex gap-2 text-xs">                  <input                    type="checkbox"                    checked={report.descending}                    onChange={(e) => patch({ descending: e.target.checked })}                  />                  Descending                </label>              </div>            </div>          </Panel>        </>      )}      {mode !== "list" && result.error && (        <p role="alert" className="rounded-lg border border-line p-4 text-sm text-down">          {result.error}        </p>      )}      {mode !== "list" && data?.expanded && (        <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">          Multiple matches found: source records were repeated in the join. Sums and counts include          these rows; review the join keys before interpreting totals.        </p>      )}      {mode !== "list" && data && (        <Panel          title={report.name || "Result"}          subtitle={`${data.matched} rows after filtering · ${data.rows.length} result rows. Values retain their original units and currencies, without conversion.`}        >          <div className="overflow-x-auto">            {!data.columns.length ? (              <p className="p-6 text-sm text-ink3">                Select columns or enable summary mode to view the report.              </p>            ) : (              <table className="w-full text-left text-xs">                <thead>                  <tr>                    {data.columns.map((c) => (                      <th className="whitespace-nowrap border-b border-line p-3" key={c}>                        {label(c)}                      </th>                    ))}                  </tr>                </thead>                <tbody>                  {data.rows.slice(page * 50, (page + 1) * 50).map((row, i) => (                    <tr key={i}>                      {data.columns.map((c) => (                        <td                          key={c}                          className="max-w-md whitespace-pre-wrap border-b border-line/50 p-3"                        >                          {row[c] == null                            ? "—"                            : typeof row[c] === "boolean"                              ? row[c]                                ? "Yes"                                : "No"                              : String(row[c])}                        </td>                      ))}                    </tr>                  ))}                  {!data.rows.length && (                    <tr>                      <td className="p-6 text-center text-ink3" colSpan={data.columns.length}>                        No records found for this combination.                      </td>                    </tr>                  )}                </tbody>              </table>            )}          </div>          <div className="flex items-center justify-between p-3 text-xs">            <button className={button} disabled={!page} onClick={() => setPage((p) => p - 1)}>              Previous            </button>            <span>              Page {page + 1} of {Math.max(1, Math.ceil(data.rows.length / 50))} · CSV includes all              rows            </span>            <button              className={button}              disabled={(page + 1) * 50 >= data.rows.length}              onClick={() => setPage((p) => p + 1)}            >              Next            </button>          </div>        </Panel>      )}    </div>  );}
