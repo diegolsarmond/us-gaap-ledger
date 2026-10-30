@@ -45,3 +45,6 @@ export const loadCashReconciliation = createServerFn({ method: "GET" })
 export const saveCashReconciliation = createServerFn({ method: "POST" })
   .validator(reconciliationSchema.refine((d) => d.start <= d.end, "Invalid period"))
   .handler(async ({ data }) => (await import("./cash-flow.server")).writeReconciliation(data));
+export const checkCashAgainstGl = createServerFn({ method: "GET" })
+  .validator(reconciliationScopeSchema)
+  .handler(async ({ data }) => (await import("./cash-flow.server")).checkGlCash(data));

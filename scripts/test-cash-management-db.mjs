@@ -86,6 +86,9 @@ try {
   );
   await pool.query(linksMigration);
   await pool.query(linksMigration);
+  await pool.query(
+    readFileSync(new URL("../database/016_cash_flow_controls.sql", import.meta.url), "utf8"),
+  );
   for (const data of [
     { code: "1000", name: "Bank", type: "Asset", balanceType: "Debit", description: "" },
     { code: "4000", name: "Sales", type: "Revenue", balanceType: "Credit", description: "" },

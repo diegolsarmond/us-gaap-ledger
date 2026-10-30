@@ -6,6 +6,7 @@ import {
   weeklyComparison,
   dateSchema,
   transactionSchema,
+  overduePlanned,
 } from "../src/lib/cash-flow-model.ts";
 const account = {
   id: "a",
@@ -256,4 +257,96 @@ test("lançamentos de contas fora da seleção ou anteriores à abertura não af
   assert.equal(report.opening, 0);
   assert.equal(report.periods[0].inflows, 0);
   assert.equal(report.periods[0].balance, 100);
+});
+
+test("previstos vencidos não entram no saldo-base do forecast e aparecem como pendências", () => {
+  const entries = [
+    entry({ id: "late", status: "planned", paid_date: null, due_date: "2026-10-05", amount: 500 }),
+    entry({ id: "next", status: "planned", paid_date: null, due_date: "2026-10-20", amount: 40 }),
+    entry({ id: "paid", paid_date: "2026-10-03" }),
+  ];
+  const forecast = summarize(
+    [account],
+    entries,
+    "2026-10-15",
+    "2026-10-31",
+    "monthly",
+    true,
+    "2026-10-15",
+  );
+  assert.equal(forecast.opening, 110.1);
+  assert.equal(forecast.periods[0].inflows, 40);
+  assert.equal(forecast.periods.at(-1).balance, 150.1);
+  const pending = overduePlanned([account], entries, "2026-10-15");
+  assert.deepEqual(
+    pending.map((t) => t.id),
+    ["late"],
+  );
+  // A future period starts from actual cash plus plans expected between as-of and the start.
+  const future = summarize(
+    [account],
+    entries,
+    "2026-11-01",
+    "2026-11-30",
+    "monthly",
+    true,
+    "2026-10-15",
+  );
+  assert.equal(future.opening, 150.1);
+  const direct = statement([account], entries, "2026-10-01", "2026-10-31", true, "2026-10-15");
+  assert.equal(direct.lines.find((l) => l.key === "unclassified").inflows, 50.1);
+});
+
+test("transferência interna não infla entradas/saídas no escopo com ambas as contas", () => {
+  const other = { ...account, id: "b", opening_balance: 0 };
+  const legs = [
+    entry({
+      id: "t1",
+      direction: "out",
+      amount: 60,
+      cash_flow_line: "internal_transfer",
+      transfer_account_id: "b",
+    }),
+    entry({
+      id: "t2",
+      account_id: "b",
+      amount: 60,
+      cash_flow_line: "internal_transfer",
+      transfer_account_id: "a",
+    }),
+  ];
+  const both = summarize([account, other], legs, "2026-10-01", "2026-10-31", "monthly", false);
+  assert.equal(both.periods[0].inflows, 0);
+  assert.equal(both.periods[0].outflows, 0);
+  assert.equal(both.periods[0].balance, 100);
+  const joint = statement([account, other], legs, "2026-10-01", "2026-10-31", false);
+  assert.equal(joint.transfers, 0);
+  assert.equal(joint.lines.find((l) => l.key === "internal_transfer").count, 0);
+  // A single account keeps its own movement, outside operating/investing/financing.
+  const single = summarize([account], legs, "2026-10-01", "2026-10-31", "monthly", false);
+  assert.equal(single.periods[0].outflows, 60);
+  assert.equal(single.periods[0].balance, 40);
+  const own = statement([account], legs, "2026-10-01", "2026-10-31", false);
+  assert.equal(own.transfers, -60);
+  assert.equal(own.operating + own.investing + own.financing, 0);
+});
+
+test("validação exige conta de contrapartida distinta apenas para transferências", () => {
+  const id = "bbda1c08-3d13-44c0-920b-f1c67f1423ca";
+  const other = "0f4c7f3e-6a3a-4c1e-9d55-2f1f0f6c9a11";
+  const valid = entry({ id, account_id: id });
+  const transfer = { ...valid, cash_flow_line: "internal_transfer" };
+  assert.equal(
+    transactionSchema.safeParse({ ...transfer, transfer_account_id: other }).success,
+    true,
+  );
+  assert.equal(transactionSchema.safeParse(transfer).success, false);
+  assert.equal(
+    transactionSchema.safeParse({ ...transfer, transfer_account_id: id }).success,
+    false,
+  );
+  assert.equal(
+    transactionSchema.safeParse({ ...valid, transfer_account_id: other }).success,
+    false,
+  );
 });

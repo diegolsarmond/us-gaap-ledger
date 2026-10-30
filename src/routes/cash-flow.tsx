@@ -13,6 +13,7 @@ import {
 } from "@/lib/cash-flow";
 import {
   summarize,
+  overduePlanned,
   cashFlowLines,
   transactionSchema,
   type CashFlowLine,
@@ -116,6 +117,7 @@ function CashFlowPage() {
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [cashFlowLine, setCashFlowLine] = useState<CashFlowLine | "">("");
   const [entryAccount, setEntryAccount] = useState("");
+  const [transferAccount, setTransferAccount] = useState("");
   const [amountCents, setAmountCents] = useState("");
   const [openingBalanceCents, setOpeningBalanceCents] = useState("0");
   const [accountCurrency, setAccountCurrency] = useState("USD");
@@ -166,7 +168,12 @@ function CashFlowPage() {
     validRange ? end : today(),
     interval,
     projected,
+    today(),
   );
+  const overdue = overduePlanned(filteredAccounts, filteredTransactions, today());
+  const scopeLabel = accountId
+    ? (accounts.find((a) => a.id === accountId)?.name ?? "Selected account")
+    : `All ${currency} accounts`;
   const money = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
   const totalIn = report.periods.reduce((s, p) => s + p.inflows, 0);
@@ -189,6 +196,7 @@ function CashFlowPage() {
       await action();
       await queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
       await queryClient.invalidateQueries({ queryKey: ["cash-flow-links"] });
+      await queryClient.invalidateQueries({ queryKey: ["cash-gl-check"] });
       if (continueEntryRef.current) {
         const entryForm = entryFormRef.current;
         entryForm?.reset();
@@ -197,6 +205,7 @@ function CashFlowPage() {
         setCashFlowLine("");
         setAmountCents("");
         setEntryAccount("");
+        setTransferAccount("");
         focusEntryRef.current = true;
       } else {
         setForm(null);
@@ -255,6 +264,7 @@ function CashFlowPage() {
       cash_flow_line: cashFlowLine,
       variance_note: String(f.get("variance_note") ?? ""),
       gl_account_code: String(f.get("gl_account_code") ?? "") || null,
+      transfer_account_id: cashFlowLine === "internal_transfer" ? transferAccount || null : null,
     });
     if (!parsed.success) {
       setError(parsed.error.issues.map((issue) => issue.message).join(" "));
@@ -264,6 +274,18 @@ function CashFlowPage() {
       () => saveCashTransaction({ data: { companyId, ...parsed.data } }),
       "Transaction saved.",
     );
+  }
+  function startEdit(t: CashTransaction) {
+    setEditing(t);
+    setDirection(t.direction);
+    setCashFlowLine(t.cash_flow_line ?? "unclassified");
+    setEntryAccount(t.account_id);
+    setTransferAccount(t.transfer_account_id ?? "");
+    setAmountCents(String(Math.round(t.amount * 100)));
+    setStatus(t.status);
+    setForm("transaction");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function exportReport() {
     exportToCsv(
@@ -277,6 +299,7 @@ function CashFlowPage() {
         "Net cash flow",
         "Closing balance",
         "Currency",
+        "Scope",
         "View",
       ],
       report.periods.map((p) => [
@@ -288,7 +311,8 @@ function CashFlowPage() {
         p.net,
         p.balance,
         currency,
-        projected ? "Actual + forecast" : "Actual",
+        scopeLabel,
+        projected ? `Actual + forecast as of ${today()}` : "Actual",
       ]),
     );
   }
@@ -327,6 +351,7 @@ function CashFlowPage() {
                 setCashFlowLine("");
                 setAmountCents("");
                 setEntryAccount("");
+                setTransferAccount("");
                 setStatus("planned");
                 setForm("transaction");
                 setError("");
@@ -561,28 +586,62 @@ function CashFlowPage() {
                         />
                         {!categories.length && <span>Add a category in System Parameters.</span>}
                       </Field>
-                      <Field label="GL counterpart account · actual / forecast">
-                        <SearchableSelect
-                          label="GL counterpart account"
-                          name="gl_account_code"
-                          defaultValue={editing?.gl_account_code ?? ""}
-                          required
-                          placeholder="Select an accounting account"
-                          options={glAccounts.map((a) => ({
-                            value: a.code,
-                            label: `${a.code} · ${a.name} · ${a.type}`,
-                          }))}
-                        />
-                        <span>
-                          Account associated with this receipt/payment or forecast. Forecasts do not
-                          post journal entries.
-                        </span>
-                        {!glAccounts.length && (
-                          <Link to="/accounts" className="block text-brand underline">
-                            Create your Chart of Accounts first
-                          </Link>
-                        )}
-                      </Field>
+                      {cashFlowLine === "internal_transfer" ? (
+                        <Field
+                          label={
+                            direction === "out" ? "Destination cash account" : "Source cash account"
+                          }
+                        >
+                          {editing ? (
+                            <span className={control + " block"}>
+                              {accounts.find((a) => a.id === transferAccount)?.name ?? "—"}
+                            </span>
+                          ) : (
+                            <SearchableSelect
+                              label="Counterpart cash account"
+                              value={transferAccount}
+                              onChange={setTransferAccount}
+                              required
+                              placeholder="Select the other cash account"
+                              options={accounts
+                                .filter(
+                                  (a) =>
+                                    a.currency === selectedCurrency &&
+                                    a.id !==
+                                      (entryAccount || filteredAccounts[0]?.id || accounts[0]?.id),
+                                )
+                                .map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))}
+                            />
+                          )}
+                          <span>
+                            Both legs are recorded together with the same amount and dates. They are
+                            excluded from activities when both accounts are in the selected scope.
+                          </span>
+                        </Field>
+                      ) : (
+                        <Field label="GL counterpart account · actual / forecast">
+                          <SearchableSelect
+                            label="GL counterpart account"
+                            name="gl_account_code"
+                            defaultValue={editing?.gl_account_code ?? ""}
+                            required
+                            placeholder="Select an accounting account"
+                            options={glAccounts.map((a) => ({
+                              value: a.code,
+                              label: `${a.code} · ${a.name} · ${a.type}`,
+                            }))}
+                          />
+                          <span>
+                            Account associated with this receipt/payment or forecast. Forecasts do
+                            not post journal entries.
+                          </span>
+                          {!glAccounts.length && (
+                            <Link to="/accounts" className="block text-brand underline">
+                              Create your Chart of Accounts first
+                            </Link>
+                          )}
+                        </Field>
+                      )}
                       <Field label="Amount in account currency">
                         <input
                           name="amount"
@@ -826,8 +885,63 @@ function CashFlowPage() {
                   </button>
                 </p>
               )}
+              {overdue.length > 0 && (
+                <Panel
+                  title={`Overdue planned items · ${overdue.length}`}
+                  subtitle={`Expected before ${today()} and not settled. They are excluded from the forecast until settled, rescheduled or cancelled.`}
+                >
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Expected date</Th>
+                        <Th>Description</Th>
+                        <Th>Account</Th>
+                        <Th align="right">Amount</Th>
+                        <Th>Action</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overdue.map((t) => (
+                        <tr key={t.id} className="border-t border-line">
+                          <Td>{t.due_date.split("-").reverse().join("/")}</Td>
+                          <Td>{t.description}</Td>
+                          <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
+                          <Td
+                            align="right"
+                            className={t.direction === "out" ? "text-red-700" : "text-blue-700"}
+                          >
+                            {t.direction === "out" ? "−" : "+"}
+                            {money(t.amount)}
+                          </Td>
+                          <Td>
+                            <button
+                              disabled={pending}
+                              className="text-brand underline"
+                              onClick={() => startEdit(t)}
+                            >
+                              Settle or reschedule
+                            </button>
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Panel>
+              )}
               <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Kpi label="Balance before period" value={money(report.opening)} />
+                <Kpi
+                  label={
+                    projected && start > today()
+                      ? "Projected balance before period"
+                      : "Actual balance before period"
+                  }
+                  value={money(report.opening)}
+                  hint={
+                    projected && start > today()
+                      ? "Actual cash plus planned items expected from today until the period starts. Overdue items are excluded."
+                      : "Only realized cash; overdue planned items are not included."
+                  }
+                />
                 <Kpi label="Inflows during period" value={money(totalIn)} tone="up" />
                 <Kpi label="Outflows during period" value={money(totalOut)} tone="down" />
                 <Kpi
@@ -939,6 +1053,8 @@ function CashFlowPage() {
                           <br />
                           <span className="text-xs text-ink3">
                             {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
+                            {t.transfer_account_id &&
+                              ` · ${t.direction === "out" ? "to" : "from"} ${accounts.find((a) => a.id === t.transfer_account_id)?.name ?? "another account"}`}
                           </span>
                           {t.variance_note && (
                             <p className="text-xs text-ink2">{t.variance_note}</p>
@@ -958,17 +1074,7 @@ function CashFlowPage() {
                             <button
                               disabled={pending}
                               className="text-brand underline"
-                              onClick={() => {
-                                setEditing(t);
-                                setDirection(t.direction);
-                                setCashFlowLine(t.cash_flow_line ?? "unclassified");
-                                setEntryAccount(t.account_id);
-                                setAmountCents(String(Math.round(t.amount * 100)));
-                                setStatus(t.status);
-                                setForm("transaction");
-                                setError("");
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                              }}
+                              onClick={() => startEdit(t)}
                             >
                               Edit
                             </button>

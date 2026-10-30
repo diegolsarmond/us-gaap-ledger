@@ -9,7 +9,11 @@ import {
   type CashTransaction,
   type CashReconciliation,
 } from "@/lib/cash-flow-model";
-import { loadCashReconciliation, saveCashReconciliation } from "@/lib/cash-flow";
+import {
+  checkCashAgainstGl,
+  loadCashReconciliation,
+  saveCashReconciliation,
+} from "@/lib/cash-flow";
 import { exportToCsv } from "@/lib/format";
 
 const fields = [
@@ -50,9 +54,12 @@ export function CashManagementReport({
     new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
   const [method, setMethod] = useState<"direct" | "indirect">("direct");
   const showProjected = projected && method === "direct";
-  const direct = statement(accounts, transactions, start, end, showProjected);
+  const direct = statement(accounts, transactions, start, end, showProjected, asOf);
   const actual = statement(accounts, transactions, start, end, false);
-  const totals = summarize(accounts, transactions, start, end, "monthly", showProjected);
+  const totals = summarize(accounts, transactions, start, end, "monthly", showProjected, asOf);
+  const scopeLabel = accountId
+    ? (accounts.find((a) => a.id === accountId)?.name ?? "Selected account")
+    : `All ${currency} accounts`;
   const actualTotals = summarize(accounts, transactions, start, end, "monthly", false);
   const closing = totals.periods.at(-1)?.balance ?? totals.opening;
   const actualClosing = actualTotals.periods.at(-1)?.balance ?? actualTotals.opening;
@@ -74,6 +81,10 @@ export function CashManagementReport({
   const reconciliation = useQuery({
     queryKey: ["cash-reconciliation", scope],
     queryFn: () => loadCashReconciliation({ data: scope }),
+  });
+  const glCheck = useQuery({
+    queryKey: ["cash-gl-check", scope],
+    queryFn: () => checkCashAgainstGl({ data: scope }),
   });
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
@@ -113,41 +124,77 @@ export function CashManagementReport({
       setPending(false);
     }
   }
+  /** Exports exactly what is on screen: the selected method, view and account scope. */
   function exportStatement() {
+    const view = showProjected ? `Actual + forecast as of ${asOf}` : "Actual";
+    const row = (
+      activity: string,
+      line: string,
+      inflows: number | "",
+      outflows: number | "",
+      net: number | "",
+    ) => [
+      activity,
+      line,
+      inflows,
+      outflows,
+      net,
+      currency,
+      scopeLabel,
+      method === "direct" ? "Direct" : "Indirect",
+      view,
+    ];
+    const activityRows = (source: typeof direct, activities: string[]) =>
+      source.lines
+        .filter((l) => activities.includes(l.activity))
+        .filter((l) => l.activity !== "unclassified" || source.unclassifiedCount)
+        .filter((l) => l.activity !== "transfer" || l.count)
+        .map((l) => row(l.activity, l.label, l.inflows, l.outflows, l.net));
+    const body =
+      method === "direct"
+        ? activityRows(direct, ["operating", "investing", "financing", "transfer", "unclassified"])
+        : [
+            ...(saved
+              ? [
+                  ...fields
+                    .filter(([key]) => key !== "balance_sheet_cash")
+                    .map(([key, label]) => row("operating", label, "", "", saved[key])),
+                  row(
+                    "operating",
+                    "Net cash provided by / used in operating activities (manual inputs)",
+                    "",
+                    "",
+                    reconciledOperating!,
+                  ),
+                  row(
+                    "operating",
+                    "Difference from direct operating cash",
+                    "",
+                    "",
+                    operatingDifference!,
+                  ),
+                ]
+              : [row("operating", "Indirect reconciliation not supplied", "", "", "")]),
+            ...activityRows(actual, ["investing", "financing", "transfer", "unclassified"]),
+          ];
     exportToCsv(
-      `statement_cash_flows_${currency}_${start}_${end}`,
-      ["Activity", "Line", "Inflows", "Outflows", "Net", "Currency", "View"],
+      `statement_cash_flows_${method}_${currency}_${start}_${end}`,
+      ["Activity", "Line", "Inflows", "Outflows", "Net", "Currency", "Scope", "Method", "View"],
       [
-        ...direct.lines.map((l) => [
-          l.activity,
-          l.label,
-          l.inflows,
-          l.outflows,
-          l.net,
-          currency,
-          showProjected ? "Actual + forecast" : "Actual",
-        ]),
-        ["Reconciliation", "Beginning cash", "", "", totals.opening, currency, ""],
-        [
-          "Reconciliation",
-          "Recorded account openings (not cash flows)",
-          "",
-          "",
-          adjustments,
-          currency,
-          "",
-        ],
-        ["Reconciliation", "Ending cash", "", "", closing, currency, ""],
-        ...(saved
-          ? fields.map(([key, label]) => [
-              "Supplemental actual reconciliation",
-              label,
-              "",
-              "",
-              saved[key],
-              currency,
-              "Actual",
-            ])
+        ...body,
+        row("reconciliation", "Beginning cash", "", "", totals.opening),
+        row("reconciliation", "Recorded account openings (not cash flows)", "", "", adjustments),
+        row("reconciliation", "Ending cash", "", "", closing),
+        ...(glCheck.data
+          ? [
+              row(
+                "reconciliation",
+                `GL cash check (${glCheck.data.status}): ${glCheck.data.reason}`,
+                "",
+                "",
+                glCheck.data.difference ?? "",
+              ),
+            ]
           : []),
       ],
     );
@@ -219,7 +266,7 @@ export function CashManagementReport({
               </tr>
             </thead>
             <tbody>
-              {(["operating", "investing", "financing", "unclassified"] as const).map(
+              {(["operating", "investing", "financing", "transfer", "unclassified"] as const).map(
                 (activity) => (
                   <ActivityRows key={activity} activity={activity} direct={direct} money={money} />
                 ),
@@ -255,7 +302,7 @@ export function CashManagementReport({
                 <p>
                   Difference from direct operating cash: {money(operatingDifference!)}.{" "}
                   {operatingDifference === 0 && !actual.unclassifiedCount
-                    ? "Reconciled."
+                    ? "Agrees with the manually entered figures (not derived from the GL)."
                     : "Review required."}
                 </p>
               </>
@@ -275,7 +322,7 @@ export function CashManagementReport({
                 </tr>
               </thead>
               <tbody>
-                {["investing", "financing", "unclassified"].map((activity) => (
+                {["investing", "financing", "transfer", "unclassified"].map((activity) => (
                   <ActivityRows key={activity} activity={activity} direct={actual} money={money} />
                 ))}
               </tbody>
@@ -403,7 +450,7 @@ export function CashManagementReport({
         </Table>
       </Panel>
       <Panel
-        title="Supplemental accounting reconciliation · actual"
+        title="Supplemental accounting reconciliation · actual · manual inputs"
         subtitle="Required alongside the direct method. Enter accrual accounting data for exactly the selected period, accounts and currency."
       >
         <p className="p-4 text-xs text-ink3">
@@ -465,10 +512,37 @@ export function CashManagementReport({
             <strong>{cashDifference === null ? "Not supplied" : money(cashDifference)}</strong>
           </p>
           <p>
+            <strong>Manual reconciliation: </strong>
             {saved && operatingDifference === 0 && cashDifference === 0 && !actual.unclassifiedCount
-              ? "Both checks reconcile to the supplied accounting figures."
-              : "Accounting reconciliation is pending or requires review."}
+              ? "both checks agree with the figures entered above. This does not prove agreement with the ledger."
+              : "pending or requires review."}
           </p>
+        </div>
+        <div className="border-t border-line p-4 text-sm space-y-2">
+          <p>
+            <strong>GL-verified cash check · actual at {end}: </strong>
+            {glCheck.isPending
+              ? "Checking…"
+              : glCheck.isError
+                ? "Unable to check the general ledger."
+                : glCheck.data.status === "verified"
+                  ? "Verified"
+                  : glCheck.data.status === "difference"
+                    ? "Difference found"
+                    : "Not verifiable"}
+          </p>
+          {glCheck.data && (
+            <>
+              <p className="text-xs text-ink3">{glCheck.data.reason}</p>
+              {glCheck.data.glBalance !== null && (
+                <p>
+                  GL {glCheck.data.glAccounts.join(", ")}: {money(glCheck.data.glBalance)} · Cash
+                  module: {money(glCheck.data.cashBalance!)} · Difference:{" "}
+                  <strong>{money(glCheck.data.difference!)}</strong>
+                </p>
+              )}
+            </>
+          )}
         </div>
       </Panel>
     </div>
@@ -486,6 +560,8 @@ function ActivityRows({
 }) {
   const lines = direct.lines.filter((l) => l.activity === activity);
   if (activity === "unclassified" && !direct.unclassifiedCount) return null;
+  // Transfers appear only when one side is outside the selected scope.
+  if (activity === "transfer" && !lines.some((l) => l.count)) return null;
   return (
     <>
       <tr className="border-t border-line bg-brand/5">
@@ -493,7 +569,9 @@ function ActivityRows({
           <strong>
             {activity === "unclassified"
               ? "Unclassified — review required"
-              : `Cash flows from ${activity} activities`}
+              : activity === "transfer"
+                ? "Transfers with cash accounts outside this scope"
+                : `Cash flows from ${activity} activities`}
           </strong>
         </Td>
       </tr>

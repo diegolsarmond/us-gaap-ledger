@@ -52,3 +52,26 @@ export type Company = z.infer<typeof companySchema> & {
 };
 export const formatEin = (ein: string) =>
   ein ? `${ein.slice(0, 2)}-${ein.slice(2)}` : "EIN not provided";
+
+export function formatUsPhone(value: string): string {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    const d = digits.slice(1);
+    return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
+  }
+
+  if (digits.startsWith("1") && digits.length > 1) {
+    const d = digits.slice(1, 11);
+    if (d.length <= 3) return `+1 (${d}`;
+    if (d.length <= 6) return `+1 (${d.slice(0, 3)}) ${d.slice(3)}`;
+    return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
+  }
+
+  const d = digits.slice(0, 10);
+  if (d.length <= 3) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
+}

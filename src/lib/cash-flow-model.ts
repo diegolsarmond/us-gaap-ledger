@@ -68,6 +68,11 @@ export const cashFlowLines = {
     direction: "out",
   },
   buybacks: { label: "Share repurchases", activity: "financing", direction: "out" },
+  internal_transfer: {
+    label: "Transfer between own cash accounts (not an activity flow)",
+    activity: "transfer",
+    direction: null,
+  },
 } as const;
 export type CashFlowLine = keyof typeof cashFlowLines;
 const cashFlowLineSchema = z.enum(Object.keys(cashFlowLines) as [CashFlowLine, ...CashFlowLine[]]);
@@ -99,7 +104,17 @@ export const transactionSchema = z
     cash_flow_line: cashFlowLineSchema.default("unclassified"),
     variance_note: z.string().trim().max(1000).default(""),
     gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
+    transfer_account_id: z.string().uuid().nullable().default(null),
   })
+  .refine(
+    (t) =>
+      (t.cash_flow_line === "internal_transfer") === (t.transfer_account_id !== null) &&
+      t.transfer_account_id !== t.account_id,
+    {
+      message: "A transfer requires a different counterpart cash account.",
+      path: ["transfer_account_id"],
+    },
+  )
   .refine(
     (t) =>
       !cashFlowLines[t.cash_flow_line].direction ||
@@ -117,6 +132,7 @@ export const transactionSchema = z
 export type CashAccount = z.infer<typeof accountSchema> & { id: string };
 export type CashTransaction = z.infer<typeof transactionSchema> & {
   id: string;
+  transfer_id?: string | null;
   forecast_amount?: number | null;
   forecast_date?: string | null;
   forecast_direction?: "in" | "out" | null;
@@ -147,6 +163,37 @@ export const reconciliationSchema = reconciliationScopeSchema.extend({
   explanation: z.string().trim().min(1).max(2000),
 });
 export type CashReconciliation = z.infer<typeof reconciliationSchema>;
+export type GlCashCheck = {
+  status: "verified" | "difference" | "unavailable";
+  reason: string;
+  glBalance: number | null;
+  cashBalance: number | null;
+  difference: number | null;
+  glAccounts: string[];
+};
+
+/**
+ * Actuals always count. Planned entries count only in a forecast and only from asOf
+ * onwards: overdue plans are pending items, never part of the projected base balance.
+ */
+function counts(t: CashTransaction, projected: boolean, asOf: string) {
+  return t.status === "paid" || (projected && t.status === "planned" && t.due_date >= asOf);
+}
+/** Both legs in scope: the transfer moves cash inside the scope and is not a flow. */
+function internalTransfer(t: CashTransaction, scope: Map<string, unknown>) {
+  return !!t.transfer_account_id && scope.has(t.transfer_account_id);
+}
+/** Planned entries whose expected date has passed; they need a new date or settlement. */
+export function overduePlanned(
+  accounts: CashAccount[],
+  transactions: CashTransaction[],
+  asOf: string,
+) {
+  const ids = new Set(accounts.map((a) => a.id));
+  return transactions
+    .filter((t) => ids.has(t.account_id) && t.status === "planned" && t.due_date < asOf)
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+}
 export function summarize(
   accounts: CashAccount[],
   transactions: CashTransaction[],
@@ -154,6 +201,7 @@ export function summarize(
   end: string,
   interval: Interval,
   projected: boolean,
+  asOf = start,
 ) {
   const cents = (n: number) => Math.round(n * 100);
   const signed = (t: CashTransaction) => cents(t.amount) * (t.direction === "in" ? 1 : -1);
@@ -163,7 +211,8 @@ export function summarize(
     return (
       openingDate !== undefined &&
       (t.paid_date ?? t.due_date) >= openingDate &&
-      (t.status === "paid" || (projected && t.status === "planned"))
+      !internalTransfer(t, accountDates) &&
+      counts(t, projected, asOf)
     );
   });
   const effectiveDate = (t: CashTransaction) => t.paid_date ?? t.due_date;
@@ -250,6 +299,7 @@ export function statement(
   start: string,
   end: string,
   projected: boolean,
+  asOf = start,
 ) {
   const selected = new Map(accounts.map((a) => [a.id, a.opening_date]));
   const entries = transactions.filter((t) => {
@@ -260,7 +310,8 @@ export function statement(
       date >= opening &&
       date >= start &&
       date <= end &&
-      (t.status === "paid" || (projected && t.status === "planned"))
+      !internalTransfer(t, selected) &&
+      counts(t, projected, asOf)
     );
   });
   const lines = Object.entries(cashFlowLines).map(([key, definition]) => {
@@ -288,6 +339,7 @@ export function statement(
     operating: total("operating"),
     investing: total("investing"),
     financing: total("financing"),
+    transfers: total("transfer"),
     unclassifiedCount: entries.filter(
       (t) => !t.cash_flow_line || t.cash_flow_line === "unclassified",
     ).length,

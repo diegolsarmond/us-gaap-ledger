@@ -82,3 +82,5 @@ Execute `database/012_vendors.sql` antes de usar o cadastro **Settings → Vendo
 Execute `database/014_us_gaap_coa.sql` após as migrações anteriores para a estrutura de cinco dígitos e metadados do plano de contas. A instalação das 81 contas é feita na tela Chart of Accounts, em planos vazios. Consulte [Chart of Accounts](CHART_OF_ACCOUNTS.md).
 
 Execute `database/015_contact_registration.sql` para os campos mapeados das listas de clientes e fornecedores. Consulte [mapeamento dos cadastros](CONTACT_REGISTRATION_MAPPING.md) para campos, lacunas e tratamento dos saldos da origem.
+
+Execute `database/016_cash_flow_controls.sql` **antes** de publicar a versão que a exige: a tela `/cash-flow` passa a ler as colunas de transferência interna (`transfer_id`, `transfer_account_id`). A migração é reexecutável e não altera lançamentos existentes. Teste de integração: `node --env-file-if-exists=.env scripts/test-cash-controls-db.mjs`.
