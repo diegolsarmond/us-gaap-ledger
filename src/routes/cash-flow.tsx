@@ -340,6 +340,7 @@ function CashFlowPage() {
                 setAccountCurrency(currency);
                 setForm("account");
                 setError("");
+                setActiveTab("accounts");
               }}
             >
               New account
@@ -951,222 +952,364 @@ function CashFlowPage() {
                   value={money(report.periods.at(-1)?.balance ?? report.opening)}
                 />
               </section>
-              <Panel
-                title="Cash flow over time"
-                subtitle={
-                  projected
-                    ? "Projection based only on recorded transactions, without automatic estimates."
-                    : "Transactions actually received or paid."
-                }
-                aside={
-                  <button onClick={exportReport} className={button}>
-                    Export CSV
-                  </button>
-                }
+            </>
+          )}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+            <TabsList className="frost h-auto w-full flex-wrap justify-start gap-1.5 p-1.5 border border-line/70">
+              <TabsTrigger
+                value="over-time"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
               >
-                <p className="px-4 py-3 text-xs text-ink3">
-                  Closing balance = previous balance + recorded opening balances + inflows −
-                  outflows. Recorded opening balances are included on each account opening date. Net
-                  cash flow equals inflows minus outflows.
+                Cash flow over time
+              </TabsTrigger>
+              <TabsTrigger
+                value="statement"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
+              >
+                Statement of Cash Flows
+              </TabsTrigger>
+              <TabsTrigger
+                value="weekly"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
+              >
+                Weekly forecast vs. actual
+              </TabsTrigger>
+              <TabsTrigger
+                value="reconciliation"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
+              >
+                <span className="hidden sm:inline">
+                  Supplemental accounting reconciliation · actual · manual inputs
+                </span>
+                <span className="sm:hidden">Supplemental reconciliation</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="transactions"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
+              >
+                Transactions during period
+              </TabsTrigger>
+              <TabsTrigger
+                value="accounts"
+                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
+              >
+                Accounts
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent
+              value="over-time"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              {!validRange ? (
+                <p role="alert" className="text-red-700">
+                  Enter a valid period of up to five years.
                 </p>
-                <Table>
-                  <thead>
-                    <tr>
-                      <Th>Period</Th>
-                      <Th align="right">Previous balance</Th>
-                      <Th align="right">Inflows</Th>
-                      <Th align="right">Outflows</Th>
-                      <Th align="right">Recorded opening balances</Th>
-                      <Th align="right">Net cash flow</Th>
-                      <Th align="right">Closing balance</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.periods.map((p) => (
-                      <tr key={p.label} className="border-t border-line">
-                        <Td>
-                          {interval === "weekly" ? "Week of " : ""}
-                          {p.label}
-                        </Td>
-                        <Td align="right">{money(p.openingBalance)}</Td>
-                        <Td align="right">{money(p.inflows)}</Td>
-                        <Td align="right">{money(p.outflows)}</Td>
-                        <Td align="right">{money(p.adjustments)}</Td>
-                        <Td align="right">{money(p.net)}</Td>
-                        <Td align="right">{money(p.balance)}</Td>
+              ) : (
+                <Panel
+                  title="Cash flow over time"
+                  subtitle={
+                    projected
+                      ? "Projection based only on recorded transactions, without automatic estimates."
+                      : "Transactions actually received or paid."
+                  }
+                  aside={
+                    <button onClick={exportReport} className={button}>
+                      Export CSV
+                    </button>
+                  }
+                >
+                  <p className="px-4 py-3 text-xs text-ink3">
+                    Closing balance = previous balance + recorded opening balances + inflows −
+                    outflows. Recorded opening balances are included on each account opening date. Net
+                    cash flow equals inflows minus outflows.
+                  </p>
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Period</Th>
+                        <Th align="right">Previous balance</Th>
+                        <Th align="right">Inflows</Th>
+                        <Th align="right">Outflows</Th>
+                        <Th align="right">Recorded opening balances</Th>
+                        <Th align="right">Net cash flow</Th>
+                        <Th align="right">Closing balance</Th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </Panel>
-              <CashManagementReport
-                key={`${companyId}-${currency}-${accountId}-${start}-${end}`}
-                accounts={filteredAccounts}
-                transactions={filteredTransactions}
-                start={start}
-                end={end}
-                projected={projected}
-                currency={currency as "USD" | "BRL" | "EUR"}
-                companyId={companyId}
-                accountId={accountId}
-                asOf={today()}
-              />
-              <Panel
-                title="Transactions during period"
-                subtitle={
-                  projected
-                    ? "Planned and actual transactions affect totals. Cancelled transactions do not affect balances."
-                    : "Only actual transactions affect totals. Planned and cancelled transactions are shown for reference."
-                }
-              >
+                    </thead>
+                    <tbody>
+                      {report.periods.map((p) => (
+                        <tr key={p.label} className="border-t border-line">
+                          <Td>
+                            {interval === "weekly" ? "Week of " : ""}
+                            {p.label}
+                          </Td>
+                          <Td align="right">{money(p.openingBalance)}</Td>
+                          <Td align="right">{money(p.inflows)}</Td>
+                          <Td align="right">{money(p.outflows)}</Td>
+                          <Td align="right">{money(p.adjustments)}</Td>
+                          <Td align="right">{money(p.net)}</Td>
+                          <Td align="right">{money(p.balance)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Panel>
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="statement"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              {!validRange ? (
+                <p role="alert" className="text-red-700">
+                  Enter a valid period of up to five years.
+                </p>
+              ) : (
+                <CashManagementReport
+                  key={`statement-${companyId}-${currency}-${accountId}-${start}-${end}`}
+                  accounts={filteredAccounts}
+                  transactions={filteredTransactions}
+                  start={start}
+                  end={end}
+                  projected={projected}
+                  currency={currency as "USD" | "BRL" | "EUR"}
+                  companyId={companyId}
+                  accountId={accountId}
+                  asOf={today()}
+                  section="statement"
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="weekly"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              {!validRange ? (
+                <p role="alert" className="text-red-700">
+                  Enter a valid period of up to five years.
+                </p>
+              ) : (
+                <CashManagementReport
+                  key={`weekly-${companyId}-${currency}-${accountId}-${start}-${end}`}
+                  accounts={filteredAccounts}
+                  transactions={filteredTransactions}
+                  start={start}
+                  end={end}
+                  projected={projected}
+                  currency={currency as "USD" | "BRL" | "EUR"}
+                  companyId={companyId}
+                  accountId={accountId}
+                  asOf={today()}
+                  section="weekly"
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="reconciliation"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              {!validRange ? (
+                <p role="alert" className="text-red-700">
+                  Enter a valid period of up to five years.
+                </p>
+              ) : (
+                <CashManagementReport
+                  key={`reconciliation-${companyId}-${currency}-${accountId}-${start}-${end}`}
+                  accounts={filteredAccounts}
+                  transactions={filteredTransactions}
+                  start={start}
+                  end={end}
+                  projected={projected}
+                  currency={currency as "USD" | "BRL" | "EUR"}
+                  companyId={companyId}
+                  accountId={accountId}
+                  asOf={today()}
+                  section="reconciliation"
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="transactions"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              {!validRange ? (
+                <p role="alert" className="text-red-700">
+                  Enter a valid period of up to five years.
+                </p>
+              ) : (
+                <Panel
+                  title="Transactions during period"
+                  subtitle={
+                    projected
+                      ? "Planned and actual transactions affect totals. Cancelled transactions do not affect balances."
+                      : "Only actual transactions affect totals. Planned and cancelled transactions are shown for reference."
+                  }
+                >
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Due date</Th>
+                        <Th>Payment / receipt</Th>
+                        <Th>Description / category</Th>
+                        <Th>Account</Th>
+                        <Th>Status</Th>
+                        <Th align="right">Amount</Th>
+                        <Th>Actions</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {!listed.length && (
+                        <tr>
+                          <Td colSpan={7}>No transactions in this period.</Td>
+                        </tr>
+                      )}
+                      {listed.map((t) => (
+                        <tr key={t.id} className="border-t border-line">
+                          <Td>{t.due_date.split("-").reverse().join("/")}</Td>
+                          <Td>{t.paid_date ? t.paid_date.split("-").reverse().join("/") : "—"}</Td>
+                          <Td>
+                            {t.description}
+                            <br />
+                            <span className="text-xs text-ink3">{t.category}</span>
+                            <br />
+                            <span className="text-xs text-ink3">
+                              GL:{" "}
+                              {t.gl_account_code
+                                ? `${t.gl_account_code} · ${glAccounts.find((a) => a.code === t.gl_account_code)?.name ?? ""}`
+                                : "Not linked"}
+                            </span>
+                            <br />
+                            <span className="text-xs text-ink3">
+                              {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
+                              {t.transfer_account_id &&
+                                ` · ${t.direction === "out" ? "to" : "from"} ${accounts.find((a) => a.id === t.transfer_account_id)?.name ?? "another account"}`}
+                            </span>
+                            {t.variance_note && (
+                              <p className="text-xs text-ink2">{t.variance_note}</p>
+                            )}
+                          </Td>
+                          <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
+                          <Td>{statusLabels[t.status]}</Td>
+                          <Td
+                            align="right"
+                            className={`font-medium ${t.direction === "out" ? "text-red-700" : "text-blue-700"}`}
+                          >
+                            {t.direction === "out" ? "−" : "+"}
+                            {money(t.amount)}
+                          </Td>
+                          <Td>
+                            <div className="flex gap-3">
+                              <button
+                                disabled={pending}
+                                className="text-brand underline"
+                                onClick={() => startEdit(t)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                disabled={pending || t.forecast_amount != null}
+                                title={
+                                  t.forecast_amount != null
+                                    ? "Cancel this transaction to preserve forecast history"
+                                    : "Delete transaction"
+                                }
+                                className="text-red-700 underline"
+                                onClick={async () => {
+                                  const confirmed = await modal.showConfirm({
+                                    title: "Delete transaction?",
+                                    message: `Permanently delete this transaction? This action cannot be undone.`,
+                                    tone: "error",
+                                    confirmText: "Delete",
+                                    cancelText: "Cancel",
+                                  });
+                                  if (confirmed) {
+                                    void mutate(
+                                      () => deleteCashTransaction({ data: { id: t.id, companyId } }),
+                                      "Transaction deleted.",
+                                    );
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Panel>
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="accounts"
+              forceMount
+              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+            >
+              <Panel title="Accounts">
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Due date</Th>
-                      <Th>Payment / receipt</Th>
-                      <Th>Description / category</Th>
                       <Th>Account</Th>
-                      <Th>Status</Th>
-                      <Th align="right">Amount</Th>
+                      <Th>Currency</Th>
+                      <Th>Linked GL account</Th>
+                      <Th>Opening date</Th>
+                      <Th align="right">Opening balance</Th>
                       <Th>Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {!listed.length && (
-                      <tr>
-                        <Td colSpan={7}>No transactions in this period.</Td>
-                      </tr>
-                    )}
-                    {listed.map((t) => (
-                      <tr key={t.id} className="border-t border-line">
-                        <Td>{t.due_date.split("-").reverse().join("/")}</Td>
-                        <Td>{t.paid_date ? t.paid_date.split("-").reverse().join("/") : "—"}</Td>
+                    {accounts.map((a) => (
+                      <tr key={a.id} className="border-t border-line">
+                        <Td>{a.name}</Td>
+                        <Td>{a.currency}</Td>
                         <Td>
-                          {t.description}
-                          <br />
-                          <span className="text-xs text-ink3">{t.category}</span>
-                          <br />
-                          <span className="text-xs text-ink3">
-                            GL:{" "}
-                            {t.gl_account_code
-                              ? `${t.gl_account_code} · ${glAccounts.find((a) => a.code === t.gl_account_code)?.name ?? ""}`
-                              : "Not linked"}
-                          </span>
-                          <br />
-                          <span className="text-xs text-ink3">
-                            {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
-                            {t.transfer_account_id &&
-                              ` · ${t.direction === "out" ? "to" : "from"} ${accounts.find((a) => a.id === t.transfer_account_id)?.name ?? "another account"}`}
-                          </span>
-                          {t.variance_note && (
-                            <p className="text-xs text-ink2">{t.variance_note}</p>
-                          )}
+                          {a.gl_account_code
+                            ? `${a.gl_account_code} · ${glAccounts.find((gl) => gl.code === a.gl_account_code)?.name ?? ""}`
+                            : "Not linked"}
                         </Td>
-                        <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
-                        <Td>{statusLabels[t.status]}</Td>
-                        <Td
-                          align="right"
-                          className={`font-medium ${t.direction === "out" ? "text-red-700" : "text-blue-700"}`}
-                        >
-                          {t.direction === "out" ? "−" : "+"}
-                          {money(t.amount)}
+                        <Td>{a.opening_date}</Td>
+                        <Td align="right">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: a.currency,
+                          }).format(a.opening_balance)}
                         </Td>
                         <Td>
-                          <div className="flex gap-3">
-                            <button
-                              disabled={pending}
-                              className="text-brand underline"
-                              onClick={() => startEdit(t)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              disabled={pending || t.forecast_amount != null}
-                              title={
-                                t.forecast_amount != null
-                                  ? "Cancel this transaction to preserve forecast history"
-                                  : "Delete transaction"
-                              }
-                              className="text-red-700 underline"
-                              onClick={async () => {
-                                const confirmed = await modal.showConfirm({
-                                  title: "Delete transaction?",
-                                  message: `Permanently delete this transaction? This action cannot be undone.`,
-                                  tone: "error",
-                                  confirmText: "Delete",
-                                  cancelText: "Cancel",
-                                });
-                                if (confirmed) {
-                                  void mutate(
-                                    () => deleteCashTransaction({ data: { id: t.id, companyId } }),
-                                    "Transaction deleted.",
-                                  );
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            disabled={pending}
+                            className="text-brand underline"
+                            onClick={() => {
+                              setEditingAccount(a);
+                              setOpeningBalanceCents(String(Math.round(a.opening_balance * 100)));
+                              setAccountCurrency(a.currency);
+                              setForm("account");
+                              setError("");
+                              setNotice("");
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            Edit
+                          </button>
                         </Td>
                       </tr>
                     ))}
                   </tbody>
                 </Table>
               </Panel>
-            </>
-          )}
-          <Panel title="Accounts">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Account</Th>
-                  <Th>Currency</Th>
-                  <Th>Linked GL account</Th>
-                  <Th>Opening date</Th>
-                  <Th align="right">Opening balance</Th>
-                  <Th>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.map((a) => (
-                  <tr key={a.id} className="border-t border-line">
-                    <Td>{a.name}</Td>
-                    <Td>{a.currency}</Td>
-                    <Td>
-                      {a.gl_account_code
-                        ? `${a.gl_account_code} · ${glAccounts.find((gl) => gl.code === a.gl_account_code)?.name ?? ""}`
-                        : "Not linked"}
-                    </Td>
-                    <Td>{a.opening_date}</Td>
-                    <Td align="right">
-                      {new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: a.currency,
-                      }).format(a.opening_balance)}
-                    </Td>
-                    <Td>
-                      <button
-                        type="button"
-                        disabled={pending}
-                        className="text-brand underline"
-                        onClick={() => {
-                          setEditingAccount(a);
-                          setOpeningBalanceCents(String(Math.round(a.opening_balance * 100)));
-                          setAccountCurrency(a.currency);
-                          setForm("account");
-                          setError("");
-                          setNotice("");
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Panel>
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
