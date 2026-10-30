@@ -176,7 +176,7 @@ function CompanyRoutes({ pathname }: { pathname: string }) {
   if (!activeCompany)
     return (
       <div className="p-5">
-        Nenhuma empresa ativa disponível. Cadastre uma empresa ou solicite acesso ao administrador.
+        No active companies available. Create a company or request access from the administrator.
       </div>
     );
   return <Outlet key={activeCompany.id} />;
