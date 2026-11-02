@@ -75,6 +75,12 @@ const sheet = book.addWorksheet("Dados");
 sheet.addRow(importColumns("customers").map((c) => c.path));
 sheet.addRow(["Cliente de teste"]);
 const file = async () => new File([await book.xlsx.writeBuffer()], "clientes.xlsx");
+const atLimit = await file();
+Object.defineProperty(atLimit, "size", { value: 100 * 1024 * 1024 });
+assert.equal((await readImportWorkbook(atLimit, "customers")).length, 1);
+const overLimit = await file();
+Object.defineProperty(overLimit, "size", { value: 100 * 1024 * 1024 + 1 });
+await assert.rejects(() => readImportWorkbook(overLimit, "customers"), /100 MB/);
 assert.equal(
   (await readImportWorkbook(await file(), "customers"))[0].displayName,
   "Cliente de teste",
