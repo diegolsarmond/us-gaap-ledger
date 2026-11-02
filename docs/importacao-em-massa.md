@@ -4,7 +4,7 @@ Acesse **Settings → Importação em massa** (`/imports`) e selecione a empresa
 
 1. Escolha o cadastro e baixe o modelo `.xlsx`.
 2. Leia a aba Instruções e preencha a aba Dados, mantendo os cabeçalhos. Datas usam `AAAA-MM-DD`; números usam ponto decimal sem separador de milhar; booleanos usam `true` ou `false`. Códigos, telefones e documentos devem permanecer como texto para preservar zeros iniciais.
-3. Selecione o arquivo, confira a prévia e confirme a importação. Limites: 5 MB e 1.000 registros. Não são aceitos fórmulas nem anexos.
+3. Selecione o arquivo, confira a prévia e confirme a importação. Limites: 100 MB e 1.000 registros. Não são aceitos fórmulas nem anexos.
 
 ## Mapeamento
 

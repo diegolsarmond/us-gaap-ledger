@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Upload } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import { Panel } from "@/components/ui-kit";
@@ -54,6 +55,7 @@ function CompanyImports({
   const [revision, setRevision] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const destinationReady =
     domain === "companies" ||
     (Boolean(companyId) && (domain === "customers" || destination === companyId));
@@ -237,7 +239,7 @@ function CompanyImports({
       </Panel>
       <Panel
         title="3. Upload and validate the spreadsheet"
-        subtitle="Up to 1,000 records and 5 MB per file. Imports create new records and reject duplicates."
+        subtitle="Up to 1,000 records and 100 MB per file. Imports create new records and reject duplicates."
       >
         <div className="space-y-4 p-4">
           <p className="text-sm">
@@ -253,22 +255,34 @@ function CompanyImports({
             </p>
           )}
           {!allowed && <p role="status">Your profile does not allow importing this data type.</p>}
-          <label className="block text-sm">
-            Completed spreadsheet
+          <div className="space-y-2">
+            <Button
+              type="button"
+              disabled={
+                busy || !allowed || (domain !== "companies" && !query.data) || !destinationReady
+              }
+              onClick={() => fileInput.current?.click()}
+              className="gap-2 bg-brand text-white hover:bg-brand/90"
+            >
+              <Upload className="size-4" aria-hidden="true" />
+              Upload spreadsheet
+            </Button>
             <input
+              ref={fileInput}
+              aria-label="Completed spreadsheet"
               key={domain}
               type="file"
               accept=".xlsx"
               disabled={
                 busy || !allowed || (domain !== "companies" && !query.data) || !destinationReady
               }
-              className="mt-2 block"
+              className="sr-only"
               onChange={(e) => {
                 void read(e.target.files?.[0]);
                 e.target.value = "";
               }}
             />
-          </label>
+          </div>
           <p role="status" aria-live="polite" className="text-sm whitespace-pre-wrap">
             {busy ? "Processing…" : message}
           </p>

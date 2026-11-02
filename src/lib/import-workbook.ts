@@ -157,7 +157,7 @@ export async function downloadImportTemplate(domain: ImportDomain) {
 
 export async function readImportWorkbook(file: File, domain: ImportDomain) {
   if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Select an .xlsx spreadsheet.");
-  if (file.size > 5 * 1024 * 1024) throw new Error("The file must be no larger than 5 MB.");
+  if (file.size > 100 * 1024 * 1024) throw new Error("The file must be no larger than 100 MB.");
   const { default: ExcelJS } = await import("exceljs");
   const { Workbook } = ExcelJS;
   const book = new Workbook();
