@@ -7,7 +7,11 @@ import { DashboardPeriodFilter } from "@/components/dashboard-period";
 import { currentMonth } from "@/lib/dashboard-period";
 import { reportRows } from "@/lib/financial-report";
 import { isModuleAvailable } from "@/lib/module-availability";
-import { IncomeOverviewChart } from "@/components/dashboard-charts";
+import {
+  IncomeOverviewChart,
+  ChartOfAccountsDistributionChart,
+  OperationsVolumeChart,
+} from "@/components/dashboard-charts";
 import { DashboardCash } from "@/components/dashboard-cash";
 import { pageHead } from "@/lib/head";
 
@@ -178,6 +182,23 @@ function Dashboard() {
         opex={totalOpEx}
         netIncome={netIncome}
       />
+
+      {/* General Executive Charts (Non-report operational & COA charts) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <OperationsVolumeChart
+          revenue={totalRevenue}
+          payables={bills.reduce((s, b) => s + b.usdAmount, 0)}
+          cashInflows={journals.reduce(
+            (s, j) => s + j.lines.filter((l) => l.accountCode.startsWith("10") && l.debit > 0).reduce((acc, l) => acc + l.debit, 0),
+            0,
+          )}
+          cashOutflows={journals.reduce(
+            (s, j) => s + j.lines.filter((l) => l.accountCode.startsWith("10") && l.credit > 0).reduce((acc, l) => acc + l.credit, 0),
+            0,
+          )}
+        />
+        <ChartOfAccountsDistributionChart accounts={accounts} />
+      </div>
 
       {/* Second Row: Ledger Status & Operational Highlights */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

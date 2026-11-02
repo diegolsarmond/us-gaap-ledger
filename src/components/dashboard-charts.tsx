@@ -2,9 +2,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -15,6 +18,18 @@ import { Panel } from "./ui-kit";
 import { formatDate, usd } from "@/lib/format";
 
 const colors = { inflows: "#168060", outflows: "#ce5050", balance: "#4263cc" };
+const PALETTE = [
+  "#2563eb",
+  "#059669",
+  "#d97706",
+  "#7c3aed",
+  "#dc2626",
+  "#0891b2",
+  "#ea580c",
+  "#4f46e5",
+  "#16a34a",
+  "#db2777",
+];
 const compact = (value: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 const grid = <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#dce1e8" />;
@@ -170,6 +185,122 @@ export function IncomeOverviewChart({
           </ResponsiveContainer>
         </div>
       )}
+    </Panel>
+  );
+}
+
+export function ChartOfAccountsDistributionChart({
+  accounts,
+}: {
+  accounts: { type: string }[];
+}) {
+  const counts: Record<string, number> = {};
+  for (const a of accounts) {
+    const t = a.type || "Other";
+    counts[t] = (counts[t] ?? 0) + 1;
+  }
+  const data = Object.entries(counts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const total = accounts.length;
+
+  return (
+    <Panel
+      title="Chart of Accounts Composition"
+      subtitle={`${total} active general ledger accounts classified under US GAAP`}
+    >
+      {!data.length ? (
+        <p className="p-4 text-sm text-ink3">No accounts registered.</p>
+      ) : (
+        <div className="grid gap-3 p-3 sm:grid-cols-2 items-center">
+          <div className="h-60 w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart accessibilityLayer>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={75}
+                  paddingAngle={3}
+                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {data.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={PALETTE[index % PALETTE.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val: number) => [val, "Accounts"]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="max-h-56 overflow-y-auto space-y-1.5 pr-2 text-xs">
+            {data.map((d, idx) => (
+              <div
+                key={d.name}
+                className="flex items-center justify-between rounded border border-line/50 bg-white/60 p-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: PALETTE[idx % PALETTE.length] }}
+                  />
+                  <span className="font-medium text-ink">{d.name}</span>
+                </div>
+                <span className="font-mono text-ink2">
+                  {d.value} ({total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%)
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function OperationsVolumeChart({
+  revenue,
+  payables,
+  cashInflows,
+  cashOutflows,
+}: {
+  revenue: number;
+  payables: number;
+  cashInflows: number;
+  cashOutflows: number;
+}) {
+  const data = [
+    { name: "Invoiced Revenue", value: revenue, fill: "#2563eb" },
+    { name: "Vendor Payables", value: payables, fill: "#dc2626" },
+    { name: "Cash Inflows", value: cashInflows, fill: "#059669" },
+    { name: "Cash Outflows", value: cashOutflows, fill: "#d97706" },
+  ];
+
+  return (
+    <Panel
+      title="Operational & Cash Volumes"
+      subtitle="Period receivables, payables, and realized cash movements"
+    >
+      <div className="h-60 w-full min-w-0 p-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart accessibilityLayer data={data} margin={{ top: 8, right: 16, bottom: 8, left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#dce1e8" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={compact} tick={{ fontSize: 10 }} width={50} />
+            <Tooltip formatter={(value: number) => [usd(value), "Volume"]} />
+            <Bar dataKey="value" name="Volume (USD)" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </Panel>
   );
 }

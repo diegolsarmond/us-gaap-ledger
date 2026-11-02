@@ -14,6 +14,7 @@ import {
 import { PageTitle, Panel, Badge } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { exportToCsv } from "@/lib/format";
+import { SearchableSelect } from "@/components/searchable-select";
 export const Route = createFileRoute("/journals")({
   head: () =>
     pageHead(
@@ -450,23 +451,26 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                   {form.lines.map((l, i) => (
                     <tr key={i}>
                       <td className="min-w-60 p-1">
-                        <select
-                          aria-label={`Account line ${i + 1}`}
-                          className={control}
+                        <SearchableSelect
+                          label={`Account line ${i + 1}`}
+                          placeholder="Select account"
                           value={l.accountCode}
-                          onChange={(v) => updateLine(i, { accountCode: v.target.value })}
-                        >
-                          <option value="">Select account</option>
-                          {data?.accounts
-                            .filter(
-                              (a) => !data.accounts.some((child) => child.parentCode === a.code),
-                            )
-                            .map((a) => (
-                              <option key={a.code} value={a.code}>
-                                {a.code} · {a.name}
-                              </option>
-                            ))}
-                        </select>
+                          onChange={(accountCode) => updateLine(i, { accountCode })}
+                          options={[
+                            { value: "", label: "Select account" },
+                            ...(data?.accounts ?? [])
+                              .filter(
+                                (account) =>
+                                  !data?.accounts.some(
+                                    (child) => child.parentCode === account.code,
+                                  ),
+                              )
+                              .map((account) => ({
+                                value: account.code,
+                                label: `${account.code} · ${account.name}`,
+                              })),
+                          ]}
+                        />
                       </td>
                       <td className="p-1">
                         <input
