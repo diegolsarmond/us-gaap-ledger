@@ -41,3 +41,9 @@ JSON.stringify em localStorage, parâmetros JSONB do PostgreSQL, hashes e export
 ```
 
 Verificação automatizada do transporte: `node scripts/test-json-transport.mjs` (sem acesso ao banco; sessão simulada).
+
+## Atualização de versões em produção
+
+Abas de versões anteriores podem continuar chamando `/_serverFn/<id>` após a migração. Esse transporte foi desativado: o servidor retorna HTTP 410 com orientação para recarregar a página, sem executar a operação nem tentar resolver IDs antigos no TanStack. As páginas HTML usam `Cache-Control: no-store`; os assets versionados mantêm sua política de cache.
+
+Após publicar, recarregue as abas antigas e limpe eventual cache de HTML no proxy/CDN. Publique cliente e servidor do mesmo build. A resposta 410 não atualiza automaticamente uma aba já aberta. Verificação: `node scripts/test-deployment-response.mjs`.
