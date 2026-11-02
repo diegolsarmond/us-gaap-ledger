@@ -209,15 +209,17 @@ export async function resetPassword(id: string) {
     client.release();
   }
 }
-export async function loadAudit(page: number, companyId?: string) {
+export async function loadAudit(page: number, companyId?: string, search = "", action = "") {
   const auth = await authorize("view_audit");
   if (companyId) await (await import("./companies.server")).authorizeCompany(companyId);
   const result = await db().query(
-    "SELECT id::text,occurred_at::text,actor_name,action,entity,target_id,before_data::text,after_data::text FROM system_audit_log WHERE (company_id=$2::uuid OR (company_id IS NULL AND $3)) ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $1",
+    "SELECT id::text,occurred_at::text,actor_name,action,entity,target_id,before_data::text,after_data::text FROM system_audit_log WHERE (company_id=$2::uuid OR (company_id IS NULL AND $3)) AND ($4 = '' OR action=$4) AND ($5 = '' OR strpos(lower(concat_ws(' ',actor_name,entity,action,target_id)),lower($5)) > 0) ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $1",
     [
       (page - 1) * 100,
       companyId ?? null,
       auth.permissions.manage_users || auth.permissions.manage_profiles,
+      action,
+      search.trim(),
     ],
   );
   return { events: result.rows.slice(0, 100) as AuditEvent[], hasMore: result.rows.length > 100 };

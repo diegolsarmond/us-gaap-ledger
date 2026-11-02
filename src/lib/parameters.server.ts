@@ -112,8 +112,17 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
       await replaceLedger(client, companyId, input.domain, remaining);
       await client.query("UPDATE companies SET revision=revision+1 WHERE id=$1", [companyId]);
       await client.query(
-        "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id) VALUES($1,$2,$3,$4,$5,$6)",
-        [auth.user.id, auth.user.name, input.operation, input.domain, input.id, companyId],
+        "INSERT INTO system_audit_log(actor_id,actor_name,action,entity,target_id,company_id,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        [
+          auth.user.id,
+          auth.user.name,
+          input.operation,
+          input.domain,
+          existing?.["id"] ?? input.id,
+          companyId,
+          existing ? JSON.stringify(existing) : null,
+          targets.includes(companyId) && value ? JSON.stringify(remaining.at(-1)) : null,
+        ],
       );
     }
     await client.query("COMMIT");

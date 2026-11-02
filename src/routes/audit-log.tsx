@@ -1,6 +1,6 @@
 import { useCompanies } from "@/components/company-context";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuditEvents } from "@/lib/admin";
 import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
@@ -68,18 +68,14 @@ function AuditPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
+  useEffect(() => {
+    setPage(1);
+  }, [activeCompany?.id, search, action]);
   const query = useQuery({
-    queryKey: ["system-audit", activeCompany?.id, page],
-    queryFn: () => getAuditEvents({ data: { page, companyId: activeCompany?.id } }),
+    queryKey: ["system-audit", activeCompany?.id, page, search, action],
+    queryFn: () => getAuditEvents({ data: { page, companyId: activeCompany?.id, search, action } }),
   });
-  const rows =
-    query.data?.events.filter(
-      (r) =>
-        (!action || r.action === action) &&
-        `${r.actor_name} ${r.entity} ${auditLabel(r.entity)} ${auditAction(r.action)} ${r.target_id}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-    ) ?? [];
+  const rows = query.data?.events ?? [];
   return (
     <div className="space-y-4">
       <PageTitle
@@ -97,8 +93,8 @@ function AuditPage() {
       )}
       <div className="flex flex-wrap gap-3">
         <input
-          aria-label="Search records on this page"
-          placeholder="Search this page by user, entity, action, or ID…"
+          aria-label="Search audit history"
+          placeholder="Search history by user, entity, action, or ID…"
           className="min-w-64 flex-1 rounded-md border border-line bg-white p-2 text-sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

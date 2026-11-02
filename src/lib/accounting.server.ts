@@ -340,6 +340,27 @@ export async function execute(
       "UPDATE companies SET revision=revision+1,cost_method=$2,period_closed=$3,active_period=$4 WHERE id=$1 RETURNING revision",
       [input.companyId, company.costMethod, company.isPeriodClosed, company.activePeriod],
     );
+    const beforeChanges: Record<string, unknown> = {};
+    const afterChanges: Record<string, unknown> = {};
+    for (const domain of domains) {
+      if (domain === "auditLogs") continue;
+      const previous = state[domain] as unknown as Record<string, unknown>[];
+      const following = next[domain] as unknown as Record<string, unknown>[];
+      const key = (row: Record<string, unknown>) => String(row["id"] ?? row["code"]);
+      const oldRows = new Map(previous.map((row) => [key(row), row]));
+      const newRows = new Map(following.map((row) => [key(row), row]));
+      const changed = [...new Set([...oldRows.keys(), ...newRows.keys()])].filter(
+        (id) => JSON.stringify(oldRows.get(id)) !== JSON.stringify(newRows.get(id)),
+      );
+      if (changed.length) {
+        beforeChanges[domain] = Object.fromEntries(
+          changed.map((id) => [id, oldRows.get(id) ?? null]),
+        );
+        afterChanges[domain] = Object.fromEntries(
+          changed.map((id) => [id, newRows.get(id) ?? null]),
+        );
+      }
+    }
     const accountCommand = ["addAccount", "updateAccount", "deleteAccount"].includes(command);
     const accountCode = accountCommand
       ? command === "addAccount"
@@ -355,8 +376,8 @@ export async function execute(
         accountCommand ? "Account" : "Accounting",
         accountCode ?? input.companyId,
         input.companyId,
-        accountCode ? (state.accounts.find((a) => a.code === accountCode) ?? null) : null,
-        accountCode ? (next.accounts.find((a) => a.code === accountCode) ?? null) : null,
+        JSON.stringify(beforeChanges),
+        JSON.stringify(afterChanges),
       ],
     );
     await client.query("COMMIT");

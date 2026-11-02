@@ -18,8 +18,10 @@ export const getAuditEvents = defineJsonOperation({ method: "GET" })
     z.object({
       page: z.number().int().min(1).max(100000),
       companyId: z.string().uuid().optional(),
+      search: z.string().max(200).optional(),
+      action: z.string().max(200).optional(),
     }),
   )
   .handler(async ({ data }) =>
-    (await import("./admin.server")).loadAudit(data.page, data.companyId),
+    (await import("./admin.server")).loadAudit(data.page, data.companyId, data.search, data.action),
   );
