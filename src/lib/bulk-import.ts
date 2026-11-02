@@ -4,54 +4,54 @@ import { companySchema } from "./company-model";
 
 export const importCatalog = {
   companies: {
-    label: "Empresas (Companies)",
+    label: "Companies",
     command: "saveCompany",
-    dependency: "Exige permissão para gerenciar empresas; não exige cliente de destino",
+    dependency: "Requires permission to manage companies; no destination client required",
   },
   customers: {
-    label: "Clientes",
+    label: "Customers",
     command: "addCustomer",
-    dependency: "Moedas, condições de pagamento e jurisdições tributárias",
+    dependency: "Currencies, payment terms, and tax jurisdictions",
   },
   vendors: {
-    label: "Fornecedores",
+    label: "Vendors",
     command: "addVendor",
-    dependency: "Moedas, condições de pagamento e contas de despesa",
+    dependency: "Currencies, payment terms, and expense accounts",
   },
   accounts: {
-    label: "Plano de contas",
+    label: "Chart of Accounts",
     command: "addAccount",
-    dependency: "Importe contas pai antes das contas filhas",
+    dependency: "Import parent accounts before child accounts",
   },
   currencies: {
-    label: "Moedas",
+    label: "Currencies",
     command: "addCurrency",
-    dependency: "USD deve ser a única moeda base",
+    dependency: "USD must be the only base currency",
   },
   paymentTerms: {
-    label: "Condições de pagamento",
+    label: "Payment Terms",
     command: "addPaymentTerm",
-    dependency: "Sem dependências",
+    dependency: "No dependencies",
   },
   costCenters: {
-    label: "Centros de custo",
+    label: "Cost Centers",
     command: "addCostCenter",
-    dependency: "Sem dependências",
+    dependency: "No dependencies",
   },
   expenseCategories: {
-    label: "Categorias de despesas",
+    label: "Expense Categories",
     command: "addExpenseCategory",
-    dependency: "Plano de contas",
+    dependency: "Chart of Accounts",
   },
   taxJurisdictions: {
-    label: "Jurisdições tributárias",
+    label: "Tax Jurisdictions",
     command: "addTaxJurisdiction",
-    dependency: "Plano de contas",
+    dependency: "Chart of Accounts",
   },
   fiscalPeriods: {
-    label: "Períodos fiscais",
+    label: "Fiscal Periods",
     command: "addFiscalPeriod",
-    dependency: "Exige permissão de fechamento; períodos não podem se sobrepor",
+    dependency: "Requires period closing permission; periods must not overlap",
   },
 } as const;
 export type ImportDomain = keyof typeof importCatalog;
@@ -93,10 +93,10 @@ export function importColumns(domain: ImportDomain): ImportColumn[] {
       required,
       type:
         schema instanceof z.ZodNumber
-          ? "número"
+          ? "number"
           : schema instanceof z.ZodBoolean
-            ? "booleano"
-            : "texto",
+            ? "boolean"
+            : "text",
       options: schema instanceof z.ZodEnum ? schema.options : [],
     });
   }
@@ -105,23 +105,23 @@ export function importColumns(domain: ImportDomain): ImportColumn[] {
 }
 export function parseImportRows(domain: ImportDomain, rows: Record<string, unknown>[]) {
   if (!rows.length || rows.length > 1000)
-    throw new Error("Informe de 1 a 1.000 registros por lote.");
+    throw new Error("Provide between 1 and 1,000 records per batch.");
   const columns = importColumns(domain);
   return rows.map((row, index) => {
     const record: Record<string, unknown> = {};
     for (const column of columns) {
       let value = row[column.path];
       if (value === undefined || value === null || value === "") continue;
-      if (column.type === "número" && typeof value === "string") {
+      if (column.type === "number" && typeof value === "string") {
         if (!/^-?\d+(\.\d+)?$/.test(value.trim()))
           throw new Error(
-            `Linha ${index + 2}, ${column.path}: use número com ponto decimal, sem separador de milhar.`,
+            `Row ${index + 2}, ${column.path}: use a number with a decimal point and no thousands separator.`,
           );
         value = Number(value);
       }
-      if (column.type === "booleano" && typeof value === "string") {
+      if (column.type === "boolean" && typeof value === "string") {
         if (!/^(true|false|sim|não|nao)$/i.test(value.trim()))
-          throw new Error(`Linha ${index + 2}, ${column.path}: use true ou false.`);
+          throw new Error(`Row ${index + 2}, ${column.path}: use true or false.`);
         value = /^(true|sim)$/i.test(value.trim());
       }
       const keys = column.path.split(".");
@@ -132,7 +132,7 @@ export function parseImportRows(domain: ImportDomain, rows: Record<string, unkno
     const parsed = importSchema(domain).safeParse(record);
     if (!parsed.success)
       throw new Error(
-        `Linha ${index + 2}: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+        `Row ${index + 2}: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
       );
     return parsed.data;
   });

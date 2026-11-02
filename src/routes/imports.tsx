@@ -17,7 +17,7 @@ function ImportPage() {
     <CompanyImports
       key={activeCompany?.id ?? "no-company"}
       companyId={activeCompany?.id ?? ""}
-      name={activeCompany?.name ?? "Nenhuma empresa selecionada"}
+      name={activeCompany?.name ?? "No company selected"}
       domain={domain}
       onDomainChange={(value) => {
         setDomain(value);
@@ -74,8 +74,7 @@ function CompanyImports({
       parseImportRows(domain, records);
       const fresh =
         domain === "companies" ? { data: { revision: 0 }, error: null } : await query.refetch();
-      if (!fresh.data || fresh.error)
-        throw new Error("Não foi possível atualizar os dados da empresa.");
+      if (!fresh.data || fresh.error) throw new Error("Unable to refresh company data.");
       await importSpreadsheet({
         data: {
           ...(companyId ? { companyId } : {}),
@@ -87,11 +86,9 @@ function CompanyImports({
       });
       setRows(records);
       setRevision(fresh.data.revision);
-      setMessage(
-        `${records.length} registros validados. Confira a prévia e confirme a importação.`,
-      );
+      setMessage(`${records.length} records validated. Review the preview and confirm the import.`);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Falha ao ler planilha.");
+      setMessage(e instanceof Error ? e.message : "Unable to read the spreadsheet.");
     } finally {
       setBusy(false);
     }
@@ -107,8 +104,8 @@ function CompanyImports({
       setRevision(null);
       setMessage(
         domain === "companies"
-          ? `${rows.length} empresas importadas com sucesso.`
-          : `${rows.length} registros importados com sucesso em ${name}.`,
+          ? `${rows.length} companies imported successfully.`
+          : `${rows.length} records imported successfully into ${name}.`,
       );
       if (domain === "companies") await client.invalidateQueries({ queryKey: ["companies"] });
       await Promise.all(
@@ -118,7 +115,7 @@ function CompanyImports({
       );
     } catch (e) {
       setRevision(null);
-      setMessage(e instanceof Error ? e.message : "Falha ao importar.");
+      setMessage(e instanceof Error ? e.message : "Import failed.");
     } finally {
       setBusy(false);
     }
@@ -126,35 +123,36 @@ function CompanyImports({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">Importação em massa</h1>
-        <p className="text-sm text-ink2">Modelos e importação de cadastros · {name}</p>
+        <h1 className="text-2xl font-semibold">Bulk Import</h1>
+        <p className="text-sm text-ink2">Templates and data imports · {name}</p>
       </div>
-      <Panel title="Como importar">
+      <Panel title="How to import">
         <ol className="list-decimal space-y-2 p-4 pl-9 text-sm">
           <li>
-            Escolha o cadastro. Para os demais cadastros, exceto Clientes e Empresas, selecione o
-            cliente de destino (empresa).
+            Choose a data type. For all types except Customers and Companies, select the destination
+            client (company).
           </li>
           <li>
-            Baixe o modelo, substitua ou remova a linha de exemplo e preencha seus dados sem alterar
-            os cabeçalhos.
+            Download the template, replace or delete the example row, and enter your data without
+            changing the headers.
           </li>
           <li>
-            Envie a planilha para validar. Se houver erros, corrija as linhas indicadas e envie
-            novamente.
+            Upload the spreadsheet for validation. If errors are found, correct the indicated rows
+            and upload it again.
           </li>
           <li>
-            Confira o destino e a prévia, confirme a importação e aguarde a mensagem de sucesso.
+            Review the destination and preview, confirm the import, and wait for the success
+            message.
           </li>
         </ol>
       </Panel>
       <Panel
-        title="1. Escolher cadastro e destino"
-        subtitle="Escolha o cadastro. Cada modelo contém uma aba de dados e instruções de preenchimento."
+        title="1. Choose data type and destination"
+        subtitle="Choose a data type. Each template includes a data sheet and instructions."
       >
         <div className="space-y-3 p-4">
           <label className="block text-sm">
-            Cadastro
+            Data type
             <select
               disabled={busy}
               value={domain}
@@ -175,7 +173,7 @@ function CompanyImports({
           </label>
           {domain !== "customers" && domain !== "companies" ? (
             <label className="block text-sm">
-              Cliente de destino (empresa) <span className="text-down">*</span>
+              Destination client (company) <span className="text-down">*</span>
               <select
                 aria-required="true"
                 disabled={busy}
@@ -190,7 +188,7 @@ function CompanyImports({
                 }}
                 className="ml-3 rounded border border-line bg-white p-2"
               >
-                <option value="">Selecione o cliente para importar</option>
+                <option value="">Select the destination client</option>
                 {companies
                   .filter((c) => c.active)
                   .map((c) => (
@@ -203,21 +201,21 @@ function CompanyImports({
             </label>
           ) : domain === "companies" ? (
             <p className="text-sm">
-              Importação de novas empresas: não exige cliente de destino. As empresas serão
-              incluídas na lista de empresas acessíveis ao seu perfil.
+              Importing new companies does not require a destination client. New companies will be
+              added to the list of companies accessible to your profile.
             </p>
           ) : (
             <p className="text-sm">
-              Cadastro de clientes: não exige selecionar um cliente de destino. Os registros serão
-              criados na empresa ativa: <strong>{name}</strong>.
+              Importing customers does not require a destination client. Records will be created in
+              the active company: <strong>{name}</strong>.
             </p>
           )}
           <p className="text-sm text-ink2">{importCatalog[domain].dependency}</p>
         </div>
       </Panel>
       <Panel
-        title="2. Baixar e preencher o modelo"
-        subtitle="A primeira linha de dados contém exemplos. Substitua ou remova essa linha antes de importar."
+        title="2. Download and fill out the template"
+        subtitle="The first data row contains examples. Replace or delete this row before importing."
       >
         <div className="space-y-3 p-4">
           <Button
@@ -227,36 +225,36 @@ function CompanyImports({
               try {
                 await downloadImportTemplate(domain);
               } catch {
-                setMessage("Não foi possível gerar o modelo.");
+                setMessage("Unable to generate the template.");
               } finally {
                 setBusy(false);
               }
             }}
           >
-            Baixar modelo .xlsx
+            Download .xlsx template
           </Button>
         </div>
       </Panel>
       <Panel
-        title="3. Enviar e validar a planilha"
-        subtitle="Até 1.000 registros e 5 MB por arquivo. A importação inclui novos registros e rejeita duplicidades."
+        title="3. Upload and validate the spreadsheet"
+        subtitle="Up to 1,000 records and 5 MB per file. Imports create new records and reject duplicates."
       >
         <div className="space-y-4 p-4">
           <p className="text-sm">
-            O lote será validado integralmente. Se houver erro, nenhum registro será gravado.
+            The entire batch will be validated. If an error occurs, no records will be saved.
           </p>
           {!destinationReady && (
-            <p role="status">Selecione o cliente de destino no passo 1 para habilitar o envio.</p>
+            <p role="status">Select the destination client in step 1 to enable uploads.</p>
           )}
           {destinationReady && domain !== "companies" && (
             <p className="text-sm">
-              Destino da importação: <strong>{name}</strong> · Cadastro:{" "}
+              Import destination: <strong>{name}</strong> · Data type:{" "}
               <strong>{importCatalog[domain].label}</strong>
             </p>
           )}
-          {!allowed && <p role="status">Seu perfil não permite importar este cadastro.</p>}
+          {!allowed && <p role="status">Your profile does not allow importing this data type.</p>}
           <label className="block text-sm">
-            Planilha preenchida
+            Completed spreadsheet
             <input
               key={domain}
               type="file"
@@ -272,12 +270,12 @@ function CompanyImports({
             />
           </label>
           <p role="status" aria-live="polite" className="text-sm whitespace-pre-wrap">
-            {busy ? "Processando…" : message}
+            {busy ? "Processing…" : message}
           </p>
           {rows.length > 0 && (
             <>
               <p className="text-sm">
-                Prévia dos primeiros {Math.min(rows.length, 10)} de {rows.length} registros
+                Preview of the first {Math.min(rows.length, 10)} of {rows.length} records
               </p>
               <div className="overflow-auto max-h-80">
                 <table className="text-xs">
@@ -305,34 +303,34 @@ function CompanyImports({
               </div>
             </>
           )}
-          <h2 className="font-semibold">4. Conferir e confirmar a importação</h2>
+          <h2 className="font-semibold">4. Review and confirm the import</h2>
           <p className="text-sm">
-            Confira o cadastro, o destino e os registros da prévia.{" "}
+            Review the data type, destination, and previewed records.{" "}
             {domain === "companies"
-              ? "Ao confirmar, as novas empresas serão cadastradas."
-              : `Ao confirmar, todos os registros serão incluídos em ${name}.`}
+              ? "Confirming will create the new companies."
+              : `Confirming will add all records to ${name}.`}
           </p>
           <Button
             disabled={busy || !allowed || !destinationReady || revision === null}
             onClick={() => void save()}
           >
-            Confirmar importação{rows.length ? ` de ${rows.length} registros` : ""}
+            Confirm import{rows.length ? ` of ${rows.length} records` : ""}
           </Button>
         </div>
       </Panel>
-      <Panel title="Mapa dos dados">
+      <Panel title="Data map">
         <div className="p-4 space-y-3 text-sm">
           {Object.entries(importCatalog).map(([key, item]) => (
             <p key={key}>
-              <strong>{item.label}:</strong> disponível · {item.dependency}.
+              <strong>{item.label}:</strong> available · {item.dependency}.
             </p>
           ))}
           <p>
-            <strong>Fluxos específicos:</strong> lançamentos contábeis, movimentações de caixa e
-            extratos precisam de validações de partidas, conciliação e referências. Faturas, contas
-            a pagar, estoque e projetos estão em módulos ainda indisponíveis. Usuários e perfis
-            permanecem nos cadastros administrativos; anexos, auditoria, saldos e relatórios não são
-            importados por este módulo.
+            <strong>Separate workflows:</strong> journal entries, cash transactions, and bank
+            statements require posting, reconciliation, and reference checks. Invoices, bills,
+            inventory, and projects belong to modules that are currently unavailable. Users and
+            profiles are managed in administration; attachments, audit logs, balances, and reports
+            cannot be imported here.
           </p>
         </div>
       </Panel>

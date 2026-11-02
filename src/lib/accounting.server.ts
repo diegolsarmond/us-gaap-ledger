@@ -274,7 +274,7 @@ export async function execute(
             (key) => importCatalog[key].command === command,
           );
           if (!domain || domain === "companies")
-            throw new Error("Cadastro não permitido para importação.");
+            throw new Error("This data type cannot be imported.");
           const key =
             domain === "customers" || domain === "vendors"
               ? "displayName"
@@ -290,7 +290,7 @@ export async function execute(
                 String(candidate[key]).trim().toLowerCase(),
             )
           )
-            throw new Error(`Registro já cadastrado: ${candidate[key]}.`);
+            throw new Error(`Record already exists: ${candidate[key]}.`);
         }
         const operation = engine.value[command] as (...a: unknown[]) => unknown;
         result = operation(...schema.parse(row));
@@ -306,7 +306,7 @@ export async function execute(
         }
       } catch (error) {
         throw new Error(
-          (batch ? "Linha " + (index + 2) + ": " : "") +
+          (batch ? "Row " + (index + 2) + ": " : "") +
             (error instanceof Error ? error.message : "Registro inválido."),
         );
       }

@@ -90,13 +90,13 @@ export async function saveCompany(
     for (const [index, raw] of (batch?.rows ?? [initial]).entries()) {
       const data = companySchema.parse(raw);
       if (batch) {
-        if (data.id) throw new Error("Importação permite apenas novas empresas.");
+        if (data.id) throw new Error("Imports only allow new companies.");
         const duplicate = await client.query(
           "SELECT id FROM companies WHERE lower(trim(name))=lower(trim($1)) OR ($2 <> '' AND ein=$2) LIMIT 1",
           [data.name, data.ein],
         );
         if (duplicate.rowCount)
-          throw new Error(`Linha ${index + 2}: empresa já cadastrada (nome ou EIN).`);
+          throw new Error(`Row ${index + 2}: company already exists (name or EIN).`);
       }
       id = data.id;
       if (id) {

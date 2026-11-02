@@ -26,7 +26,7 @@ export const importSpreadsheet = defineJsonOperation({ method: "POST" })
       ).saveCompany(companies[0]!, { rows: companies, preview: data.preview });
       return { result: { success: true, count: companies.length } };
     }
-    if (!data.companyId) throw new Error("Selecione a empresa de destino.");
+    if (!data.companyId) throw new Error("Select the destination company.");
     return (await import("./accounting.server")).execute(
       {
         companyId: data.companyId,

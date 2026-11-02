@@ -34,12 +34,12 @@ for (const domain of Object.keys(importCatalog)) {
   }
   const workbook = new Workbook();
   await workbook.xlsx.load(await blob.arrayBuffer());
-  assert.equal(workbook.getWorksheet("Dados").rowCount, 2);
+  assert.equal(workbook.getWorksheet("Data").rowCount, 2);
   assert.equal(
-    workbook.getWorksheet("Dados").getCell("A2").value,
+    workbook.getWorksheet("Data").getCell("A2").value,
     importExample(domain)[importColumns(domain)[0].path],
   );
-  assert.ok(workbook.getWorksheet("Dados").getCell("A2").note);
+  assert.ok(workbook.getWorksheet("Data").getCell("A2").note);
 }
 assert.equal(
   parseImportRows("companies", [{ ...importExample("companies"), ein: "12-3456789" }])[0].ein,
@@ -47,18 +47,18 @@ assert.equal(
 );
 assert.throws(
   () => parseImportRows("companies", [{ ...importExample("companies"), state: "XX" }]),
-  /Linha 2/,
+  /Row 2/,
 );
 assert.equal(
   parseImportRows("customers", [{ displayName: "Cliente" }])[0].shippingSameAsBilling,
   true,
 );
-assert.throws(() => parseImportRows("customers", [{ displayName: "" }]), /Linha 2/);
-assert.throws(() => parseImportRows("customers", []), /1.000/);
-assert.throws(() => parseImportRows("customers", Array(1001).fill({ displayName: "X" })), /1.000/);
+assert.throws(() => parseImportRows("customers", [{ displayName: "" }]), /Row 2/);
+assert.throws(() => parseImportRows("customers", []), /1,000/);
+assert.throws(() => parseImportRows("customers", Array(1001).fill({ displayName: "X" })), /1,000/);
 assert.throws(
   () => parseImportRows("customers", [{ displayName: "X", taxExempt: "talvez" }]),
-  /true ou false/,
+  /true or false/,
 );
 assert.equal(
   parseImportRows("customers", [
@@ -68,7 +68,7 @@ assert.equal(
 );
 assert.throws(
   () => parseImportRows("costCenters", [{ annualBudget: "1.000,00" }]),
-  /ponto decimal/,
+  /decimal point/,
 );
 const book = new Workbook();
 const sheet = book.addWorksheet("Dados");
@@ -80,9 +80,9 @@ assert.equal(
   "Cliente de teste",
 );
 await assert.rejects(() => readImportWorkbook(new File([""], "dados.csv"), "customers"), /xlsx/);
-await assert.rejects(async () => readImportWorkbook(await file(), "vendors"), /Cabeçalhos/);
+await assert.rejects(async () => readImportWorkbook(await file(), "vendors"), /Headers/);
 sheet.getCell("A2").value = { formula: '"Cliente"', result: "Cliente" };
-await assert.rejects(async () => readImportWorkbook(await file(), "customers"), /fórmulas/);
+await assert.rejects(async () => readImportWorkbook(await file(), "customers"), /formulas/);
 const state = createInitialCompanyData();
 const company = {
   id: "test",
