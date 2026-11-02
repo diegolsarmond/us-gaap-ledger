@@ -126,6 +126,7 @@ try {
   await migration("019_structured_audit.sql");
   await migration("020_journal_entries.sql");
   await migration("021_journal_entries_upgrade.sql");
+  await migration("022_journal_incomplete_drafts.sql");
   assert.deepEqual(
     (await client.query("SELECT before_data,after_data FROM system_audit_log WHERE id=$1", [event]))
       .rows[0],

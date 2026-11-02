@@ -115,6 +115,23 @@ try {
     ],
   };
   const call = (operation, extra = {}) => run({ companyId: company, operation, ...extra });
+  const incomplete = (
+    await call("save", {
+      value: {
+        ...value,
+        description: "",
+        lines: [
+          { accountCode: "", description: "", debit: "", credit: "" },
+          { accountCode: "", description: "", debit: "", credit: "" },
+        ],
+      },
+    })
+  ).entry;
+  await assert.rejects(
+    () => call("submit", { id: incomplete.id, version: incomplete.version }),
+    /operational event/,
+  );
+  assert.equal(incomplete.accounting_date, "2026-01-10");
   let j = (await call("save", { value })).entry;
   assert.equal(j.status, "Draft");
   assert.equal(
@@ -249,7 +266,11 @@ try {
       a.code === "1000" ? { ...a, costCenterRequired: true } : a,
     ),
   });
-  await assert.rejects(() => call("save", { value }), /cost center/);
+  const missingCenter = (await call("save", { value })).entry;
+  await assert.rejects(
+    () => call("submit", { id: missingCenter.id, version: missingCenter.version }),
+    /cost center/,
+  );
   await saveConfiguration({ ...configuration, approvalRequired: false, openingDate: "2026-01-01" });
   const direct = (await call("save", { value })).entry;
   await assert.rejects(
@@ -301,6 +322,16 @@ try {
   await client.query("UPDATE journal_entries SET status='Posted' WHERE id=$1", [draft.id]);
   await assert.rejects(() => client.query("COMMIT"), /balance/);
   await client.query("ROLLBACK");
+  const { accountingDateLabel, updateJournalLines } = await import("../src/lib/journal-model.ts");
+  assert.equal(accountingDateLabel("2026-11-02"), "November 2, 2026");
+  assert.equal(accountingDateLabel("2026-02-11"), "February 11, 2026");
+  assert.equal(accountingDateLabel("02/11/2026"), "");
+  const changed = updateJournalLines(value.lines, 0, { credit: "12.50" });
+  assert.equal(changed[0].debit, "0");
+  assert.equal(changed[0].credit, "12.50");
+  assert.deepEqual(changed[1], value.lines[1]);
+  assert.equal(updateJournalLines(changed, 0, { debit: "3" })[0].credit, "0");
+  assert.equal(updateJournalLines(value.lines, 0, { accountCode: "4000" })[1].accountCode, "4000");
   const { convertedUnits } = await import("../src/lib/journal-model.ts");
   assert.equal(convertedUnits("0.30", "1.123456789012"), 3400n);
   const pool = new pg.Pool({

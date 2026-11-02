@@ -3,7 +3,14 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import { loadAccounting } from "@/lib/accounting";
-import { amountUnits, convertedUnits, unitsAmount, type JournalInput } from "@/lib/journal-model";
+import {
+  amountUnits,
+  convertedUnits,
+  unitsAmount,
+  updateJournalLines,
+  accountingDateLabel,
+  type JournalInput,
+} from "@/lib/journal-model";
 import { PageTitle, Panel, Badge } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { exportToCsv } from "@/lib/format";
@@ -147,6 +154,25 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
   });
   const permissions = listing.data?.permissions;
   const e = detail.data?.entry;
+  const entryTotals = (detail.data?.lines ?? []).reduce(
+    (totals, line) => ({
+      debit: totals.debit + amountUnits(line.debit),
+      credit: totals.credit + amountUnits(line.credit),
+      baseDebit: totals.baseDebit + amountUnits(line.base_debit),
+      baseCredit: totals.baseCredit + amountUnits(line.base_credit),
+    }),
+    { debit: 0n, credit: 0n, baseDebit: 0n, baseCredit: 0n },
+  );
+  const entryBalanced =
+    (detail.data?.lines.length ?? 0) >= 2 &&
+    !!e?.description.trim() &&
+    !!detail.data?.lines.every(
+      (line) =>
+        line.account_code && (amountUnits(line.debit) > 0n || amountUnits(line.credit) > 0n),
+    ) &&
+    entryTotals.debit > 0n &&
+    entryTotals.debit === entryTotals.credit &&
+    entryTotals.baseDebit === entryTotals.baseCredit;
   const data = settings.data?.state;
   let baseDebit = 0n,
     baseCredit = 0n;
@@ -202,7 +228,7 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
         exchangeRate: d.entry.exchange_rate,
         exchangeRateSource: d.entry.exchange_rate_source,
         lines: d.lines.map((l) => ({
-          accountCode: l.account_code,
+          accountCode: l.account_code || "",
           description: l.description,
           debit: l.debit,
           credit: l.credit,
@@ -218,7 +244,10 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
     }, "");
   }
   const updateLine = (index: number, patch: Partial<JournalInput["lines"][number]>) =>
-    setForm({ ...form, lines: form.lines.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
+    setForm((previous) => ({
+      ...previous,
+      lines: updateJournalLines(previous.lines, index, patch),
+    }));
   return (
     <div className="space-y-4">
       <PageTitle
@@ -298,9 +327,13 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                   required
                   type="date"
                   className={control}
+                  lang="en-US"
                   value={form.accountingDate}
                   onChange={(v) => setForm({ ...form, accountingDate: v.target.value })}
                 />
+                <span className="block text-xs text-ink3">
+                  {accountingDateLabel(form.accountingDate)} · YYYY-MM-DD: {form.accountingDate}
+                </span>
               </label>
               <label>
                 Journal type
@@ -335,7 +368,7 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
               <label className="sm:col-span-2">
                 Description
                 <input
-                  required
+                  placeholder="e.g. Record November office rent payment"
                   maxLength={4000}
                   className={control}
                   value={form.description}
@@ -418,7 +451,6 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                     <tr key={i}>
                       <td className="min-w-60 p-1">
                         <select
-                          required
                           aria-label={`Account line ${i + 1}`}
                           className={control}
                           value={l.accountCode}
@@ -446,7 +478,6 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                       </td>
                       <td className="min-w-28 p-1">
                         <input
-                          required
                           aria-label={`Debit line ${i + 1}`}
                           inputMode="decimal"
                           className={control}
@@ -456,7 +487,6 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                       </td>
                       <td className="min-w-28 p-1">
                         <input
-                          required
                           aria-label={`Credit line ${i + 1}`}
                           inputMode="decimal"
                           className={control}
@@ -519,11 +549,14 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                 </tbody>
               </table>
             </div>
-            <p className="font-mono text-sm" aria-live="polite">
+            <p
+              className={`font-mono text-sm ${debit !== credit ? "font-bold text-red-700" : ""}`}
+              aria-live="polite"
+            >
               Debit {unitsAmount(debit)} · Credit {unitsAmount(credit)} · Difference{" "}
               {unitsAmount(debit - credit)} {form.currency}
             </p>
-            <p className="font-mono text-sm" aria-live="polite">
+            <p className={`font-mono text-sm ${baseDebit !== baseCredit ? "font-bold text-red-700" : ""}`} aria-live="polite">
               Base debit {unitsAmount(baseDebit)} · Base credit {unitsAmount(baseCredit)} · Base
               difference {unitsAmount(baseDebit - baseCredit)} USD
             </p>
@@ -745,7 +778,7 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
           </Panel>
           {selected && (
             <Panel
-              title="Journal detail & audit"
+              title="Journal detail"
               aside={
                 <button className={button} onClick={() => setSelected(null)}>
                   Close
@@ -815,6 +848,28 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                         </tbody>
                       </table>
                     </div>
+                    <div
+                      className={`space-y-1 rounded-md border p-3 text-sm ${entryBalanced ? "border-line" : "border-red-300 bg-red-50 text-red-800"}`}
+                    >
+                      <p className="font-mono">
+                        Debit {unitsAmount(entryTotals.debit)} · Credit{" "}
+                        {unitsAmount(entryTotals.credit)} · Difference{" "}
+                        {unitsAmount(entryTotals.debit - entryTotals.credit)}{" "}
+                        {e.transaction_currency}
+                      </p>
+                      <p className="font-mono">
+                        Base debit {unitsAmount(entryTotals.baseDebit)} · Base credit{" "}
+                        {unitsAmount(entryTotals.baseCredit)} · Difference{" "}
+                        {unitsAmount(entryTotals.baseDebit - entryTotals.baseCredit)}{" "}
+                        {e.functional_currency}
+                      </p>
+                      {!entryBalanced && (
+                        <p role="status">
+                          This journal is incomplete or unbalanced. Edit the draft and review the
+                          details before submitting for approval or posting.
+                        </p>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {e.status === "Draft" && permissions?.create && (
                         <>
@@ -822,7 +877,7 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                             Edit draft
                           </button>
                           <button
-                            disabled={busy}
+                            disabled={busy || !entryBalanced}
                             className={button}
                             onClick={() => action("submit")}
                           >
@@ -858,7 +913,11 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                       {permissions?.post &&
                         (e.status === "Approved" ||
                           (!listing.data?.policy.approval_required && e.status === "Draft")) && (
-                          <button disabled={busy} className={button} onClick={() => action("post")}>
+                          <button
+                            disabled={busy || !entryBalanced}
+                            className={button}
+                            onClick={() => action("post")}
+                          >
                             Post to General Ledger
                           </button>
                         )}
@@ -893,16 +952,6 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                         </button>
                       </div>
                     )}
-                    <h3 className="font-semibold">Audit history</h3>
-                    <ol className="space-y-2 text-sm">
-                      {detail.data?.events.map((event) => (
-                        <li key={event.id}>
-                          {new Date(event.occurred_at).toLocaleString()} · {event.actor_name} ·{" "}
-                          {event.action}
-                          {event.reason && ` · ${event.reason}`}
-                        </li>
-                      ))}
-                    </ol>
                   </div>
                 )
               )}

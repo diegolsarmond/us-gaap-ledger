@@ -1,13 +1,18 @@
 import { z } from "zod";
 const money = z
   .string()
-  .regex(/^\d{1,15}(\.\d{1,4})?$/, "Use a nonnegative decimal amount with up to four decimals");
+  .transform((value) => value.trim() || "0")
+  .pipe(
+    z
+      .string()
+      .regex(/^\d{1,15}(\.\d{1,4})?$/, "Use a nonnegative decimal amount with up to four decimals"),
+  );
 export const journalInput = z.object({
   journalType: z
     .enum(["Manual", "Automatic", "Adjustment", "Opening", "Reclassification"])
     .default("Manual"),
   accountingDate: z.string().date(),
-  description: z.string().trim().min(1).max(4000),
+  description: z.string().trim().max(4000),
   reference: z.string().max(300).default(""),
   currency: z.string().regex(/^[A-Z]{3}$/),
   exchangeRate: z
@@ -18,7 +23,7 @@ export const journalInput = z.object({
   lines: z
     .array(
       z.object({
-        accountCode: z.string().min(1).max(100),
+        accountCode: z.string().max(100),
         description: z.string().max(2000).default(""),
         debit: money,
         credit: money,
@@ -98,4 +103,25 @@ export function convertedUnits(value: string, rate: string): bigint {
   const product = amountUnits(value) * rateUnits;
   // PostgreSQL NUMERIC round(value,2), expressed in four-place UI units.
   return ((product + 50000000000000n) / 100000000000000n) * 100n;
+}
+export function updateJournalLines(
+  lines: JournalInput["lines"],
+  index: number,
+  patch: Partial<JournalInput["lines"][number]>,
+): JournalInput["lines"] {
+  const next = { ...patch };
+  if (next.debit && /^\d*(\.\d{0,4})?$/.test(next.debit) && amountUnits(next.debit) > 0n)
+    next.credit = "0";
+  if (next.credit && /^\d*(\.\d{0,4})?$/.test(next.credit) && amountUnits(next.credit) > 0n)
+    next.debit = "0";
+  return lines.map((line, i) => (i === index ? { ...line, ...next } : line));
+}
+export function accountingDateLabel(date: string): string {
+  if (!z.string().date().safeParse(date).success) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(date + "T00:00:00Z"));
 }

@@ -22,6 +22,10 @@ try {
     readFileSync(new URL("../database/021_journal_entries_upgrade.sql", import.meta.url), "utf8"),
   );
   console.log("Verified forward-compatible journal schema (021).");
+  await client.query(
+    readFileSync(new URL("../database/022_journal_incomplete_drafts.sql", import.meta.url), "utf8"),
+  );
+  console.log("Verified incomplete draft support (022).");
 } finally {
   await client.end();
 }

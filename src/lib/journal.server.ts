@@ -55,7 +55,10 @@ async function validate(
   v: JournalInput,
   soft: boolean,
   posting = false,
+  draft = false,
 ) {
+  if (!draft && !v.description.trim())
+    throw new Error("Describe the operational event before submitting.");
   if (v.journalType === "Opening") {
     const policy = (
       await c.query("SELECT opening_date::text FROM accounting_policies WHERE company_id=$1", [
@@ -115,7 +118,7 @@ async function validate(
   ).rows;
   for (const l of v.lines) {
     if (
-      !accounts!.some((a) => a["code"] === l.accountCode) ||
+      (!(draft && !l.accountCode) && !accounts!.some((a) => a["code"] === l.accountCode)) ||
       accounts!.some((a) => a["parentCode"] === l.accountCode)
     )
       throw new Error("Select an existing analytical account belonging to this company.");
@@ -126,7 +129,7 @@ async function validate(
         !r.posting_allowed ||
         (r.valid_from && r.valid_from > v.accountingDate) ||
         (r.valid_to && r.valid_to < v.accountingDate) ||
-        (r.cost_center_required && !l.costCenterId))
+        (!draft && r.cost_center_required && !l.costCenterId))
     )
       throw new Error("Account is inactive, blocked, outside validity or requires a cost center.");
     for (const [id, records] of [
@@ -138,8 +141,8 @@ async function validate(
       if (id && !records!.some((x) => x["id"] === id && x["status"] !== "Inactive"))
         throw new Error("Dimension does not belong to this company or is inactive.");
     const amount = await c.query(
-      `SELECT $1::numeric>=0 AND $2::numeric>=0 AND (($1::numeric>0 AND $2::numeric=0) OR ($2::numeric>0 AND $1::numeric=0)) AND round($1::numeric,$3)=$1::numeric AND round($2::numeric,$3)=$2::numeric AS valid`,
-      [l.debit, l.credit, precision],
+      `SELECT $1::numeric>=0 AND $2::numeric>=0 AND (($1::numeric>0 AND $2::numeric=0) OR ($2::numeric>0 AND $1::numeric=0) OR ($4::boolean AND $1::numeric=0 AND $2::numeric=0)) AND round($1::numeric,$3)=$1::numeric AND round($2::numeric,$3)=$2::numeric AS valid`,
+      [l.debit, l.credit, precision, draft],
     );
     if (!amount.rows[0].valid)
       throw new Error("Each line needs one positive debit or credit at the currency precision.");
@@ -161,7 +164,7 @@ async function replaceLines(c: PoolClient, j: Journal, v: JournalInput) {
         j.company_id,
         j.id,
         i + 1,
-        l.accountCode,
+        l.accountCode || null,
         l.description,
         l.debit,
         l.credit,
@@ -197,7 +200,7 @@ function toInput(j: Journal, ls: Line[]): JournalInput {
     exchangeRate: j.exchange_rate,
     exchangeRateSource: j.exchange_rate_source,
     lines: ls.map((l) => ({
-      accountCode: l.account_code,
+      accountCode: l.account_code || "",
       description: l.description,
       debit: l.debit,
       credit: l.credit,
@@ -409,7 +412,14 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
             throw new Error("Source metadata requires the accounting events API.");
           if (v.journalType === "Automatic" && input.operation !== "event")
             throw new Error("Automatic journals require an accounting event.");
-          const period = await validate(c, input.companyId, v, grant.soft);
+          const period = await validate(
+            c,
+            input.companyId,
+            v,
+            grant.soft,
+            false,
+            input.operation === "save",
+          );
           if (!j)
             j = await create(
               c,
