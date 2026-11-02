@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:companies": "node --env-file-if-exists=.env scripts/test-companies.mjs",
-    "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs"
+    "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs",
+    "test:journals": "node --env-file-if-exists=.env scripts/test-journals.mjs",
+    "migrate:journals": "node --env-file-if-exists=.env scripts/migrate-journals.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

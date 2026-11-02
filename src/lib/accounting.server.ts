@@ -198,6 +198,8 @@ export async function execute(input: {
 }) {
   if (!Object.hasOwn(commandArgs, input.command)) throw new Error("Operação inválida.");
   const command = input.command as AccountingCommand;
+  if (command === "postJournalEntry" || command === "reverseJournalEntry")
+    throw new Error("Use the Journal Entries posting engine.");
   // Optional positional arguments omitted by JSON serialization still have stable tuple positions.
   const raw = [...input.args];
   const schema = commandArgs[command];

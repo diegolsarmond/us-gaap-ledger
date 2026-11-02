@@ -1,695 +1,914 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AccountingProvider, useAccounting, type JournalEntry } from "@/lib/accounting-store";
-import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
-import { dash, formatDate, acct, exportToCsv, usd } from "@/lib/format";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCompanies } from "@/components/company-context";
+import { loadAccounting } from "@/lib/accounting";
+import { amountUnits, convertedUnits, unitsAmount, type JournalInput } from "@/lib/journal-model";
+import { PageTitle, Panel, Badge } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
-import { useModal } from "@/components/modal-provider";
-import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
-
+import { exportToCsv } from "@/lib/format";
 export const Route = createFileRoute("/journals")({
   head: () =>
     pageHead(
-      "General Ledger & Double-Entry Journals · LedgerX",
-      "Immutable double-entry transaction journals with debit/credit balance validation and audit trail logging.",
+      "Journal Entries · LedgerX",
+      "Create, approve, post and reverse double-entry journals.",
     ),
-  component: () => (
-    <AccountingProvider>
-      <JournalsPage />
-    </AccountingProvider>
-  ),
+  component: JournalsPage,
 });
-
-function JournalsPage() {
-  const modal = useModal();
-  const {
-    activeCompany,
-    journals,
-    accounts,
-    projects,
-    postJournalEntry,
-    reverseJournalEntry,
-    isLedgerBalanced,
-    totalDebitSum,
-    totalCreditSum,
-    userPersona,
-  } = useAccounting();
-
-  // Screen View Mode
-  const [view, setView] = useState<"list" | "create">("list");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-
-  // New Journal Form State
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [memo, setMemo] = useState("");
-  const [selectedProject, setSelectedProject] = useState("");
-  const [lines, setLines] = useState<
-    { accountCode: string; debit: string; credit: string; memo: string }[]
-  >([
-    { accountCode: "", debit: "", credit: "", memo: "" },
-    { accountCode: "", debit: "", credit: "", memo: "" },
-  ]);
-  const [overrideReason, setOverrideReason] = useState("");
-
-  const totalDebits = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
-  const totalCredits = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
-  const diff = Math.round(Math.abs(totalDebits - totalCredits) * 100) / 100;
-  const isBalanced = diff < 0.01 && totalDebits > 0;
-
-  const handleAddLine = () => {
-    setLines([...lines, { accountCode: "", debit: "0.00", credit: "0.00", memo: "" }]);
+interface Entry {
+  id: string;
+  version: number;
+  journal_number: string | null;
+  accounting_date: string;
+  journal_type: string;
+  description: string;
+  reference: string;
+  status: string;
+  transaction_currency: string;
+  functional_currency: string;
+  exchange_rate: string;
+  exchange_rate_source: string;
+  fiscal_period_id: string;
+  source_module: string;
+  created_by: string;
+  creator_name: string;
+  created_at: string;
+  total: string;
+}
+interface Line {
+  account_code: string;
+  description: string;
+  debit: string;
+  credit: string;
+  base_debit: string;
+  base_credit: string;
+  cost_center_id: string | null;
+  project_id: string | null;
+  customer_id: string | null;
+  vendor_id: string | null;
+}
+interface Detail {
+  entry: Entry;
+  lines: Line[];
+  events: { id: string; action: string; reason: string; actor_name: string; occurred_at: string }[];
+}
+interface Listing {
+  entries: Entry[];
+  count: number;
+  permissions: {
+    create: boolean;
+    approve: boolean;
+    post: boolean;
+    reverse: boolean;
+    soft: boolean;
   };
-
-  const handleRemoveLine = (idx: number) => {
-    if (lines.length <= 2) return;
-    setLines(lines.filter((_, i) => i !== idx));
-  };
-
-  const handleUpdateLine = (
-    idx: number,
-    field: "accountCode" | "debit" | "credit" | "memo",
-    val: string,
-  ) => {
-    const next = [...lines];
-    next[idx]![field] = val;
-    setLines(next);
-  };
-
-  const handlePost = async (e: React.FormEvent) => {
-    try {
-      e.preventDefault();
-
-      if (!memo.trim()) {
-        await modal.showAlert({
-          title: "Histórico Obrigatório",
-          message: "Por favor informe a descrição / histórico do lançamento contábil.",
-          tone: "warning",
-        });
-        return;
-      }
-
-      if (!isBalanced) {
-        await modal.showAlert({
-          title: "Partidas Dobradas Desbalanceadas",
-          message: `O lançamento contábil não está equilibrado.\n\nTotal Débitos: ${usd(totalDebits)}\nTotal Créditos: ${usd(totalCredits)}\nDiferença: ${usd(diff)}\n\nConforme os princípios US GAAP, o total de débitos deve ser rigorosamente idêntico ao total de créditos.`,
-          tone: "error",
-        });
-        return;
-      }
-
-      const payloadLines = lines.map((l) => ({
-        accountCode: l.accountCode,
-        debit: Number(l.debit) || 0,
-        credit: Number(l.credit) || 0,
-        memo: l.memo || memo,
-        projectId: selectedProject || undefined,
-      }));
-
-      const result = await postJournalEntry({
-        date,
-        memo,
-        sourceType: "Manual",
-        lines: payloadLines,
-        overrideReason: activeCompany.isPeriodClosed ? overrideReason : undefined,
-      });
-
-      if (result.success) {
-        const entryId = result.entryId;
-        setMemo("");
-        setOverrideReason("");
-        setLines([
-          { accountCode: "", debit: "0.00", credit: "0.00", memo: "" },
-          { accountCode: "", debit: "0.00", credit: "0.00", memo: "" },
-        ]);
-        setView("list");
-        await modal.showAlert({
-          title: "Lançamento Contábil Postado",
-          message: `Lote de partidas dobradas ${entryId} postado com sucesso no Razão Geral!\nValor total equilibrado: ${usd(totalDebits)}.`,
-          tone: "success",
-        });
-      } else {
-        await modal.showAlert({
-          title: "Erro ao Postar Lançamento",
-          message: result.error || "Não foi possível postar o lançamento contábil.",
-          tone: "error",
-        });
-      }
-    } catch {
-      /* The company provider displays the server error and preserves the form. */
-    }
-  };
-
-  const handleReverse = async (entry: JournalEntry) => {
-    try {
-      const reason = await modal.showPrompt({
-        title: `Estornar Lançamento: ${entry.id}`,
-        message: `Informe a justificativa formal de auditoria para estornar o lançamento contábil ${entry.id} (${entry.memo}):`,
-        defaultValue: "Correção de classificação contábil conforme revisão do auditor.",
-        placeholder: "Motivo do estorno...",
-        confirmText: "Efetuar Estorno",
-        cancelText: "Cancelar",
-      });
-      if (!reason) return;
-
-      const res = await reverseJournalEntry(entry.id, reason);
-      if (!res.success) {
-        await modal.showAlert({
-          title: "Erro no Estorno",
-          message: res.error || "Não foi possível efetuar o estorno.",
-          tone: "error",
-        });
-      } else {
-        await modal.showAlert({
-          title: "Lançamento Estornado",
-          message: `O lançamento ${entry.id} foi estornado com sucesso. Um contra-lançamento compensatório foi gerado no Razão Geral.`,
-          tone: "success",
-        });
-      }
-    } catch {
-      /* The company provider displays the server error and preserves the form. */
-    }
-  };
-
-  const handleExportCsv = () => {
-    const headers = [
-      "Entry ID",
-      "Date",
-      "Memo",
-      "Source Type",
-      "Account",
-      "Account Name",
-      "Debit ($)",
-      "Credit ($)",
-      "Project",
-      "Status",
-    ];
-    const rows: (string | number)[][] = [];
-
-    journals.forEach((j) => {
-      j.lines.forEach((l) => {
-        const acctObj = accounts.find((a) => a.code === l.accountCode);
-        rows.push([
-          j.id,
-          j.date,
-          j.memo,
-          j.sourceType,
-          l.accountCode,
-          acctObj ? acctObj.name : "",
-          l.debit,
-          l.credit,
-          l.projectId || "",
-          j.status,
-        ]);
-      });
-    });
-
-    exportToCsv(`${activeCompany.id}_general_ledger`, headers, rows);
-  };
-
-  const filteredJournals = journals.filter((j) => {
-    return (
-      j.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      j.memo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      j.lines.some((l) => l.accountCode.includes(searchQuery))
-    );
+  policy: { approval_required: boolean; segregate_approval: boolean };
+}
+const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";
+const button = "rounded-md border border-line px-3 py-2 text-sm font-medium disabled:opacity-40";
+const blank = (): JournalInput => ({
+  journalType: "Manual",
+  accountingDate: new Date().toLocaleDateString("en-CA"),
+  description: "",
+  reference: "",
+  currency: "USD",
+  exchangeRate: "1",
+  exchangeRateSource: "Functional currency parity",
+  lines: [
+    { accountCode: "", description: "", debit: "0", credit: "0" },
+    { accountCode: "", description: "", debit: "0", credit: "0" },
+  ],
+});
+async function api<T>(companyId: string, path = "", method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(`/api/journal-entries${path}?companyId=${companyId}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
-
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error ?? "Request failed");
+  return data as T;
+}
+function JournalsPage() {
+  const { activeCompany } = useCompanies();
+  if (!activeCompany) return <p>Select a company to manage journals.</p>;
+  return (
+    <JournalWorkspace
+      key={activeCompany.id}
+      companyId={activeCompany.id}
+      companyName={activeCompany.name}
+    />
+  );
+}
+function JournalWorkspace({ companyId, companyName }: { companyId: string; companyName: string }) {
+  const cache = useQueryClient();
+  const { user } = useCompanies();
+  const [filters, setFilters] = useState({
+    from: "",
+    to: "",
+    status: "",
+    search: "",
+    account: "",
+    period: "",
+    type: "",
+    source: "",
+    creator: "",
+    costCenter: "",
+  });
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editVersion, setEditVersion] = useState<number | undefined>();
+  const [form, setForm] = useState<JournalInput>(blank);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reversalDate, setReversalDate] = useState(blank().accountingDate);
+  const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v));
+  params.set("page", String(page));
+  const listing = useQuery({
+    queryKey: ["journal-list", companyId, filters, page],
+    queryFn: async () => {
+      const response = await fetch(`/api/journal-entries?companyId=${companyId}&${params}`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      return body as Listing;
+    },
+  });
+  const settings = useQuery({
+    queryKey: ["journal-parameters", companyId],
+    queryFn: () => loadAccounting({ data: { companyId } }),
+  });
+  const detail = useQuery({
+    queryKey: ["journal-detail", companyId, selected],
+    queryFn: () => api<Detail>(companyId, `/${selected}`),
+    enabled: !!selected,
+  });
+  const permissions = listing.data?.permissions;
+  const e = detail.data?.entry;
+  const data = settings.data?.state;
+  let baseDebit = 0n,
+    baseCredit = 0n;
+  let debit = 0n,
+    credit = 0n,
+    invalid = false;
+  try {
+    for (const l of form.lines) {
+      debit += amountUnits(l.debit);
+      baseDebit += convertedUnits(l.debit, form.exchangeRate);
+      baseCredit += convertedUnits(l.credit, form.exchangeRate);
+      credit += amountUnits(l.credit);
+    }
+  } catch {
+    invalid = true;
+  }
+  const change = (key: keyof typeof filters, value: string) => {
+    setFilters({ ...filters, [key]: value });
+    setPage(0);
+  };
+  async function perform(work: () => Promise<unknown>, success: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await work();
+      await cache.invalidateQueries({ queryKey: ["journal-list", companyId] });
+      await cache.invalidateQueries({ queryKey: ["journal-detail", companyId] });
+      await cache.invalidateQueries({ queryKey: ["accounting", companyId] });
+      setMessage(success);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function action(action: string) {
+    if (!e) return;
+    void perform(
+      () =>
+        api(companyId, `/${e.id}/${action}`, "POST", { version: e.version, reason, reversalDate }),
+      `Journal ${action} completed.`,
+    );
+  }
+  async function edit(entry: Entry) {
+    await perform(async () => {
+      const d = await api<Detail>(companyId, `/${entry.id}`);
+      setForm({
+        journalType: d.entry.journal_type as JournalInput["journalType"],
+        accountingDate: d.entry.accounting_date,
+        description: d.entry.description,
+        reference: d.entry.reference,
+        currency: d.entry.transaction_currency,
+        exchangeRate: d.entry.exchange_rate,
+        exchangeRateSource: d.entry.exchange_rate_source,
+        lines: d.lines.map((l) => ({
+          accountCode: l.account_code,
+          description: l.description,
+          debit: l.debit,
+          credit: l.credit,
+          ...(l.cost_center_id ? { costCenterId: l.cost_center_id } : {}),
+          ...(l.project_id ? { projectId: l.project_id } : {}),
+          ...(l.customer_id ? { customerId: l.customer_id } : {}),
+          ...(l.vendor_id ? { vendorId: l.vendor_id } : {}),
+        })),
+      });
+      setEditId(entry.id);
+      setEditVersion(entry.version);
+      setEditing(true);
+    }, "");
+  }
+  const updateLine = (index: number, patch: Partial<JournalInput["lines"][number]>) =>
+    setForm({ ...form, lines: form.lines.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   return (
     <div className="space-y-4">
-      {view === "list" ? (
-        /* ================= TELA DE LISTAGEM ================= */
-        <div className="space-y-4">
-          {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
-            <PageTitle
-              title="General Ledger & Double-Entry Journals"
-              description={`Comprehensive double-entry transaction journal for ${activeCompany.name} · US GAAP Standard`}
-            />
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                className="rounded-md bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink ring-1 ring-line hover:bg-white shadow-2xs transition-colors cursor-pointer"
-              >
-                Export Ledger (CSV)
-              </button>
-              {userPersona.canCreateJournals && (
-                <button
-                  type="button"
-                  onClick={() => setView("create")}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Plus className="size-4" />
-                  Novo Lançamento Contábil
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Period Locking Alert */}
-          {activeCompany.isPeriodClosed && (
-            <div className="rounded-lg bg-down/[0.08] p-3 text-down ring-1 ring-down/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[12.5px]">
-              <span className="font-semibold">
-                Aviso: O período contábil {activeCompany.activePeriod} está Bloqueado (Closed).
-              </span>
-              <span>
-                Lançamentos manuais requerem perfil de Administrador e justificativa formal de
-                auditoria.
-              </span>
-            </div>
-          )}
-
-          {/* Search bar & Ledger Balance */}
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por lote, histórico ou conta contábil..."
-                className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
-              />
-            </div>
-            <div className="self-start sm:self-auto">
-              <Badge tone={isLedgerBalanced ? "up" : "down"}>
-                {isLedgerBalanced
-                  ? `Razão Equilibrado: Total Débitos = Total Créditos (${usd(totalDebitSum)})`
-                  : `Desbalanço Geral: ${acct(totalDebitSum - totalCreditSum)}`}
-              </Badge>
-            </div>
-          </div>
-
-          {/* General Ledger Table Full Width */}
-          <Panel
-            title="General Ledger Register"
-            subtitle={`${filteredJournals.length} de ${journals.length} lotes de lançamentos registrados`}
+      <PageTitle
+        title="Journal Entries"
+        description={`${companyName} · Accrual accounting · Functional currency USD`}
+        actions={
+          <>
+            <button
+              className={button}
+              disabled={busy || !permissions?.create}
+              onClick={() => {
+                setForm(blank());
+                setEditId(null);
+                setEditing(true);
+                setSelected(null);
+              }}
+            >
+              New journal
+            </button>
+            <button
+              className={button}
+              disabled={!listing.data?.entries.length}
+              onClick={() =>
+                exportToCsv(
+                  "journal-entries-page.csv",
+                  ["Number", "Date", "Description", "Status", "Currency", "Debit", "Source"],
+                  (listing.data?.entries ?? []).map((j) => [
+                    j.journal_number ?? j.id,
+                    j.accounting_date,
+                    j.description,
+                    j.status,
+                    j.transaction_currency,
+                    j.total,
+                    j.source_module,
+                  ]),
+                )
+              }
+            >
+              Export page CSV
+            </button>
+          </>
+        }
+      />
+      {message && (
+        <p role="status" className="rounded-md border border-line p-3 text-sm">
+          {message}
+        </p>
+      )}
+      {(listing.error || settings.error) && (
+        <p role="alert">{(listing.error ?? settings.error)?.message}</p>
+      )}
+      {editing ? (
+        <Panel
+          title={editId ? "Edit draft" : "New journal"}
+          subtitle="Drafts do not affect the General Ledger. Exchange rates are retained when posted."
+        >
+          <form
+            className="space-y-4 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void perform(async () => {
+                const r = await api<{ entry: Entry }>(
+                  companyId,
+                  editId ? `/${editId}` : "",
+                  editId ? "PATCH" : "POST",
+                  { value: form, ...(editId ? { version: editVersion } : {}) },
+                );
+                setEditing(false);
+                setSelected(r.entry.id);
+              }, "Draft saved.");
+            }}
           >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label>
+                Accounting date
+                <input
+                  required
+                  type="date"
+                  className={control}
+                  value={form.accountingDate}
+                  onChange={(v) => setForm({ ...form, accountingDate: v.target.value })}
+                />
+              </label>
+              <label>
+                Journal type
+                <select
+                  className={control}
+                  value={form.journalType}
+                  onChange={(v) =>
+                    setForm({ ...form, journalType: v.target.value as JournalInput["journalType"] })
+                  }
+                >
+                  {["Manual", "Adjustment", "Opening", "Reclassification"].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Fiscal period
+                <input
+                  readOnly
+                  className={control}
+                  value={
+                    data?.fiscalPeriods
+                      .filter(
+                        (p) =>
+                          p.startDate <= form.accountingDate && p.endDate >= form.accountingDate,
+                      )
+                      .map((p) => `${p.periodCode} (${p.status})`)
+                      .join(", ") || "No matching period"
+                  }
+                />
+              </label>
+              <label className="sm:col-span-2">
+                Description
+                <input
+                  required
+                  maxLength={4000}
+                  className={control}
+                  value={form.description}
+                  onChange={(v) => setForm({ ...form, description: v.target.value })}
+                />
+              </label>
+              <label>
+                Reference
+                <input
+                  className={control}
+                  value={form.reference}
+                  onChange={(v) => setForm({ ...form, reference: v.target.value })}
+                />
+              </label>
+              <label>
+                Transaction currency
+                <select
+                  className={control}
+                  value={form.currency}
+                  onChange={(v) =>
+                    setForm({
+                      ...form,
+                      currency: v.target.value,
+                      exchangeRate: v.target.value === "USD" ? "1" : "",
+                      exchangeRateSource:
+                        v.target.value === "USD" ? "Functional currency parity" : "",
+                    })
+                  }
+                >
+                  {data?.currencies
+                    .filter((c) => c.status === "Active")
+                    .map((c) => (
+                      <option key={c.code}>{c.code}</option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                USD per transaction unit
+                <input
+                  required
+                  inputMode="decimal"
+                  className={control}
+                  value={form.exchangeRate}
+                  onChange={(v) => setForm({ ...form, exchangeRate: v.target.value })}
+                />
+              </label>
+              <label>
+                Rate source / dated evidence
+                <input
+                  required
+                  className={control}
+                  value={form.exchangeRateSource}
+                  onChange={(v) => setForm({ ...form, exchangeRateSource: v.target.value })}
+                />
+              </label>
+            </div>
             <div className="overflow-x-auto">
-              <Table>
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-line/60">
-                    <Th>Batch Entry</Th>
-                    <Th>Posting Date</Th>
-                    <Th>Transaction Memo / Narrative</Th>
-                    <Th>Source Type</Th>
-                    <Th align="right">Balanced Total</Th>
-                    <Th align="center">Status</Th>
-                    <Th align="center">Ação</Th>
+                  <tr>
+                    {[
+                      "Account",
+                      "Description",
+                      "Debit",
+                      "Credit",
+                      "Base debit (USD)",
+                      "Base credit (USD)",
+                      "Cost center",
+                      "Project",
+                      "",
+                    ].map((h, i) => (
+                      <th key={i} className="p-2 text-left">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredJournals.length === 0 ? (
-                    <tr>
-                      <Td colSpan={7} className="py-8 text-center text-[12px] text-ink3">
-                        Nenhum lançamento contábil encontrado para o termo pesquisado.
-                      </Td>
-                    </tr>
-                  ) : (
-                    filteredJournals.map((j) => {
-                      const batchTotal = j.lines.reduce((s, l) => s + l.debit, 0);
-                      const isSelected = selectedEntry?.id === j.id;
-
-                      return (
-                        <tr
-                          key={j.id}
-                          onClick={() => setSelectedEntry(isSelected ? null : j)}
-                          className={`border-b border-line/40 last:border-0 cursor-pointer transition-colors ${
-                            isSelected ? "bg-brand/5" : "hover:bg-black/[0.01]"
-                          }`}
+                  {form.lines.map((l, i) => (
+                    <tr key={i}>
+                      <td className="min-w-60 p-1">
+                        <select
+                          required
+                          aria-label={`Account line ${i + 1}`}
+                          className={control}
+                          value={l.accountCode}
+                          onChange={(v) => updateLine(i, { accountCode: v.target.value })}
                         >
-                          <Td className="font-mono text-[11.5px] font-semibold text-brand">
-                            {j.id}
-                          </Td>
-                          <Td className="text-ink3 text-[11.5px]">{formatDate(j.date)}</Td>
-                          <Td className="text-ink font-medium text-[12px]">
-                            {j.memo}
-                            {j.overrideReason && (
-                              <span className="block text-[10px] text-down">
-                                Justificativa Auditoria: {j.overrideReason}
-                              </span>
-                            )}
-                          </Td>
-                          <Td>
-                            <span className="rounded bg-black/[0.04] px-1.5 py-0.5 text-[10.5px] font-mono text-ink2">
-                              {j.sourceType}
-                            </span>
-                          </Td>
-                          <Td align="right" className="font-mono font-medium text-[12px]">
-                            {usd(batchTotal)}
-                          </Td>
-                          <Td align="center">
-                            <Badge tone={j.status === "Posted" ? "up" : "down"}>{j.status}</Badge>
-                          </Td>
-                          <Td align="center">
-                            <div
-                              className="flex items-center justify-center gap-1.5"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => setSelectedEntry(isSelected ? null : j)}
-                                className="rounded px-2 py-1 text-[11px] font-medium text-brand hover:underline"
-                              >
-                                {isSelected ? "Ocultar" : "Ver Partidas"}
-                              </button>
-                              {j.status === "Posted" &&
-                                j.sourceType === "Manual" &&
-                                userPersona.canCreateJournals && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleReverse(j)}
-                                    className="rounded bg-down/10 px-2 py-0.5 text-[11px] font-semibold text-down hover:bg-down/20 ring-1 ring-down/20 transition-colors"
-                                  >
-                                    Estornar
-                                  </button>
-                                )}
-                            </div>
-                          </Td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </Table>
-            </div>
-            <div className="p-4 border-t border-line/50">
-              <Note tone="brand">
-                US GAAP Partidas Dobradas: Clique em qualquer lançamento para inspecionar os débitos
-                e créditos individuais com suas respectivas contas contábeis e centros de custo.
-              </Note>
-            </div>
-          </Panel>
-
-          {/* Selected Entry Detail Breakdown */}
-          {selectedEntry && (
-            <Panel
-              title={`Composição do Lote: ${selectedEntry.id}`}
-              subtitle={`Histórico: ${selectedEntry.memo} · Data: ${formatDate(selectedEntry.date)}`}
-              aside={
-                <button
-                  type="button"
-                  onClick={() => setSelectedEntry(null)}
-                  className="text-[11.5px] text-ink3 hover:text-ink cursor-pointer"
-                >
-                  Fechar Detalhes ×
-                </button>
-              }
-            >
-              <div className="overflow-x-auto">
-                <Table>
-                  <thead>
-                    <tr className="border-b border-line/60">
-                      <Th>Conta Contábil</Th>
-                      <Th>Histórico da Linha</Th>
-                      <Th align="right">Débito (Dr)</Th>
-                      <Th align="right">Crédito (Cr)</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedEntry.lines.map((l) => {
-                      const acctObj = accounts.find((a) => a.code === l.accountCode);
-                      return (
-                        <tr key={l.id} className="border-b border-line/40 last:border-0">
-                          <Td className="text-[12px]">
-                            <span className="font-mono font-semibold text-brand">
-                              {l.accountCode}
-                            </span>{" "}
-                            ·{" "}
-                            <span className="text-ink font-medium">
-                              {acctObj ? acctObj.name : "Conta"}
-                            </span>
-                          </Td>
-                          <Td className="text-ink3 text-[11.5px]">{l.memo || "—"}</Td>
-                          <Td align="right" className="font-mono font-medium text-ink">
-                            {l.debit > 0 ? usd(l.debit) : "—"}
-                          </Td>
-                          <Td align="right" className="font-mono font-medium text-ink">
-                            {l.credit > 0 ? usd(l.credit) : "—"}
-                          </Td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </Table>
-              </div>
-            </Panel>
-          )}
-        </div>
-      ) : (
-        /* ================= TELA DE CADASTRO ================= */
-        <div className="space-y-4 max-w-5xl mx-auto">
-          {/* Top Bar with Back Button */}
-          <div className="flex items-center justify-between border-b border-line/60 pb-3">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer shadow-2xs"
-              >
-                <ArrowLeft className="size-3.5" />
-                Voltar para o Razão Geral
-              </button>
-              <div>
-                <h1 className="text-[16px] font-semibold text-ink">
-                  Novo Lançamento Contábil (Partidas Dobradas)
-                </h1>
-                <p className="text-[12px] text-ink3">
-                  Registro manual com validação em tempo real de igualdade entre débitos e créditos
-                </p>
-              </div>
-            </div>
-
-            {/* Live Balance Status Badge */}
-            <Badge tone={isBalanced ? "up" : "down"}>
-              {isBalanced
-                ? `Equilibrado: ${usd(totalDebits)}`
-                : `Diferença: ${usd(diff)} (Dr: ${usd(totalDebits)} | Cr: ${usd(totalCredits)})`}
-            </Badge>
-          </div>
-
-          <form onSubmit={handlePost} className="space-y-4">
-            <Panel
-              title="Informações do Lote Contábil"
-              subtitle="Data de competência, histórico principal e vinculação a centro de custo"
-            >
-              <div className="p-5 space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                      Data de Lançamento (Posting Date) *
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      required
-                      className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                      Centro de Custo / Projeto
-                    </label>
-                    <select
-                      value={selectedProject}
-                      onChange={(e) => setSelectedProject(e.target.value)}
-                      className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                    >
-                      <option value="">Geral da Empresa (Sem Projeto)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.code} — {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                      Tipo de Origem
-                    </label>
-                    <div className="w-full rounded-md bg-ink/[0.04] px-3 py-2 text-[13px] border border-line font-mono text-ink2">
-                      Manual Journal Entry (GL)
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Histórico Contábil / Memo *
-                  </label>
-                  <input
-                    type="text"
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                    placeholder="Ex: Apropriação mensal de amortização de software, Ajuste de provisão fiscal..."
-                    required
-                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
-                  />
-                </div>
-
-                {activeCompany.isPeriodClosed && (
-                  <div className="rounded-lg bg-down/[0.06] p-3 border border-down/20 space-y-1">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-down">
-                      Justificativa Obrigatória de Auditoria (Período Fechado) *
-                    </label>
-                    <input
-                      type="text"
-                      value={overrideReason}
-                      onChange={(e) => setOverrideReason(e.target.value)}
-                      placeholder="Motivo formal autorizado pelo CPA para lançamento em período fechado..."
-                      required
-                      className="w-full rounded-md bg-white px-3 py-2 text-[12.5px] border border-down/30 outline-none focus:border-down focus:ring-1 focus:ring-down"
-                    />
-                  </div>
-                )}
-              </div>
-            </Panel>
-
-            {/* Dynamic Lines Table */}
-            <Panel
-              title="Partidas Dobradas (Débitos e Créditos)"
-              subtitle="Adicione pelo menos 2 linhas contábeis. A soma dos débitos deve ser estritamente igual à dos créditos"
-              aside={
-                <button
-                  type="button"
-                  onClick={handleAddLine}
-                  className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline cursor-pointer"
-                >
-                  <Plus className="size-3.5" /> Adicionar Linha
-                </button>
-              }
-            >
-              <div className="p-5 space-y-3">
-                {lines.map((l, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
-                  >
-                    <div className="col-span-12 sm:col-span-5">
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Conta Contábil
-                      </label>
-                      <select
-                        value={l.accountCode}
-                        onChange={(e) => handleUpdateLine(idx, "accountCode", e.target.value)}
-                        className="w-full rounded-md bg-surface px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand font-mono"
-                      >
-                        {accounts.map((a) => (
-                          <option key={a.code} value={a.code}>
-                            {a.code} · {a.name} ({a.type})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="col-span-12 sm:col-span-3">
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Memo Específico (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        value={l.memo}
-                        onChange={(e) => handleUpdateLine(idx, "memo", e.target.value)}
-                        placeholder={memo || "Memo da linha..."}
-                        className="w-full rounded-md bg-surface px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand"
-                      />
-                    </div>
-
-                    <div className="col-span-5 sm:col-span-2">
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1 text-right">
-                        Débito ($)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={l.debit}
-                        onChange={(e) => handleUpdateLine(idx, "debit", e.target.value)}
-                        className="w-full rounded-md bg-surface px-2 py-1.5 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
-                      />
-                    </div>
-
-                    <div className="col-span-5 sm:col-span-2">
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1 text-right">
-                        Crédito ($)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={l.credit}
-                        onChange={(e) => handleUpdateLine(idx, "credit", e.target.value)}
-                        className="w-full rounded-md bg-surface px-2 py-1.5 text-right font-mono text-[12px] border border-line outline-none focus:border-brand"
-                      />
-                    </div>
-
-                    <div className="col-span-2 sm:col-span-1 flex justify-end pt-4 sm:pt-5">
-                      {lines.length > 2 && (
+                          <option value="">Select account</option>
+                          {data?.accounts
+                            .filter(
+                              (a) => !data.accounts.some((child) => child.parentCode === a.code),
+                            )
+                            .map((a) => (
+                              <option key={a.code} value={a.code}>
+                                {a.code} · {a.name}
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                      <td className="p-1">
+                        <input
+                          aria-label={`Description line ${i + 1}`}
+                          className={control}
+                          value={l.description}
+                          onChange={(v) => updateLine(i, { description: v.target.value })}
+                        />
+                      </td>
+                      <td className="min-w-28 p-1">
+                        <input
+                          required
+                          aria-label={`Debit line ${i + 1}`}
+                          inputMode="decimal"
+                          className={control}
+                          value={l.debit}
+                          onChange={(v) => updateLine(i, { debit: v.target.value })}
+                        />
+                      </td>
+                      <td className="min-w-28 p-1">
+                        <input
+                          required
+                          aria-label={`Credit line ${i + 1}`}
+                          inputMode="decimal"
+                          className={control}
+                          value={l.credit}
+                          onChange={(v) => updateLine(i, { credit: v.target.value })}
+                        />
+                      </td>
+                      <td className="p-2 font-mono">
+                        {invalid ? "—" : unitsAmount(convertedUnits(l.debit, form.exchangeRate))}
+                      </td>
+                      <td className="p-2 font-mono">
+                        {invalid ? "—" : unitsAmount(convertedUnits(l.credit, form.exchangeRate))}
+                      </td>
+                      <td className="min-w-36 p-1">
+                        <select
+                          aria-label={`Cost center line ${i + 1}`}
+                          className={control}
+                          value={l.costCenterId ?? ""}
+                          onChange={(v) => updateLine(i, { costCenterId: v.target.value })}
+                        >
+                          <option value="">None</option>
+                          {data?.costCenters
+                            .filter((c) => c.status === "Active")
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.code} · {c.name}
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                      <td className="min-w-36 p-1">
+                        <select
+                          aria-label={`Project line ${i + 1}`}
+                          className={control}
+                          value={l.projectId ?? ""}
+                          onChange={(v) => updateLine(i, { projectId: v.target.value })}
+                        >
+                          <option value="">None</option>
+                          {data?.projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
                         <button
                           type="button"
-                          onClick={() => handleRemoveLine(idx)}
-                          className="text-rose-500 hover:text-rose-700 transition-colors p-1 cursor-pointer"
-                          title="Remover linha"
+                          className={button}
+                          disabled={form.lines.length <= 2}
+                          onClick={() =>
+                            setForm({ ...form, lines: form.lines.filter((_, idx) => i !== idx) })
+                          }
                         >
-                          <Trash2 className="size-4" />
+                          Remove
                         </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Live Balancing Summary Bar */}
-                <div className="flex flex-wrap items-center justify-between rounded-lg bg-white p-4 border border-line shadow-inner text-[13px] font-mono">
-                  <div className="space-x-4">
-                    <span>
-                      Total Débitos: <strong className="text-ink">{usd(totalDebits)}</strong>
-                    </span>
-                    <span>
-                      Total Créditos: <strong className="text-ink">{usd(totalCredits)}</strong>
-                    </span>
-                  </div>
-                  <div>
-                    {isBalanced ? (
-                      <span className="font-sans font-semibold text-emerald-600">
-                        ✓ Partidas perfeitamente equilibradas
-                      </span>
-                    ) : (
-                      <span className="font-sans font-semibold text-rose-600">
-                        ⚠ Diferença pendente: {usd(diff)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Panel>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="font-mono text-sm" aria-live="polite">
+              Debit {unitsAmount(debit)} · Credit {unitsAmount(credit)} · Difference{" "}
+              {unitsAmount(debit - credit)} {form.currency}
+            </p>
+            <p className="font-mono text-sm" aria-live="polite">
+              Base debit {unitsAmount(baseDebit)} · Base credit {unitsAmount(baseCredit)} · Base
+              difference {unitsAmount(baseDebit - baseCredit)} USD
+            </p>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setView("list")}
-                className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
+                className={button}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    lines: [
+                      ...form.lines,
+                      { accountCode: "", description: "", debit: "0", credit: "0" },
+                    ],
+                  })
+                }
               >
-                Cancelar
+                Add line
               </button>
-              <button
-                type="submit"
-                disabled={!isBalanced}
-                className={`rounded-md px-6 py-2.5 text-[13px] font-semibold text-white transition-all shadow-2xs ${
-                  isBalanced
-                    ? "bg-brand hover:bg-brand/90 cursor-pointer"
-                    : "bg-ink/30 cursor-not-allowed opacity-60"
-                }`}
-              >
-                Salvar e Postar no Razão
+              <button disabled={busy || invalid} className={button}>
+                Save draft
+              </button>
+              <button type="button" className={button} onClick={() => setEditing(false)}>
+                Cancel
               </button>
             </div>
           </form>
-        </div>
+        </Panel>
+      ) : (
+        <>
+          <Panel title="Filter journals">
+            <div className="grid gap-3 p-4 sm:grid-cols-4">
+              {(
+                [
+                  ["search", "Number or description"],
+                  ["from", "From date"],
+                  ["to", "To date"],
+                  ["source", "Source module"],
+                  ["creator", "Responsible user ID"],
+                ] as const
+              ).map(([k, label]) => (
+                <label key={k} className="text-sm">
+                  {label}
+                  <input
+                    type={k === "from" || k === "to" ? "date" : "text"}
+                    className={control}
+                    value={filters[k]}
+                    onChange={(v) => change(k, v.target.value)}
+                  />
+                </label>
+              ))}
+              <label className="text-sm">
+                Status
+                <select
+                  className={control}
+                  value={filters.status}
+                  onChange={(v) => change("status", v.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  {["Draft", "Pending Approval", "Approved", "Rejected", "Posted"].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Type
+                <select
+                  className={control}
+                  value={filters.type}
+                  onChange={(v) => change("type", v.target.value)}
+                >
+                  <option value="">All types</option>
+                  {[
+                    "Manual",
+                    "Automatic",
+                    "Adjustment",
+                    "Opening",
+                    "Reclassification",
+                    "Reversal",
+                  ].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Fiscal period
+                <select
+                  className={control}
+                  value={filters.period}
+                  onChange={(v) => change("period", v.target.value)}
+                >
+                  <option value="">All periods</option>
+                  {data?.fiscalPeriods.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.periodCode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Account
+                <select
+                  className={control}
+                  value={filters.account}
+                  onChange={(v) => change("account", v.target.value)}
+                >
+                  <option value="">All accounts</option>
+                  {data?.accounts.map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.code} · {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Cost center
+                <select
+                  className={control}
+                  value={filters.costCenter}
+                  onChange={(v) => change("costCenter", v.target.value)}
+                >
+                  <option value="">All centers</option>
+                  {data?.costCenters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </Panel>
+          <Panel
+            title="Journals"
+            subtitle={`${listing.data?.count ?? 0} records · Page ${page + 1}`}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    {[
+                      "Number / draft ID",
+                      "Date",
+                      "Company",
+                      "Description",
+                      "Type / source",
+                      "Total",
+                      "Currency",
+                      "Period",
+                      "Status",
+                      "Responsible",
+                      "Actions",
+                    ].map((h) => (
+                      <th className="p-3 text-left" key={h}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {listing.data?.entries.map((j) => (
+                    <tr key={j.id} className="border-t border-line">
+                      <td className="p-3 font-mono">{j.journal_number ?? j.id.slice(0, 8)}</td>
+                      <td className="p-3 whitespace-nowrap">{j.accounting_date}</td>
+                      <td className="p-3">{companyName}</td>
+                      <td className="p-3">{j.description}</td>
+                      <td className="p-3">
+                        {j.journal_type} / {j.source_module}
+                      </td>
+                      <td className="p-3 font-mono">{j.total}</td>
+                      <td className="p-3">{j.transaction_currency}</td>
+                      <td className="p-3">
+                        {data?.fiscalPeriods.find((p) => p.id === j.fiscal_period_id)?.periodCode ??
+                          j.fiscal_period_id}
+                      </td>
+                      <td className="p-3">
+                        <Badge>{j.status}</Badge>
+                      </td>
+                      <td className="p-3">{j.creator_name}</td>
+                      <td className="p-3">
+                        <button
+                          className={button}
+                          onClick={() => {
+                            setSelected(j.id);
+                            setReason("");
+                          }}
+                        >
+                          View
+                        </button>
+                        {j.status === "Draft" && permissions?.create && (
+                          <button disabled={busy} className={button} onClick={() => void edit(j)}>
+                            Edit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {listing.isPending ? (
+              <p className="p-4">Loading journals…</p>
+            ) : (
+              listing.data?.count === 0 && (
+                <p className="p-4">No journals match these filters. Create a draft to begin.</p>
+              )
+            )}
+            <div className="flex gap-2 p-4">
+              <button className={button} disabled={!page} onClick={() => setPage(page - 1)}>
+                Previous
+              </button>
+              <button
+                className={button}
+                disabled={(page + 1) * 50 >= (listing.data?.count ?? 0)}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </Panel>
+          {selected && (
+            <Panel
+              title="Journal detail & audit"
+              aside={
+                <button className={button} onClick={() => setSelected(null)}>
+                  Close
+                </button>
+              }
+            >
+              {detail.error && (
+                <p role="alert" className="p-4">
+                  {detail.error.message}
+                </p>
+              )}
+              {detail.isPending ? (
+                <p className="p-4">Loading…</p>
+              ) : (
+                e && (
+                  <div className="space-y-4 p-4">
+                    <div>
+                      <strong>
+                        {e.journal_number ?? e.id} · {e.status}
+                      </strong>
+                      <p>
+                        {e.accounting_date} · {e.description}
+                      </p>
+                      <p>
+                        {e.transaction_currency} → {e.functional_currency} · Rate {e.exchange_rate}{" "}
+                        · {e.exchange_rate_source}
+                      </p>
+                      <p>Reference: {e.reference || "—"}</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr>
+                            {[
+                              "Account",
+                              "Description",
+                              "Debit",
+                              "Credit",
+                              "Base debit (USD)",
+                              "Base credit (USD)",
+                              "Cost center",
+                            ].map((h) => (
+                              <th key={h} className="p-2 text-left">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detail.data?.lines.map((l, i) => (
+                            <tr key={i}>
+                              <td className="p-2">
+                                {l.account_code} ·{" "}
+                                {data?.accounts.find((a) => a.code === l.account_code)?.name}
+                              </td>
+                              <td>{l.description}</td>
+                              <td>{l.debit}</td>
+                              <td>{l.credit}</td>
+                              <td>{l.base_debit}</td>
+                              <td>{l.base_credit}</td>
+                              <td>
+                                {data?.costCenters.find((c) => c.id === l.cost_center_id)?.name ??
+                                  "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {e.status === "Draft" && permissions?.create && (
+                        <>
+                          <button disabled={busy} className={button} onClick={() => void edit(e)}>
+                            Edit draft
+                          </button>
+                          <button
+                            disabled={busy}
+                            className={button}
+                            onClick={() => action("submit")}
+                          >
+                            Submit for approval
+                          </button>
+                        </>
+                      )}
+                      {e.status === "Rejected" && permissions?.create && (
+                        <button disabled={busy} className={button} onClick={() => action("revise")}>
+                          Revise as draft
+                        </button>
+                      )}
+                      {e.status === "Pending Approval" &&
+                        permissions?.approve &&
+                        (!listing.data?.policy.segregate_approval || e.created_by !== user.id) && (
+                          <>
+                            <button
+                              disabled={busy}
+                              className={button}
+                              onClick={() => action("approve")}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              disabled={busy || !reason.trim()}
+                              className={button}
+                              onClick={() => action("reject")}
+                            >
+                              Reject with reason
+                            </button>
+                          </>
+                        )}
+                      {permissions?.post &&
+                        (e.status === "Approved" ||
+                          (!listing.data?.policy.approval_required && e.status === "Draft")) && (
+                          <button disabled={busy} className={button} onClick={() => action("post")}>
+                            Post to General Ledger
+                          </button>
+                        )}
+                    </div>
+                    {(e.status === "Pending Approval" || e.status === "Posted") && (
+                      <label className="block text-sm">
+                        Reason
+                        <textarea
+                          className={control}
+                          value={reason}
+                          onChange={(v) => setReason(v.target.value)}
+                        />
+                      </label>
+                    )}
+                    {e.status === "Posted" && permissions?.reverse && permissions.post && (
+                      <div className="flex items-end gap-2">
+                        <label>
+                          Reversal accounting date
+                          <input
+                            type="date"
+                            className={control}
+                            value={reversalDate}
+                            onChange={(v) => setReversalDate(v.target.value)}
+                          />
+                        </label>
+                        <button
+                          disabled={busy || !reason.trim() || !reversalDate}
+                          className={button}
+                          onClick={() => action("reverse")}
+                        >
+                          Create and post reversal
+                        </button>
+                      </div>
+                    )}
+                    <h3 className="font-semibold">Audit history</h3>
+                    <ol className="space-y-2 text-sm">
+                      {detail.data?.events.map((event) => (
+                        <li key={event.id}>
+                          {new Date(event.occurred_at).toLocaleString()} · {event.actor_name} ·{" "}
+                          {event.action}
+                          {event.reason && ` · ${event.reason}`}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )
+              )}
+            </Panel>
+          )}
+        </>
       )}
     </div>
   );

@@ -124,6 +124,8 @@ try {
   await migration("018_structured_ledger.sql");
   await migration("019_structured_audit.sql");
   await migration("019_structured_audit.sql");
+  await migration("020_journal_entries.sql");
+  await migration("021_journal_entries_upgrade.sql");
   assert.deepEqual(
     (await client.query("SELECT before_data,after_data FROM system_audit_log WHERE id=$1", [event]))
       .rows[0],
@@ -196,23 +198,58 @@ try {
       ],
     })
   ).revision;
-  const posted = await accounting.execute({
-    companyId: liveCompany,
-    revision,
-    command: "postJournalEntry",
-    args: [
-      {
-        date: "2026-10-30",
-        memo: "Test",
-        sourceType: "Manual",
+  // Direct legacy journal posting was replaced by the dedicated posting engine.
+  await assert.rejects(
+    () =>
+      accounting.execute({
+        companyId: liveCompany,
+        revision,
+        command: "postJournalEntry",
+        args: [],
+      }),
+    /Journal Entries posting engine/,
+  );
+  const { executeJournal } = await import("../src/lib/journal.server.ts");
+  await client.query("UPDATE accounting_policies SET approval_required=false WHERE company_id=$1", [
+    liveCompany,
+  ]);
+  await client.query(
+    "INSERT INTO accounting_policies(company_id,approval_required) VALUES($1,false) ON CONFLICT(company_id) DO UPDATE SET approval_required=false",
+    [liveCompany],
+  );
+  await client.query("BEGIN");
+  await replaceLedger(client, liveCompany, "currencies", [
+    { code: "USD", name: "US Dollar", isBaseCurrency: true, status: "Active" },
+  ]);
+  await client.query("COMMIT");
+  let journal = (
+    await executeJournal({
+      companyId: liveCompany,
+      operation: "save",
+      value: {
+        journalType: "Manual",
+        accountingDate: "2026-10-30",
+        description: "Test",
+        reference: "",
+        currency: "USD",
+        exchangeRate: "1",
+        exchangeRateSource: "Parity",
         lines: [
-          { accountCode: "1000", debit: 100, credit: 0 },
-          { accountCode: "3000", debit: 0, credit: 100 },
+          { accountCode: "1000", description: "", debit: "100", credit: "0" },
+          { accountCode: "3000", description: "", debit: "0", credit: "100" },
         ],
       },
-    ],
-  });
-  revision = posted.revision;
+    })
+  ).entry;
+  journal = (
+    await executeJournal({
+      companyId: liveCompany,
+      operation: "post",
+      id: journal.id,
+      version: journal.version,
+    })
+  ).entry;
+  revision = (await accounting.load(liveCompany)).revision;
   assert.equal((await accounting.load(liveCompany)).state.journals[0].lines.length, 2);
   await parameters.writeParameter({
     companyId: liveCompany,

@@ -56,6 +56,12 @@ export async function readLedger(
     for (const [index, row] of rows.rows.entries())
       result[index]![collection] = grouped.get(row.id) ?? [];
   }
+  if (domain === "journals")
+    result.push(
+      ...(await (
+        await import("./journal-projection.server")
+      ).postedJournalProjection(client, companyId)),
+    );
   return result;
 }
 export async function replaceLedger(
@@ -64,6 +70,7 @@ export async function replaceLedger(
   domain: string,
   rows: Row[],
 ) {
+  if (domain === "journals") rows = rows.filter((row) => !String(row["id"]).startsWith("JE:"));
   const spec = ledgerSchemas[domain]!;
   // Explicit child deletion avoids cascading away records during unrelated ledger rewrites.
   for (const collection of Object.keys(spec.children))

@@ -33,6 +33,7 @@ import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as VendorsRouteImport } from './routes/vendors'
+import { Route as ApiJournalEntriesRouteImport } from './routes/api.journal-entries'
 import { Route as ParametersIndexRouteImport } from './routes/parameters/index'
 import { Route as ParametersCashCategoriesRouteImport } from './routes/parameters/cash-categories'
 import { Route as ParametersCostCentersRouteImport } from './routes/parameters/cost-centers'
@@ -41,6 +42,9 @@ import { Route as ParametersExpenseCategoriesRouteImport } from './routes/parame
 import { Route as ParametersFiscalPeriodsRouteImport } from './routes/parameters/fiscal-periods'
 import { Route as ParametersPaymentTermsRouteImport } from './routes/parameters/payment-terms'
 import { Route as ParametersTaxJurisdictionsRouteImport } from './routes/parameters/tax-jurisdictions'
+import { Route as ApiAccountingBalancesRouteImport } from './routes/api.accounting.balances'
+import { Route as ApiAccountingEventsRouteImport } from './routes/api.accounting.events'
+import { Route as ApiJournalEntriesSplatRouteImport } from './routes/api.journal-entries.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -162,6 +166,11 @@ const VendorsRoute = VendorsRouteImport.update({
   path: '/vendors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJournalEntriesRoute = ApiJournalEntriesRouteImport.update({
+  id: '/api/journal-entries',
+  path: '/api/journal-entries',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ParametersIndexRoute = ParametersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -205,6 +214,21 @@ const ParametersTaxJurisdictionsRoute =
     path: '/tax-jurisdictions',
     getParentRoute: () => ParametersRoute,
   } as any)
+const ApiAccountingBalancesRoute = ApiAccountingBalancesRouteImport.update({
+  id: '/api/accounting/balances',
+  path: '/api/accounting/balances',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAccountingEventsRoute = ApiAccountingEventsRouteImport.update({
+  id: '/api/accounting/events',
+  path: '/api/accounting/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJournalEntriesSplatRoute = ApiJournalEntriesSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => ApiJournalEntriesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -231,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
+  '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -239,6 +264,9 @@ export interface FileRoutesByFullPath {
   '/parameters/payment-terms': typeof ParametersPaymentTermsRoute
   '/parameters/tax-jurisdictions': typeof ParametersTaxJurisdictionsRoute
   '/parameters/': typeof ParametersIndexRoute
+  '/api/accounting/balances': typeof ApiAccountingBalancesRoute
+  '/api/accounting/events': typeof ApiAccountingEventsRoute
+  '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -264,6 +292,7 @@ export interface FileRoutesByTo {
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
+  '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -272,6 +301,9 @@ export interface FileRoutesByTo {
   '/parameters/payment-terms': typeof ParametersPaymentTermsRoute
   '/parameters/tax-jurisdictions': typeof ParametersTaxJurisdictionsRoute
   '/parameters': typeof ParametersIndexRoute
+  '/api/accounting/balances': typeof ApiAccountingBalancesRoute
+  '/api/accounting/events': typeof ApiAccountingEventsRoute
+  '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -299,6 +331,7 @@ export interface FileRoutesById {
   '/trial-balance': typeof TrialBalanceRoute
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
+  '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -307,6 +340,9 @@ export interface FileRoutesById {
   '/parameters/payment-terms': typeof ParametersPaymentTermsRoute
   '/parameters/tax-jurisdictions': typeof ParametersTaxJurisdictionsRoute
   '/parameters/': typeof ParametersIndexRoute
+  '/api/accounting/balances': typeof ApiAccountingBalancesRoute
+  '/api/accounting/events': typeof ApiAccountingEventsRoute
+  '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -335,6 +371,7 @@ export interface FileRouteTypes {
     | '/trial-balance'
     | '/users'
     | '/vendors'
+    | '/api/journal-entries'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -343,6 +380,9 @@ export interface FileRouteTypes {
     | '/parameters/payment-terms'
     | '/parameters/tax-jurisdictions'
     | '/parameters/'
+    | '/api/accounting/balances'
+    | '/api/accounting/events'
+    | '/api/journal-entries/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -368,6 +408,7 @@ export interface FileRouteTypes {
     | '/trial-balance'
     | '/users'
     | '/vendors'
+    | '/api/journal-entries'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -376,6 +417,9 @@ export interface FileRouteTypes {
     | '/parameters/payment-terms'
     | '/parameters/tax-jurisdictions'
     | '/parameters'
+    | '/api/accounting/balances'
+    | '/api/accounting/events'
+    | '/api/journal-entries/$'
   id:
     | '__root__'
     | '/'
@@ -402,6 +446,7 @@ export interface FileRouteTypes {
     | '/trial-balance'
     | '/users'
     | '/vendors'
+    | '/api/journal-entries'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -410,6 +455,9 @@ export interface FileRouteTypes {
     | '/parameters/payment-terms'
     | '/parameters/tax-jurisdictions'
     | '/parameters/'
+    | '/api/accounting/balances'
+    | '/api/accounting/events'
+    | '/api/journal-entries/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -437,6 +485,9 @@ export interface RootRouteChildren {
   TrialBalanceRoute: typeof TrialBalanceRoute
   UsersRoute: typeof UsersRoute
   VendorsRoute: typeof VendorsRoute
+  ApiJournalEntriesRoute: typeof ApiJournalEntriesRouteWithChildren
+  ApiAccountingBalancesRoute: typeof ApiAccountingBalancesRoute
+  ApiAccountingEventsRoute: typeof ApiAccountingEventsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -609,6 +660,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/journal-entries': {
+      id: '/api/journal-entries'
+      path: '/api/journal-entries'
+      fullPath: '/api/journal-entries'
+      preLoaderRoute: typeof ApiJournalEntriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/parameters/': {
       id: '/parameters/'
       path: '/'
@@ -665,6 +723,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ParametersTaxJurisdictionsRouteImport
       parentRoute: typeof ParametersRoute
     }
+    '/api/accounting/balances': {
+      id: '/api/accounting/balances'
+      path: '/api/accounting/balances'
+      fullPath: '/api/accounting/balances'
+      preLoaderRoute: typeof ApiAccountingBalancesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/accounting/events': {
+      id: '/api/accounting/events'
+      path: '/api/accounting/events'
+      fullPath: '/api/accounting/events'
+      preLoaderRoute: typeof ApiAccountingEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/journal-entries/$': {
+      id: '/api/journal-entries/$'
+      path: '/$'
+      fullPath: '/api/journal-entries/$'
+      preLoaderRoute: typeof ApiJournalEntriesSplatRouteImport
+      parentRoute: typeof ApiJournalEntriesRoute
+    }
   }
 }
 
@@ -694,6 +773,17 @@ const ParametersRouteWithChildren = ParametersRoute._addFileChildren(
   ParametersRouteChildren,
 )
 
+interface ApiJournalEntriesRouteChildren {
+  ApiJournalEntriesSplatRoute: typeof ApiJournalEntriesSplatRoute
+}
+
+const ApiJournalEntriesRouteChildren: ApiJournalEntriesRouteChildren = {
+  ApiJournalEntriesSplatRoute: ApiJournalEntriesSplatRoute,
+}
+
+const ApiJournalEntriesRouteWithChildren =
+  ApiJournalEntriesRoute._addFileChildren(ApiJournalEntriesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccessRoute: AccessRoute,
@@ -719,6 +809,9 @@ const rootRouteChildren: RootRouteChildren = {
   TrialBalanceRoute: TrialBalanceRoute,
   UsersRoute: UsersRoute,
   VendorsRoute: VendorsRoute,
+  ApiJournalEntriesRoute: ApiJournalEntriesRouteWithChildren,
+  ApiAccountingBalancesRoute: ApiAccountingBalancesRoute,
+  ApiAccountingEventsRoute: ApiAccountingEventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

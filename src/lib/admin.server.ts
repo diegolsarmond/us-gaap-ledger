@@ -1,4 +1,5 @@
 import { db } from "./db.server";
+import type { PoolClient } from "pg";
 import { readSession } from "./auth.server";
 import { randomBytes, randomInt, scryptSync } from "node:crypto";
 import type { z } from "zod";
@@ -10,12 +11,15 @@ import type {
   Permissions,
   AuditEvent,
 } from "./admin-model";
-export async function authorize(permission?: keyof Permissions) {
-  const user = await readSession();
+export async function authorize(
+  permission?: keyof Permissions,
+  connection: Pick<PoolClient, "query"> = db(),
+) {
+  const user = await readSession(connection);
   if (user?.must_change_password)
     throw new Error("Change your password before accessing the system.");
   if (!user) throw new Error("Session expired. Sign in again.");
-  const result = await db().query(
+  const result = await connection.query(
     "SELECT p.* FROM app_users u LEFT JOIN access_profiles p ON p.id=u.profile_id WHERE u.id=$1 AND u.active=true",
     [user.id],
   );
@@ -48,8 +52,10 @@ export async function loadAdmin() {
     : { rows: [] };
   return {
     companies: permissions.manage_profiles
-      ? ((await db().query("SELECT id,name FROM companies ORDER BY name"))
-          .rows as { id: string; name: string }[])
+      ? ((await db().query("SELECT id,name FROM companies ORDER BY name")).rows as {
+          id: string;
+          name: string;
+        }[])
       : [],
     currentUserId: user.id,
     permissions,

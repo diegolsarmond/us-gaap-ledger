@@ -1,14 +1,15 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { db } from "./db.server";
+import type { PoolClient } from "pg";
 import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
 
 const cookie = "ledgerx_session";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
-export async function readSession() {
+export async function readSession(connection?: Pick<PoolClient, "query">) {
   const token = getCookie(cookie);
   if (!token) return null;
-  const result = await db().query(
+  const result = await (connection ?? db()).query(
     `SELECT u.id, u.email, u.name, u.must_change_password FROM app_sessions s JOIN app_users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true`,
     [digest(token)],

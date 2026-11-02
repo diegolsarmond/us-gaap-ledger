@@ -10,7 +10,7 @@ export async function authorizeCompany(
   permission?: "write_cash" | "write_accounting" | "close_periods",
   connection: Pick<PoolClient, "query"> = db(),
 ) {
-  const auth = await authorize(permission);
+  const auth = await authorize(permission, connection);
   const result = await connection.query(
     `SELECT c.* FROM companies c JOIN app_users u ON u.id=$2 JOIN access_profiles p ON p.id=u.profile_id
     WHERE c.id=$1 AND c.active AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id))`,

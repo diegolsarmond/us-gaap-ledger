@@ -21,7 +21,9 @@ export function Panel({
             {title && <p className="text-[13px] font-semibold tracking-tight">{title}</p>}
             {subtitle && <p className="text-[11px] text-ink3">{subtitle}</p>}
           </div>
-          {aside && <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">{aside}</div>}
+          {aside && (
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">{aside}</div>
+          )}
         </div>
       )}
       {children}
@@ -44,7 +46,9 @@ export function Kpi({
   return (
     <div className="frost p-3.5 sm:p-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink3">{label}</p>
-      <p className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+      <p className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-semibold tracking-tight tabular-nums">
+        {value}
+      </p>
       {hint && <p className={`mt-1.5 text-[11px] tabular-nums ${toneClass}`}>{hint}</p>}
     </div>
   );
@@ -129,14 +133,17 @@ export function Td({
   align = "left",
   className = "",
   colSpan,
+  title,
 }: {
   children?: ReactNode;
   align?: "left" | "right" | "center";
   className?: string;
   colSpan?: number;
+  title?: string | undefined;
 }) {
   return (
     <td
+      title={title}
       colSpan={colSpan}
       className={`px-3 py-2 sm:px-4 sm:py-2.5 ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : ""
