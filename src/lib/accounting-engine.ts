@@ -1433,7 +1433,7 @@ export function createAccountingEngine(
   const addTaxJurisdiction = (tax: Omit<TaxJurisdictionParam, "id">) => {
     const newTax: TaxJurisdictionParam = {
       ...tax,
-      id: `tax-jur-${Date.now()}`,
+      id: `tax-jur-${crypto.randomUUID()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,
@@ -1479,7 +1479,7 @@ export function createAccountingEngine(
   const addPaymentTerm = (term: Omit<PaymentTermParam, "id">) => {
     const newTerm: PaymentTermParam = {
       ...term,
-      id: `term-${Date.now()}`,
+      id: `term-${crypto.randomUUID()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,
@@ -1523,7 +1523,7 @@ export function createAccountingEngine(
   const addCostCenter = (cc: Omit<CostCenterParam, "id">) => {
     const newCC: CostCenterParam = {
       ...cc,
-      id: `cc-${Date.now()}`,
+      id: `cc-${crypto.randomUUID()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,
@@ -1557,7 +1557,7 @@ export function createAccountingEngine(
   const addExpenseCategory = (cat: Omit<ExpenseCategoryParam, "id">) => {
     const newCat: ExpenseCategoryParam = {
       ...cat,
-      id: `exp-cat-${Date.now()}`,
+      id: `exp-cat-${crypto.randomUUID()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,
@@ -1606,7 +1606,7 @@ export function createAccountingEngine(
       ...(period.status !== "Open"
         ? { closedBy: userPersona.name, closingDate: new Date().toISOString().slice(0, 10) }
         : {}),
-      id: `fp-${Date.now()}`,
+      id: `fp-${crypto.randomUUID()}`,
     };
     updateCompanyData((prev) => ({
       ...prev,

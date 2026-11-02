@@ -20,6 +20,7 @@ import { Route as CompaniesRouteImport } from './routes/companies'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DreRouteImport } from './routes/dre'
+import { Route as ImportsRouteImport } from './routes/imports'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as JournalsRouteImport } from './routes/journals'
@@ -101,6 +102,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const DreRoute = DreRouteImport.update({
   id: '/dre',
   path: '/dre',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportsRoute = ImportsRouteImport.update({
+  id: '/imports',
+  path: '/imports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryRoute = InventoryRouteImport.update({
@@ -254,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
+  '/imports': typeof ImportsRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
+  '/imports': typeof ImportsRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/dre': typeof DreRoute
+  '/imports': typeof ImportsRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/journals': typeof JournalsRoute
@@ -376,6 +385,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/dre'
+    | '/imports'
     | '/inventory'
     | '/invoices'
     | '/journals'
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/dre'
+    | '/imports'
     | '/inventory'
     | '/invoices'
     | '/journals'
@@ -455,6 +466,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/dre'
+    | '/imports'
     | '/inventory'
     | '/invoices'
     | '/journals'
@@ -496,6 +508,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   DreRoute: typeof DreRoute
+  ImportsRoute: typeof ImportsRoute
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
   JournalsRoute: typeof JournalsRoute
@@ -593,6 +606,13 @@ declare module '@tanstack/react-router' {
       path: '/dre'
       fullPath: '/dre'
       preLoaderRoute: typeof DreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/imports': {
+      id: '/imports'
+      path: '/imports'
+      fullPath: '/imports'
+      preLoaderRoute: typeof ImportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory': {
@@ -836,6 +856,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   DreRoute: DreRoute,
+  ImportsRoute: ImportsRoute,
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
   JournalsRoute: JournalsRoute,

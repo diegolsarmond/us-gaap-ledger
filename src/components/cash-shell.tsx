@@ -29,7 +29,7 @@ const groups = [
   },
   {
     label: "Settings",
-    items: ["Customers", "Vendors", "Companies", "Access profiles", "Users"],
+    items: ["Customers", "Vendors", "Companies", "Importação em massa", "Access profiles", "Users"],
   },
   {
     label: "Audit",
@@ -50,6 +50,7 @@ const groups = [
   },
 ];
 const menuRoutes: Record<string, string> = {
+  "Importação em massa": "/imports",
   "Report Builder": "/reports",
   Customers: "/customers",
   Vendors: "/vendors",

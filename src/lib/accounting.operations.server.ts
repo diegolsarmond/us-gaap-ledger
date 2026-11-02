@@ -1,5 +1,42 @@
 import { defineJsonOperation } from "./json-operation.server";
 import { z } from "zod";
+import { importCatalog, importDomainSchema, parseImportRows } from "./bulk-import";
+import { companySchema } from "./company-model";
+export const importSpreadsheet = defineJsonOperation({ method: "POST" })
+  .validator(
+    z.object({
+      companyId: z.string().uuid().optional(),
+      revision: z.number().int().nonnegative(),
+      domain: importDomainSchema,
+      preview: z.boolean(),
+      rows: z
+        .array(
+          z.record(z.union([z.string().max(20000), z.number().finite(), z.boolean(), z.null()])),
+        )
+        .min(1)
+        .max(1000),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const rows = parseImportRows(data.domain, data.rows).map((row) => [row]);
+    if (data.domain === "companies") {
+      const companies = rows.map((row) => companySchema.parse(row[0]));
+      await (
+        await import("./companies.server")
+      ).saveCompany(companies[0]!, { rows: companies, preview: data.preview });
+      return { result: { success: true, count: companies.length } };
+    }
+    if (!data.companyId) throw new Error("Selecione a empresa de destino.");
+    return (await import("./accounting.server")).execute(
+      {
+        companyId: data.companyId,
+        revision: data.revision,
+        command: importCatalog[data.domain].command,
+        args: rows[0]!,
+      },
+      { rows, preview: data.preview },
+    );
+  });
 export const loadAccounting = defineJsonOperation({ method: "GET" })
   .validator(z.object({ companyId: z.string().uuid() }))
   .handler(async ({ data }) => (await import("./accounting.server")).load(data.companyId));

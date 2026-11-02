@@ -1,4 +1,5 @@
 import { validateCoa } from "./coa";
+import { importCatalog, type ImportDomain } from "./bulk-import";
 import { validateCustomers } from "./customer-model";
 import { db } from "./db.server";
 import { authorizeCompany, setActor } from "./companies.server";
@@ -190,12 +191,15 @@ export function validateState(state: CompanyState) {
       throw new Error("Períodos fiscais inválidos ou sobrepostos.");
   return refs;
 }
-export async function execute(input: {
-  companyId: string;
-  revision: number;
-  command: string;
-  args: unknown[];
-}) {
+export async function execute(
+  input: {
+    companyId: string;
+    revision: number;
+    command: string;
+    args: unknown[];
+  },
+  batch?: { rows: unknown[][]; preview: boolean },
+) {
   if (!Object.hasOwn(commandArgs, input.command)) throw new Error("Operação inválida.");
   const command = input.command as AccountingCommand;
   if (command === "postJournalEntry" || command === "reverseJournalEntry")
@@ -260,17 +264,66 @@ export async function execute(input: {
           );
       }
     }
-    const engine = createAccountingEngine(
-      state,
-      auth.company,
-      persona(auth.user, auth.permissions),
-    );
-    const operation = engine.value[command] as (...a: unknown[]) => unknown;
-    const result = operation(...args);
+    let engine = createAccountingEngine(state, auth.company, persona(auth.user, auth.permissions));
+
+    let result: unknown;
+    for (const [index, row] of (batch?.rows ?? [args]).entries()) {
+      try {
+        if (batch) {
+          const domain = (Object.keys(importCatalog) as ImportDomain[]).find(
+            (key) => importCatalog[key].command === command,
+          );
+          if (!domain || domain === "companies")
+            throw new Error("Cadastro não permitido para importação.");
+          const key =
+            domain === "customers" || domain === "vendors"
+              ? "displayName"
+              : domain === "fiscalPeriods"
+                ? "periodCode"
+                : "code";
+          const candidate = row[0] as Record<string, unknown>;
+          const existing = engine.getState()[domain] as unknown as Record<string, unknown>[];
+          if (
+            existing.some(
+              (record) =>
+                String(record[key]).trim().toLowerCase() ===
+                String(candidate[key]).trim().toLowerCase(),
+            )
+          )
+            throw new Error(`Registro já cadastrado: ${candidate[key]}.`);
+        }
+        const operation = engine.value[command] as (...a: unknown[]) => unknown;
+        result = operation(...schema.parse(row));
+        if (result && typeof result === "object" && "success" in result && !result.success)
+          throw new Error(String("error" in result ? result.error : "Operação recusada."));
+        if (batch) {
+          validateState(engine.getState());
+          engine = createAccountingEngine(
+            engine.getState(),
+            engine.getCompany(),
+            persona(auth.user, auth.permissions),
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          (batch ? "Linha " + (index + 2) + ": " : "") +
+            (error instanceof Error ? error.message : "Registro inválido."),
+        );
+      }
+    }
     if (result && typeof result === "object" && "success" in result && !result.success)
       throw new Error(String("error" in result ? result.error : "Operação recusada."));
     const next = engine.getState();
     const refs = validateState(next);
+    if (batch?.preview) {
+      await client.query("ROLLBACK");
+      return {
+        state: next,
+        company: engine.getCompany(),
+        revision: input.revision,
+        result: { success: true, count: batch.rows.length },
+      };
+    }
     // Preserve posted journals; only the engine's explicit reversal may change their status.
     await client.query("DELETE FROM ledger_references WHERE company_id=$1", [input.companyId]);
     for (const domain of domains) {
@@ -298,7 +351,7 @@ export async function execute(input: {
       [
         auth.user.id,
         auth.user.name,
-        command,
+        batch ? `bulkImport:${command}:${batch.rows.length}` : command,
         accountCommand ? "Account" : "Accounting",
         accountCode ?? input.companyId,
         input.companyId,

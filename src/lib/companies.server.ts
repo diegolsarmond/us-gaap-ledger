@@ -76,60 +76,76 @@ export async function listCompanies() {
 export async function setActor(client: PoolClient, userId: string) {
   await client.query("SELECT set_config('app.actor_id',$1,true)", [userId]);
 }
-export async function saveCompany(data: z.infer<typeof companySchema>) {
-  const { user, permissions } = await authorize("manage_companies");
+export async function saveCompany(
+  initial: z.infer<typeof companySchema>,
+  batch?: { rows: z.infer<typeof companySchema>[]; preview: boolean },
+) {
   const client = await db().connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const { user, permissions } = await authorize("manage_companies", client);
     await setActor(client, user.id);
-    let id = data.id;
-    if (id) {
-      const accessible = await client.query(
-        `SELECT c.id FROM companies c JOIN app_users u ON u.id=$2 JOIN access_profiles p ON p.id=u.profile_id WHERE c.id=$1 AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id)) FOR UPDATE OF c`,
-        [id, user.id],
-      );
-      if (!accessible.rowCount) throw new Error("Company access denied.");
-      await client.query(
-        `UPDATE companies SET ${COLUMNS.map(([, c], i) => `${c}=$${i + 2}`).join(",")},revision=revision+1 WHERE id=$1`,
-        [id, ...columnValues(data)],
-      );
-    } else {
-      const r = await client.query(
-        `INSERT INTO companies(${COLUMNS.map(([, c]) => c).join(",")})
-        VALUES(${COLUMNS.map((_, i) => `$${i + 1}`).join(",")}) RETURNING id`,
-        columnValues(data),
-      );
-      id = r.rows[0].id;
-      // Newly created companies inherit parameters explicitly shared globally.
-      for (const domain of [
-        "currencies",
-        "taxJurisdictions",
-        "paymentTerms",
-        "costCenters",
-        "expenseCategories",
-        "fiscalPeriods",
-      ]) {
-        const sources = await client.query(
-          `SELECT DISTINCT ON (shared_id) company_id,id FROM ledger_${domain.toLowerCase()} WHERE scope='global' ORDER BY shared_id,company_id`,
+    let id: string | undefined;
+    for (const [index, raw] of (batch?.rows ?? [initial]).entries()) {
+      const data = companySchema.parse(raw);
+      if (batch) {
+        if (data.id) throw new Error("Importação permite apenas novas empresas.");
+        const duplicate = await client.query(
+          "SELECT id FROM companies WHERE lower(trim(name))=lower(trim($1)) OR ($2 <> '' AND ein=$2) LIMIT 1",
+          [data.name, data.ein],
         );
-        const inherited = [];
-        for (const source of sources.rows) {
-          const records = await readLedger(client, source.company_id, domain);
-          const record = records.find(
-            (row) => (domain === "currencies" ? row["code"] : row["id"]) === source.id,
-          );
-          if (record) inherited.push(record);
-        }
-        await replaceLedger(client, id!, domain, inherited);
+        if (duplicate.rowCount)
+          throw new Error(`Linha ${index + 2}: empresa já cadastrada (nome ou EIN).`);
       }
-      // A profile restricted to selected companies must retain access to a company it creates.
-      await client.query(
-        "INSERT INTO profile_companies(profile_id,company_id) SELECT profile_id,$2 FROM app_users WHERE id=$1 ON CONFLICT DO NOTHING",
-        [user.id, id],
-      );
+      id = data.id;
+      if (id) {
+        const accessible = await client.query(
+          `SELECT c.id FROM companies c JOIN app_users u ON u.id=$2 JOIN access_profiles p ON p.id=u.profile_id WHERE c.id=$1 AND (p.system_admin OR p.all_companies OR EXISTS (SELECT 1 FROM profile_companies pc WHERE pc.profile_id=p.id AND pc.company_id=c.id)) FOR UPDATE OF c`,
+          [id, user.id],
+        );
+        if (!accessible.rowCount) throw new Error("Company access denied.");
+        await client.query(
+          `UPDATE companies SET ${COLUMNS.map(([, c], i) => `${c}=$${i + 2}`).join(",")},revision=revision+1 WHERE id=$1`,
+          [id, ...columnValues(data)],
+        );
+      } else {
+        const r = await client.query(
+          `INSERT INTO companies(${COLUMNS.map(([, c]) => c).join(",")})
+        VALUES(${COLUMNS.map((_, i) => `$${i + 1}`).join(",")}) RETURNING id`,
+          columnValues(data),
+        );
+        id = r.rows[0].id;
+        // Newly created companies inherit parameters explicitly shared globally.
+        for (const domain of [
+          "currencies",
+          "taxJurisdictions",
+          "paymentTerms",
+          "costCenters",
+          "expenseCategories",
+          "fiscalPeriods",
+        ]) {
+          const sources = await client.query(
+            `SELECT DISTINCT ON (shared_id) company_id,id FROM ledger_${domain.toLowerCase()} WHERE scope='global' ORDER BY shared_id,company_id`,
+          );
+          const inherited = [];
+          for (const source of sources.rows) {
+            const records = await readLedger(client, source.company_id, domain);
+            const record = records.find(
+              (row) => (domain === "currencies" ? row["code"] : row["id"]) === source.id,
+            );
+            if (record) inherited.push(record);
+          }
+          await replaceLedger(client, id!, domain, inherited);
+        }
+        // A profile restricted to selected companies must retain access to a company it creates.
+        await client.query(
+          "INSERT INTO profile_companies(profile_id,company_id) SELECT profile_id,$2 FROM app_users WHERE id=$1 ON CONFLICT DO NOTHING",
+          [user.id, id],
+        );
+      }
     }
-    await client.query("COMMIT");
+    await client.query(batch?.preview ? "ROLLBACK" : "COMMIT");
     return { id: id!, permissions };
   } catch (e) {
     await client.query("ROLLBACK");
