@@ -556,7 +556,10 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
               Debit {unitsAmount(debit)} · Credit {unitsAmount(credit)} · Difference{" "}
               {unitsAmount(debit - credit)} {form.currency}
             </p>
-            <p className={`font-mono text-sm ${baseDebit !== baseCredit ? "font-bold text-red-700" : ""}`} aria-live="polite">
+            <p
+              className={`font-mono text-sm ${baseDebit !== baseCredit ? "font-bold text-red-700" : ""}`}
+              aria-live="polite"
+            >
               Base debit {unitsAmount(baseDebit)} · Base credit {unitsAmount(baseCredit)} · Base
               difference {unitsAmount(baseDebit - baseCredit)} USD
             </p>
