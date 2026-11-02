@@ -1,50 +1,31 @@
-import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
-import {
-  accountSchema,
-  transactionSchema,
-  cashCategorySchema,
-  reconciliationSchema,
-  reconciliationScopeSchema,
-} from "./cash-flow-model";
-export const loadCashData = createServerFn({ method: "GET" })
-  .validator(z.object({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.load(data.companyId);
-  });
-export const saveCashAccount = createServerFn({ method: "POST" })
-  .validator(accountSchema.extend({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.saveAccount(data);
-  });
-export const saveCashTransaction = createServerFn({ method: "POST" })
-  .validator(z.intersection(transactionSchema, z.object({ companyId: z.string().uuid() })))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.saveTransaction(data);
-  });
-export const deleteCashTransaction = createServerFn({ method: "POST" })
-  .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.removeTransaction(data.id, data.companyId);
-  });
+import { jsonClient } from "./json-client";
 
-export const saveCashCategory = createServerFn({ method: "POST" })
-  .validator(cashCategorySchema.extend({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
-export const deleteCashCategory = createServerFn({ method: "POST" })
-  .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
-  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
-
-export const loadCashReconciliation = createServerFn({ method: "GET" })
-  .validator(reconciliationScopeSchema)
-  .handler(async ({ data }) => (await import("./cash-flow.server")).readReconciliation(data));
-export const saveCashReconciliation = createServerFn({ method: "POST" })
-  .validator(reconciliationSchema.refine((d) => d.start <= d.end, "Invalid period"))
-  .handler(async ({ data }) => (await import("./cash-flow.server")).writeReconciliation(data));
-export const checkCashAgainstGl = createServerFn({ method: "GET" })
-  .validator(reconciliationScopeSchema)
-  .handler(async ({ data }) => (await import("./cash-flow.server")).checkGlCash(data));
+export const loadCashData = jsonClient<typeof import("./cash-flow.operations.server").loadCashData>(
+  "cash-flow",
+  "loadCashData",
+  "GET",
+);
+export const saveCashAccount = jsonClient<
+  typeof import("./cash-flow.operations.server").saveCashAccount
+>("cash-flow", "saveCashAccount", "POST");
+export const saveCashTransaction = jsonClient<
+  typeof import("./cash-flow.operations.server").saveCashTransaction
+>("cash-flow", "saveCashTransaction", "POST");
+export const deleteCashTransaction = jsonClient<
+  typeof import("./cash-flow.operations.server").deleteCashTransaction
+>("cash-flow", "deleteCashTransaction", "POST");
+export const saveCashCategory = jsonClient<
+  typeof import("./cash-flow.operations.server").saveCashCategory
+>("cash-flow", "saveCashCategory", "POST");
+export const deleteCashCategory = jsonClient<
+  typeof import("./cash-flow.operations.server").deleteCashCategory
+>("cash-flow", "deleteCashCategory", "POST");
+export const loadCashReconciliation = jsonClient<
+  typeof import("./cash-flow.operations.server").loadCashReconciliation
+>("cash-flow", "loadCashReconciliation", "GET");
+export const saveCashReconciliation = jsonClient<
+  typeof import("./cash-flow.operations.server").saveCashReconciliation
+>("cash-flow", "saveCashReconciliation", "POST");
+export const checkCashAgainstGl = jsonClient<
+  typeof import("./cash-flow.operations.server").checkCashAgainstGl
+>("cash-flow", "checkCashAgainstGl", "GET");

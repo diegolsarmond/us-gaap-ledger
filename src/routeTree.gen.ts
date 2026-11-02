@@ -45,6 +45,7 @@ import { Route as ParametersTaxJurisdictionsRouteImport } from './routes/paramet
 import { Route as ApiAccountingBalancesRouteImport } from './routes/api.accounting.balances'
 import { Route as ApiAccountingEventsRouteImport } from './routes/api.accounting.events'
 import { Route as ApiJournalEntriesSplatRouteImport } from './routes/api.journal-entries.$'
+import { Route as ApiJsonSplatRouteImport } from './routes/api.json.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -229,6 +230,11 @@ const ApiJournalEntriesSplatRoute = ApiJournalEntriesSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => ApiJournalEntriesRoute,
 } as any)
+const ApiJsonSplatRoute = ApiJsonSplatRouteImport.update({
+  id: '/api/json/$',
+  path: '/api/json/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/api/accounting/balances': typeof ApiAccountingBalancesRoute
   '/api/accounting/events': typeof ApiAccountingEventsRoute
   '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
+  '/api/json/$': typeof ApiJsonSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/api/accounting/balances': typeof ApiAccountingBalancesRoute
   '/api/accounting/events': typeof ApiAccountingEventsRoute
   '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
+  '/api/json/$': typeof ApiJsonSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -343,6 +351,7 @@ export interface FileRoutesById {
   '/api/accounting/balances': typeof ApiAccountingBalancesRoute
   '/api/accounting/events': typeof ApiAccountingEventsRoute
   '/api/journal-entries/$': typeof ApiJournalEntriesSplatRoute
+  '/api/json/$': typeof ApiJsonSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/api/accounting/balances'
     | '/api/accounting/events'
     | '/api/journal-entries/$'
+    | '/api/json/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
     | '/api/accounting/balances'
     | '/api/accounting/events'
     | '/api/journal-entries/$'
+    | '/api/json/$'
   id:
     | '__root__'
     | '/'
@@ -458,6 +469,7 @@ export interface FileRouteTypes {
     | '/api/accounting/balances'
     | '/api/accounting/events'
     | '/api/journal-entries/$'
+    | '/api/json/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -488,6 +500,7 @@ export interface RootRouteChildren {
   ApiJournalEntriesRoute: typeof ApiJournalEntriesRouteWithChildren
   ApiAccountingBalancesRoute: typeof ApiAccountingBalancesRoute
   ApiAccountingEventsRoute: typeof ApiAccountingEventsRoute
+  ApiJsonSplatRoute: typeof ApiJsonSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -744,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJournalEntriesSplatRouteImport
       parentRoute: typeof ApiJournalEntriesRoute
     }
+    '/api/json/$': {
+      id: '/api/json/$'
+      path: '/api/json/$'
+      fullPath: '/api/json/$'
+      preLoaderRoute: typeof ApiJsonSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -812,6 +832,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJournalEntriesRoute: ApiJournalEntriesRouteWithChildren,
   ApiAccountingBalancesRoute: ApiAccountingBalancesRoute,
   ApiAccountingEventsRoute: ApiAccountingEventsRoute,
+  ApiJsonSplatRoute: ApiJsonSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

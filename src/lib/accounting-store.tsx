@@ -12,8 +12,8 @@ import { Link } from "@tanstack/react-router";
 export type * from "./accounting-engine";
 type AsyncContext = {
   [K in keyof AccountingContextType]: AccountingContextType[K] extends (...args: infer A) => infer R
-    ? (...args: A) => Promise<R>
-    : AccountingContextType[K];
+  ? (...args: A) => Promise<R>
+  : AccountingContextType[K];
 };
 const Context = createContext<AsyncContext | null>(null);
 export function AccountingProvider({ children }: { children: ReactNode }) {
@@ -53,7 +53,7 @@ function CompanyAccounting({
     [error, setError] = useState("");
   const revision = useRef(0);
   revision.current = query.data?.revision ?? 0;
-  if (query.isPending) return <p role="status">Carregando dados da empresa…</p>;
+  if (query.isPending) return <p role="status">Loading companies…</p>;
   if (query.isError)
     return (
       <div role="alert">

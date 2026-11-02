@@ -1,8 +1,10 @@
-import { createServerFn } from "@tanstack/react-start";
-import { companySchema } from "./company-model";
-export const loadCompanies = createServerFn({ method: "GET" }).handler(async () =>
-  (await import("./companies.server")).listCompanies(),
+import { jsonClient } from "./json-client";
+
+export const loadCompanies = jsonClient<
+  typeof import("./companies.operations.server").loadCompanies
+>("companies", "loadCompanies", "GET");
+export const saveCompany = jsonClient<typeof import("./companies.operations.server").saveCompany>(
+  "companies",
+  "saveCompany",
+  "POST",
 );
-export const saveCompany = createServerFn({ method: "POST" })
-  .validator(companySchema)
-  .handler(async ({ data }) => (await import("./companies.server")).saveCompany(data));

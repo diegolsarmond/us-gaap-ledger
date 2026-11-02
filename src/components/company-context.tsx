@@ -29,7 +29,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   if (query.isPending)
     return (
       <p className="p-6" role="status">
-        Carregando empresas…
+        Loading companies…
       </p>
     );
   if (query.isError)
