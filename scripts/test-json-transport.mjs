@@ -41,7 +41,25 @@ response = await request("auth/logout", {
 });
 assert.equal(response.status, 200);
 assert.equal(await response.json(), null);
-for (const headers of [{ origin: "https://other.example" }, { "sec-fetch-site": "cross-site" }]) {
+// TLS termination leaves an internal HTTP URL but browser metadata still
+// identifies requests made from the application's public HTTPS origin.
+response = await request("auth/logout", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    origin: "https://worldbusiness.quantumtecnologia.com.br",
+    "sec-fetch-site": "same-origin",
+  },
+  body: "{}",
+});
+assert.equal(response.status, 200);
+for (const headers of [
+  { origin: "https://other.example" },
+  { "sec-fetch-site": "cross-site" },
+  { origin: "http://localhost", "sec-fetch-site": "cross-site" },
+  { origin: "https://other.example", "sec-fetch-site": "same-site" },
+  { origin: "https://other.example", "x-forwarded-host": "other.example", "x-forwarded-proto": "https" },
+]) {
   response = await request("auth/logout", {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },

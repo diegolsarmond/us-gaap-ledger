@@ -1,16 +1,13 @@
 import { dispatchJson } from "./json-registry.server";
 import { ZodError } from "zod";
+import { isCrossOriginWrite } from "./request-origin.server";
 
 export async function jsonHttp(request: Request, path: string) {
   const headers = { "Cache-Control": "no-store" };
   try {
     const url = new URL(request.url);
     if (request.method !== "GET") {
-      const origin = request.headers.get("origin");
-      if (
-        (origin && origin !== url.origin) ||
-        request.headers.get("sec-fetch-site") === "cross-site"
-      )
+      if (isCrossOriginWrite(request))
         return Response.json(
           { error: "Cross-origin writes are not permitted" },
           { status: 403, headers },

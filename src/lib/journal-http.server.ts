@@ -1,11 +1,11 @@
 import { executeJournal } from "./journal.server";
 import { journalRequest } from "./journal-model";
+import { isCrossOriginWrite } from "./request-origin.server";
 export async function journalHttp(request: Request, path = "") {
   try {
     const url = new URL(request.url);
     if (request.method !== "GET") {
-      const origin = request.headers.get("origin");
-      if (origin && origin !== url.origin)
+      if (isCrossOriginWrite(request))
         return Response.json({ error: "Cross-origin writes are not permitted" }, { status: 403 });
       if (!request.headers.get("content-type")?.includes("application/json"))
         return Response.json({ error: "JSON body required" }, { status: 415 });
