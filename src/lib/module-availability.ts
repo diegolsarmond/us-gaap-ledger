@@ -2,6 +2,7 @@
 const availableModulePaths = new Set([
   "/reports",
   "/journals",
+  "/trial-balance",
   "/dashboard",
   "/customers",
   "/companies",

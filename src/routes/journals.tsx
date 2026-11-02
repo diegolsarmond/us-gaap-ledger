@@ -124,7 +124,9 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
     costCenter: "",
   });
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("entry"),
+  );
   const [editing, setEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editVersion, setEditVersion] = useState<number | undefined>();

@@ -15,6 +15,7 @@
     "test:companies": "node --env-file-if-exists=.env scripts/test-companies.mjs",
     "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs",
     "test:journals": "node --env-file-if-exists=.env scripts/test-journals.mjs",
+    "test:trial-balance": "node --env-file-if-exists=.env scripts/test-trial-balance.mjs",
     "migrate:journals": "node --env-file-if-exists=.env scripts/migrate-journals.mjs"
   },
   "overrides": {
@@ -58,7 +59,9 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "input-otp": "^1.4.2",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.575.0",
     "pg": "^8.23.1",
     "react": "^19.2.0",

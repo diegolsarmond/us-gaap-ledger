@@ -34,6 +34,7 @@ import { Route as TrialBalanceRouteImport } from './routes/trial-balance'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as VendorsRouteImport } from './routes/vendors'
 import { Route as ApiJournalEntriesRouteImport } from './routes/api.journal-entries'
+import { Route as ApiTrialBalanceRouteImport } from './routes/api.trial-balance'
 import { Route as ParametersIndexRouteImport } from './routes/parameters/index'
 import { Route as ParametersCashCategoriesRouteImport } from './routes/parameters/cash-categories'
 import { Route as ParametersCostCentersRouteImport } from './routes/parameters/cost-centers'
@@ -172,6 +173,11 @@ const ApiJournalEntriesRoute = ApiJournalEntriesRouteImport.update({
   path: '/api/journal-entries',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTrialBalanceRoute = ApiTrialBalanceRouteImport.update({
+  id: '/api/trial-balance',
+  path: '/api/trial-balance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ParametersIndexRoute = ParametersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
+  '/api/trial-balance': typeof ApiTrialBalanceRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
+  '/api/trial-balance': typeof ApiTrialBalanceRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/users': typeof UsersRoute
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
+  '/api/trial-balance': typeof ApiTrialBalanceRoute
   '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
@@ -381,6 +390,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vendors'
     | '/api/journal-entries'
+    | '/api/trial-balance'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -419,6 +429,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vendors'
     | '/api/journal-entries'
+    | '/api/trial-balance'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -458,6 +469,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vendors'
     | '/api/journal-entries'
+    | '/api/trial-balance'
     | '/parameters/cash-categories'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
@@ -498,6 +510,7 @@ export interface RootRouteChildren {
   UsersRoute: typeof UsersRoute
   VendorsRoute: typeof VendorsRoute
   ApiJournalEntriesRoute: typeof ApiJournalEntriesRouteWithChildren
+  ApiTrialBalanceRoute: typeof ApiTrialBalanceRoute
   ApiAccountingBalancesRoute: typeof ApiAccountingBalancesRoute
   ApiAccountingEventsRoute: typeof ApiAccountingEventsRoute
   ApiJsonSplatRoute: typeof ApiJsonSplatRoute
@@ -680,6 +693,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJournalEntriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/trial-balance': {
+      id: '/api/trial-balance'
+      path: '/api/trial-balance'
+      fullPath: '/api/trial-balance'
+      preLoaderRoute: typeof ApiTrialBalanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/parameters/': {
       id: '/parameters/'
       path: '/'
@@ -830,6 +850,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRoute: UsersRoute,
   VendorsRoute: VendorsRoute,
   ApiJournalEntriesRoute: ApiJournalEntriesRouteWithChildren,
+  ApiTrialBalanceRoute: ApiTrialBalanceRoute,
   ApiAccountingBalancesRoute: ApiAccountingBalancesRoute,
   ApiAccountingEventsRoute: ApiAccountingEventsRoute,
   ApiJsonSplatRoute: ApiJsonSplatRoute,

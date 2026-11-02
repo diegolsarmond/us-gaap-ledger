@@ -6,12 +6,12 @@ import { PageTitle, Panel } from "@/components/ui-kit";
 import { loadReportSources } from "@/lib/reports";
 import { runReport, type Report } from "@/lib/report-engine";
 import { Download, Eye, Pencil, Plus, Save, Trash2, BarChart3 } from "lucide-react";
-import { ReportOverviewCharts, ReportDynamicChart } from "@/components/report-charts";
+import { ReportTemplatesGrid, ReportDynamicChart } from "@/components/report-charts";
 
 export const Route = createFileRoute("/reports")({ component: ReportsPage });
 
 const initial: Report = {
-  name: "Meu Relatório",
+  name: "My Report",
   source: "cashTransactions",
   joins: [],
   columns: [],
@@ -26,7 +26,7 @@ const initial: Report = {
 
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-xs text-ink focus:outline-hidden";
 const button =
-  "inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-medium text-ink hover:bg-brand/5 transition-colors disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-medium text-ink hover:bg-brand/5 transition-colors disabled:opacity-40 cursor-pointer";
 
 function ReportsPage() {
   const { activeCompany, user } = useCompanies();
@@ -63,7 +63,7 @@ function ReportsPage() {
           ),
         );
     } catch {
-      setNotice("Não foi possível carregar os modelos salvos neste navegador.");
+      setNotice("Unable to load saved templates in this browser.");
     }
   }, [storageKey]);
 
@@ -79,7 +79,7 @@ function ReportsPage() {
   const label = (field: string) => {
     const dot = field.indexOf(".");
     return field === "resultado"
-      ? "Resultado / Métrica"
+      ? "Result / Metric"
       : `${sources.find((s) => s.id === field.slice(0, dot))?.label ?? field.slice(0, dot)} · ${field.slice(dot + 1)}`;
   };
 
@@ -90,7 +90,7 @@ function ReportsPage() {
     } catch (e) {
       return {
         data: null,
-        error: e instanceof Error ? e.message : "Não foi possível gerar o relatório.",
+        error: e instanceof Error ? e.message : "Unable to generate the report.",
       };
     }
   }, [query.data, report]);
@@ -101,7 +101,7 @@ function ReportsPage() {
     value: string,
     change: (s: string) => void,
     options = fields,
-    placeholder = "Selecione um campo",
+    placeholder = "Select a field",
   ) => (
     <select className={control} value={value} onChange={(e) => change(e.target.value)}>
       <option value="">{placeholder}</option>
@@ -115,17 +115,17 @@ function ReportsPage() {
 
   const save = () => {
     if (!report.name.trim()) {
-      setNotice("Informe um nome para o relatório.");
+      setNotice("Please enter a report name.");
       return;
     }
     const next = [...saved.filter((s) => s.name !== report.name), report];
     try {
       localStorage.setItem(storageKey, JSON.stringify(next));
       setSaved(next);
-      setNotice("Relatório salvo com sucesso neste navegador.");
+      setNotice("Report saved successfully in this browser.");
       setMode("list");
     } catch {
-      setNotice("Não foi possível salvar o modelo neste navegador.");
+      setNotice("Unable to save the report template in this browser.");
     }
   };
 
@@ -144,18 +144,18 @@ function ReportsPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${report.name.replace(/[^\p{L}\p{N}_-]/gu, "_") || "relatorio"}.csv`;
+    link.download = `${report.name.replace(/[^\p{L}\p{N}_-]/gu, "_") || "report"}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  if (query.isPending) return <p role="status" className="p-6 text-sm text-ink3">Loading reports…</p>;
+  if (query.isPending) return <p role="status" className="p-6 text-sm text-ink3">Loading report sources…</p>;
   if (query.isError)
     return (
       <div role="alert" className="p-6 text-sm text-down space-y-2">
-        <p>Não foi possível carregar os dados das fontes.</p>
+        <p>Unable to load report sources.</p>
         <button className={button} onClick={() => void query.refetch()}>
-          Tentar novamente
+          Try again
         </button>
       </div>
     );
@@ -163,35 +163,35 @@ function ReportsPage() {
   return (
     <div className="space-y-4">
       <PageTitle
-        title={mode === "list" ? "Relatórios & Gráficos" : mode === "view" ? report.name : "Construtor de Relatórios"}
-        description={`Combine dados de ${activeCompany!.name}, gere gráficos analíticos, escolha campos e personalize análises.`}
+        title={mode === "list" ? "Saved Reports" : mode === "view" ? report.name : "Report Builder"}
+        description={`Combine ledger data from ${activeCompany!.name}, generate visual charts, and customize financial analyses.`}
         actions={
           <>
             <button className={button} onClick={() => void query.refetch()}>
-              Atualizar dados
+              Refresh data
             </button>
             {mode !== "list" && (
               <button className={button} onClick={() => setMode("list")}>
                 <BarChart3 size={14} />
-                Painel & Relatórios Salvos
+                Saved Reports
               </button>
             )}
             {mode === "view" && (
               <button className={button} onClick={() => setMode("builder")}>
                 <Pencil size={14} />
-                Editar relatório
+                Edit report
               </button>
             )}
             {mode === "builder" && (
               <button className={button} onClick={save}>
                 <Save size={14} />
-                Salvar relatório
+                Save report
               </button>
             )}
             {mode !== "list" && (
               <button className={button} disabled={!data?.columns.length} onClick={exportCsv}>
                 <Download size={14} />
-                Exportar CSV
+                Export CSV
               </button>
             )}
           </>
@@ -204,12 +204,11 @@ function ReportsPage() {
         </p>
       )}
 
-      {/* Mode List: Overview Charts & Saved Reports */}
+      {/* Mode List: Report Templates & Saved Reports */}
       {mode === "list" && (
         <div className="space-y-4">
-          {/* Executive Overview Display Charts */}
-          <ReportOverviewCharts
-            sources={sources}
+          {/* Quick Report Presets with Visual Charts */}
+          <ReportTemplatesGrid
             onSelectPreset={(preset) => {
               patch(preset);
               setMode("view");
@@ -220,14 +219,14 @@ function ReportsPage() {
 
           {/* Saved Reports Panel */}
           <Panel
-            title="Relatórios Salvos"
-            subtitle="As definições de relatórios ficam gravadas no navegador para esta empresa e usuário. Ao abrir, os resultados são recalculados com dados em tempo real."
+            title="Saved Reports"
+            subtitle="Report definitions are saved in this browser for this company and user. Opening a report recalculates results using real-time ledger data."
           >
             <div className="flex flex-wrap items-center justify-between gap-3 p-4">
               <input
                 className={control + " sm:max-w-sm"}
-                aria-label="Buscar relatórios salvos"
-                placeholder="Buscar relatórios salvos…"
+                aria-label="Search saved reports"
+                placeholder="Search saved reports…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -240,14 +239,14 @@ function ReportsPage() {
                 }}
               >
                 <Plus size={14} />
-                Novo relatório
+                New report
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr>
-                    {["Nome do Relatório", "Fonte Primária", "Tipo", "Configuração", "Ações"].map(
+                    {["Report Name", "Primary Source", "Type", "Configuration", "Actions"].map(
                       (h) => (
                         <th key={h} className="border-b border-line p-3 font-semibold text-ink">
                           {h}
@@ -266,17 +265,17 @@ function ReportsPage() {
                           {sources.find((source) => source.id === s.source)?.label ?? s.source}
                         </td>
                         <td className="border-b border-line/50 p-3 text-ink2">
-                          {s.summary ? "Resumo / Agrupado" : "Detalhado"}
+                          {s.summary ? "Summary / Grouped" : "Detailed"}
                         </td>
                         <td className="border-b border-line/50 p-3 text-ink3">
-                          {s.joins.length} cruzamentos · {s.filters.length} filtros ·{" "}
-                          {s.summary ? s.groups.length + " grupos" : s.columns.length + " colunas"}
+                          {s.joins.length} joins · {s.filters.length} filters ·{" "}
+                          {s.summary ? s.groups.length + " groups" : s.columns.length + " columns"}
                         </td>
                         <td className="border-b border-line/50 p-3">
                           <div className="flex gap-2">
                             <button
                               className={button}
-                              aria-label={`Ver relatório ${s.name}`}
+                              aria-label={`View report ${s.name}`}
                               onClick={() => {
                                 patch(s);
                                 setMode("view");
@@ -285,11 +284,11 @@ function ReportsPage() {
                               }}
                             >
                               <Eye size={14} />
-                              Ver Gráficos & Dados
+                              View Report & Charts
                             </button>
                             <button
                               className={button}
-                              aria-label={`Editar relatório ${s.name}`}
+                              aria-label={`Edit report ${s.name}`}
                               onClick={() => {
                                 patch(s);
                                 setMode("builder");
@@ -297,19 +296,19 @@ function ReportsPage() {
                               }}
                             >
                               <Pencil size={14} />
-                              Editar
+                              Edit
                             </button>
                             <button
                               className={button}
-                              aria-label={`Excluir relatório ${s.name}`}
+                              aria-label={`Delete report ${s.name}`}
                               onClick={() => {
                                 const next = saved.filter((v) => v.name !== s.name);
                                 try {
                                   localStorage.setItem(storageKey, JSON.stringify(next));
                                   setSaved(next);
-                                  setNotice("Relatório excluído.");
+                                  setNotice("Report deleted.");
                                 } catch {
-                                  setNotice("Não foi possível excluir o relatório.");
+                                  setNotice("Unable to delete the report.");
                                 }
                               }}
                             >
@@ -322,14 +321,14 @@ function ReportsPage() {
                   {!saved.filter((s) =>
                     s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
                   ).length && (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-ink3">
-                          {saved.length
-                            ? "Nenhum relatório salvo corresponde à sua busca."
-                            : "Nenhum relatório personalizado salvo ainda. Crie um novo relatório ou use os modelos rápidos acima."}
-                        </td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-ink3">
+                        {saved.length
+                          ? "No saved reports match your search."
+                          : "No custom reports saved yet. Create a report or click one of the quick templates above."}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -341,13 +340,13 @@ function ReportsPage() {
       {mode === "builder" && (
         <>
           <Panel
-            title="1. Fontes de Dados e Cruzamentos (Joins)"
-            subtitle="Cada linha representa um registro da fonte primária. Registros filhos são vinculados por parentId."
+            title="1. Data Sources and Joins"
+            subtitle="Each row represents a primary source record. Child records and items are linked by parentId."
           >
             <div className="space-y-3 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-xs">
-                  <span className="font-medium text-ink">Nome do relatório</span>
+                  <span className="font-medium text-ink">Report name</span>
                   <input
                     className={control}
                     value={report.name}
@@ -355,7 +354,7 @@ function ReportsPage() {
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-medium text-ink">Fonte primária de dados</span>
+                  <span className="font-medium text-ink">Primary data source</span>
                   <select
                     className={control}
                     value={report.source}
@@ -365,7 +364,7 @@ function ReportsPage() {
                   >
                     {sources.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.label} ({s.rows.length} registros)
+                        {s.label} ({s.rows.length} records)
                       </option>
                     ))}
                   </select>
@@ -377,7 +376,7 @@ function ReportsPage() {
                   className="grid items-end gap-2 rounded-lg border border-line p-3 lg:grid-cols-5"
                 >
                   <label className="text-xs">
-                    Cruzamento com
+                    Join with
                     <select
                       className={control}
                       value={j.source}
@@ -392,7 +391,7 @@ function ReportsPage() {
                         })
                       }
                     >
-                      <option value="">Selecione a fonte</option>
+                      <option value="">Select a source</option>
                       {sources
                         .filter(
                           (s) =>
@@ -407,7 +406,7 @@ function ReportsPage() {
                     </select>
                   </label>
                   <label className="text-xs">
-                    Campo de origem
+                    Source field
                     {selectFields(
                       j.left,
                       (left) =>
@@ -421,7 +420,7 @@ function ReportsPage() {
                     )}
                   </label>
                   <label className="text-xs">
-                    Campo correspondente
+                    Matching field
                     <select
                       className={control}
                       value={j.right}
@@ -433,7 +432,7 @@ function ReportsPage() {
                         })
                       }
                     >
-                      <option value="">Selecione</option>
+                      <option value="">Select</option>
                       {sources
                         .find((s) => s.id === j.source)
                         ?.fields.map((f) => (
@@ -442,7 +441,7 @@ function ReportsPage() {
                     </select>
                   </label>
                   <label className="text-xs">
-                    Tipo de cruzamento
+                    Join type
                     <select
                       className={control}
                       value={j.kind}
@@ -454,8 +453,8 @@ function ReportsPage() {
                         })
                       }
                     >
-                      <option value="left">Manter todos da origem (LEFT)</option>
-                      <option value="inner">Apenas correspondentes (INNER)</option>
+                      <option value="left">Keep all source records (LEFT)</option>
+                      <option value="inner">Matching records only (INNER)</option>
                     </select>
                   </label>
                   <button
@@ -471,7 +470,7 @@ function ReportsPage() {
                       })
                     }
                   >
-                    Remover cruzamento
+                    Remove join
                   </button>
                 </div>
               ))}
@@ -484,15 +483,15 @@ function ReportsPage() {
                 }
               >
                 <Plus size={14} />
-                Adicionar cruzamento
+                Add join
               </button>
             </div>
           </Panel>
 
-          <Panel title="2. Colunas e Filtros">
+          <Panel title="2. Columns and Filters">
             <div className="space-y-4 p-4">
               <fieldset>
-                <legend className="mb-2 text-xs font-semibold text-ink">Colunas do relatório</legend>
+                <legend className="mb-2 text-xs font-semibold text-ink">Report columns</legend>
                 <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
                   {fields.map((f) => (
                     <label key={f} className="flex items-center gap-2 text-xs text-ink2 hover:text-ink cursor-pointer">
@@ -531,12 +530,12 @@ function ReportsPage() {
                     }
                   >
                     {Object.entries({
-                      contains: "Contém",
-                      eq: "Igual a",
-                      neq: "Diferente de",
-                      gte: "Maior ou igual a",
-                      lte: "Menor ou igual a",
-                      empty: "Está vazio",
+                      contains: "Contains",
+                      eq: "Equals",
+                      neq: "Does not equal",
+                      gte: "Greater than or equal to",
+                      lte: "Less than or equal to",
+                      empty: "Is empty",
                     }).map(([k, v]) => (
                       <option key={k} value={k}>
                         {v}
@@ -544,10 +543,10 @@ function ReportsPage() {
                     ))}
                   </select>
                   <input
-                    aria-label="Valor do filtro"
+                    aria-label="Filter value"
                     className={control}
                     disabled={f.operator === "empty"}
-                    placeholder="Valor ou data AAAA-MM-DD"
+                    placeholder="Value or date YYYY-MM-DD"
                     value={f.value}
                     onChange={(e) =>
                       patch({
@@ -561,7 +560,7 @@ function ReportsPage() {
                     className={button}
                     onClick={() => patch({ filters: report.filters.filter((_, n) => n !== i) })}
                   >
-                    Remover filtro
+                    Remove filter
                   </button>
                 </div>
               ))}
@@ -577,12 +576,12 @@ function ReportsPage() {
                 }
               >
                 <Plus size={14} />
-                Adicionar filtro (E)
+                Add filter (AND)
               </button>
             </div>
           </Panel>
 
-          <Panel title="3. Análise, Agrupamento e Ordenação">
+          <Panel title="3. Analysis, Grouping and Sorting">
             <div className="space-y-3 p-4">
               <label className="flex items-center gap-2 text-xs font-medium text-ink cursor-pointer">
                 <input
@@ -590,13 +589,13 @@ function ReportsPage() {
                   checked={report.summary}
                   onChange={(e) => patch({ summary: e.target.checked, sort: "" })}
                 />
-                Resumir com agrupamentos e cálculos estatísticos (gera gráficos instantâneos)
+                Summarize with grouping and statistical calculations (generates instant visual charts)
               </label>
               {report.summary && (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-xs">
-                      <span className="font-medium text-ink">Operação de cálculo</span>
+                      <span className="font-medium text-ink">Calculation method</span>
                       <select
                         className={control}
                         value={report.operation}
@@ -605,11 +604,11 @@ function ReportsPage() {
                         }
                       >
                         {Object.entries({
-                          count: "Contagem de linhas",
-                          sum: "Soma",
-                          avg: "Média",
-                          min: "Mínimo",
-                          max: "Máximo",
+                          count: "Row count",
+                          sum: "Sum",
+                          avg: "Average",
+                          min: "Minimum",
+                          max: "Maximum",
                         }).map(([k, v]) => (
                           <option key={k} value={k}>
                             {v}
@@ -619,14 +618,14 @@ function ReportsPage() {
                     </label>
                     {report.operation !== "count" && (
                       <label className="text-xs">
-                        <span className="font-medium text-ink">Campo numérico métrico</span>
+                        <span className="font-medium text-ink">Numeric metric field</span>
                         {selectFields(report.metric, (metric) => patch({ metric }))}
                       </label>
                     )}
                   </div>
                   <fieldset>
                     <legend className="text-xs font-semibold text-ink mb-2">
-                      Agrupar por (selecione categorias, clientes ou tipos para o eixo do gráfico)
+                      Group by (select categories, customers, or accounts for chart axes)
                     </legend>
                     <div className="grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
                       {fields.map((f) => (
@@ -654,7 +653,7 @@ function ReportsPage() {
                   report.sort,
                   (sort) => patch({ sort }),
                   report.summary ? [...report.groups, "resultado"] : report.columns,
-                  "Sem ordenação",
+                  "No sorting",
                 )}
                 <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                   <input
@@ -662,7 +661,7 @@ function ReportsPage() {
                     checked={report.descending}
                     onChange={(e) => patch({ descending: e.target.checked })}
                   />
-                  Decrescente
+                  Descending
                 </label>
               </div>
             </div>
@@ -679,7 +678,7 @@ function ReportsPage() {
 
       {mode !== "list" && data?.expanded && (
         <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900 border border-amber-200">
-          Múltiplas correspondências encontradas: registros da fonte foram duplicados no cruzamento.
+          Multiple matches found: source records were repeated in the join. Totals reflect repeated rows.
         </p>
       )}
 
@@ -698,13 +697,13 @@ function ReportsPage() {
           {/* Results Table (when layout is 'both' or 'table') */}
           {viewLayout !== "chart" && (
             <Panel
-              title={report.name || "Resultado"}
-              subtitle={`${data.matched} linhas após os filtros · ${data.rows.length} registros no total. Valores em sua moeda e unidade originais.`}
+              title={report.name || "Results"}
+              subtitle={`${data.matched} records matched filters · ${data.rows.length} total rows. Values in original currency and unit.`}
             >
               <div className="overflow-x-auto">
                 {!data.columns.length ? (
                   <p className="p-6 text-sm text-ink3">
-                    Selecione colunas na seção 2 ou marque resumo para visualizar dados.
+                    Select columns in section 2 or enable summary mode to display data.
                   </p>
                 ) : (
                   <table className="w-full text-left text-xs">
@@ -729,8 +728,8 @@ function ReportsPage() {
                                 ? "—"
                                 : typeof row[c] === "boolean"
                                   ? row[c]
-                                    ? "Sim"
-                                    : "Não"
+                                    ? "Yes"
+                                    : "No"
                                   : String(row[c])}
                             </td>
                           ))}
@@ -739,7 +738,7 @@ function ReportsPage() {
                       {!data.rows.length && (
                         <tr>
                           <td className="p-6 text-center text-ink3" colSpan={data.columns.length}>
-                            Nenhum registro encontrado para esta combinação de filtros.
+                            No records found for this combination of filters.
                           </td>
                         </tr>
                       )}
@@ -749,17 +748,17 @@ function ReportsPage() {
               </div>
               <div className="flex items-center justify-between p-3 text-xs border-t border-line/60">
                 <button className={button} disabled={!page} onClick={() => setPage((p) => p - 1)}>
-                  Anterior
+                  Previous
                 </button>
                 <span className="text-ink3">
-                  Página {page + 1} de {Math.max(1, Math.ceil(data.rows.length / 50))} · O CSV exporta todas as linhas
+                  Page {page + 1} of {Math.max(1, Math.ceil(data.rows.length / 50))} · CSV exports all rows
                 </span>
                 <button
                   className={button}
                   disabled={(page + 1) * 50 >= data.rows.length}
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Próxima
+                  Next
                 </button>
               </div>
             </Panel>
