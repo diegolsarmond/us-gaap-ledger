@@ -964,6 +964,7 @@ export function createAccountingEngine(
       return { success: false, error: "Enter the payment date exchange rate." };
     const appliedRate = rate ?? 1,
       amount = requestedAmount ?? open.native;
+    if(quote?.date && quote.date>paymentDate)return {success:false,error:"The quote date cannot be after the payment date."};
     if (bankAccountId && kind === "AP") {
       const bank = nextData.vendors
         .find((v) => v.id === (doc as Bill).vendorId)

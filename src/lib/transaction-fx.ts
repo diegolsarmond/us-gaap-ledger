@@ -41,11 +41,13 @@ export function normalizedFx(
     foreignAmount?: number;
     fxRate?: number;
     usdAmount?: number;
+    date?: string;
   },
 ) {
   const currency = doc.transactionCurrency || doc.currency || "USD";
   const amount = doc.transactionAmount ?? doc.foreignAmount ?? doc.total ?? 0;
   const rate = doc.exchangeRateValue ?? doc.fxRate ?? 1;
+  if(doc.date && doc.exchangeRateDate && doc.exchangeRateDate > doc.date) throw new Error("The exchange quote cannot be dated after the transaction.");
   if (!Number.isFinite(rate) || rate <= 0 || (currency === "USD" && rate !== 1))
     throw new Error("Enter a positive exchange rate; USD must use 1.");
   if (!Number.isFinite(amount) || amount < 0) throw new Error("Invalid transaction amount.");

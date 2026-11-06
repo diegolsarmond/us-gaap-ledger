@@ -106,6 +106,7 @@ state.customers = [
 ];
 function run(command, ...args) {
   const engine = createAccountingEngine(state, company, user);
+  while(args.length<commandArgs[command].items.length)args.push(undefined);
   const parsed = commandArgs[command].parse(args);
   const result = engine.value[command](...parsed);
   assert.notEqual(result?.success, false, result?.error);

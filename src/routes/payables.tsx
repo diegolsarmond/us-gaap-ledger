@@ -84,8 +84,8 @@ function PayablesPage() {
 
       if (!vendorName.trim()) {
         await modal.showAlert({
-          title: "Campo Obrigatório",
-          message: "Por favor informe o Nome ou Razão Social do Fornecedor.",
+          title: "Required Field",
+          message: "Please select or provide the Vendor Name.",
           tone: "warning",
         });
         return;
@@ -110,7 +110,7 @@ function PayablesPage() {
         items: [
           {
             id: "bill-item",
-            description: `Fatura ${billNumber} — ${vendorName}`,
+            description: `Bill ${billNumber} — ${vendorName}`,
             accountCode,
             isInventory: ["1300", "13000"].includes(accountCode) && isInventory,
             sku: ["1300", "13000"].includes(accountCode) ? skuPurchased : undefined,
@@ -128,14 +128,14 @@ function PayablesPage() {
         setDimensionValues([]);
         setView("list");
         await modal.showAlert({
-          title: "Fatura de Fornecedor Registrada",
-          message: `Fatura ${bId} registrada com sucesso no Contas a Pagar (AP)!\n\nLançamentos no Razão Geral:\n• Crédito em Contas a Pagar (2000): ${usd(calculatedUsd)}\n• Débito na conta ${accountCode}: ${usd(calculatedUsd)}`,
+          title: "Vendor Bill Recorded",
+          message: `Bill ${bId} successfully recorded in Accounts Payable (AP)!\n\nGeneral Ledger Entries:\n• Credit Accounts Payable (2000): ${usd(calculatedUsd)}\n• Debit Account ${accountCode}: ${usd(calculatedUsd)}`,
           tone: "success",
         });
       } else {
         await modal.showAlert({
-          title: "Erro ao Registrar Título",
-          message: result.error || "Não foi possível registrar o título a pagar.",
+          title: "Error Recording Bill",
+          message: result.error || "Unable to record vendor payable.",
           tone: "error",
         });
       }
@@ -212,7 +212,7 @@ function PayablesPage() {
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Plus className="size-4" />
-                  Novo Título a Pagar
+                  Record New Bill
                 </button>
               )}
             </div>
@@ -248,7 +248,7 @@ function PayablesPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por fornecedor ou número do título..."
+                placeholder="Search by vendor or bill number..."
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
@@ -264,7 +264,7 @@ function PayablesPage() {
                       : "bg-surface text-ink2 hover:bg-muted ring-1 ring-line"
                   }`}
                 >
-                  {curr === "ALL" ? "Todas as Moedas" : curr}
+                  {curr === "ALL" ? "All Currencies" : curr}
                 </button>
               ))}
             </div>
@@ -273,7 +273,7 @@ function PayablesPage() {
           {/* Vendor Bills Register Full Width */}
           <Panel
             title="Vendor Bills Register"
-            subtitle={`${filteredBills.length} de ${bills.length} títulos no sub-razão de fornecedores`}
+            subtitle={`${filteredBills.length} of ${bills.length} bills in vendor subledger`}
           >
             <div className="overflow-x-auto">
               <Table>
@@ -294,7 +294,7 @@ function PayablesPage() {
                   {filteredBills.length === 0 ? (
                     <tr>
                       <Td colSpan={9} className="py-8 text-center text-[12px] text-ink3">
-                        Nenhum título encontrado para o filtro selecionado.
+                        No bills found matching the selected filter.
                       </Td>
                     </tr>
                   ) : (
@@ -323,8 +323,8 @@ function PayablesPage() {
                             <span
                               className={`block text-[10px] font-sans ${
                                 b.realizedFxDiff >= 0
-                                  ? "text-up font-semibold"
-                                  : "text-down font-semibold"
+                                    ? "text-up font-semibold"
+                                    : "text-down font-semibold"
                               }`}
                             >
                               FX: {acct(b.realizedFxDiff)}
@@ -341,7 +341,7 @@ function PayablesPage() {
                               onClick={() => openPayModal(b)}
                               className="rounded bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 ring-1 ring-brand/25 transition-colors cursor-pointer shadow-2xs"
                             >
-                              Pagar Fatura
+                              Pay Bill
                             </button>
                           )}
                         </Td>
@@ -353,10 +353,10 @@ function PayablesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP ASC 830 (Foreign Currency Matters): Títulos em moeda estrangeira são
-                registrados pela taxa spot do dia da emissão. Ao liquidar o título, qualquer
-                variação na taxa spot gera Ganho ou Perda Cambial Realizada (Realized FX Gain/Loss -
-                conta 6300).
+                US GAAP ASC 830 (Foreign Currency Matters): Foreign currency payables are
+                recorded at the spot exchange rate on the transaction date. Upon settlement, any
+                exchange rate difference generates Realized Foreign Exchange Gain/Loss (Account
+                6300).
               </Note>
             </div>
           </Panel>
@@ -373,14 +373,14 @@ function PayablesPage() {
                 className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer shadow-2xs"
               >
                 <ArrowLeft className="size-3.5" />
-                Voltar para Contas a Pagar
+                Back to Accounts Payable
               </button>
               <div>
                 <h1 className="text-[16px] font-semibold text-ink">
-                  Registrar Fatura de Fornecedor
+                  Record Vendor Bill
                 </h1>
                 <p className="text-[12px] text-ink3">
-                  Cadastro de obrigações com fornecedores e apropriação contábil no Razão Geral (AP)
+                  Vendor obligation entry and General Ledger expense accrual (AP)
                 </p>
               </div>
             </div>

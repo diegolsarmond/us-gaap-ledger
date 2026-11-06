@@ -127,6 +127,7 @@ for (const [kind, sheets] of Object.entries(source)) {
           input.vendors.push(
             vendorSchema.parse({
               ...common,
+              companyName: common.companyName || common.displayName,
               streetAddress: text(r["Street Address"]),
               city: text(r.City),
               stateProvince: text(r.State),
