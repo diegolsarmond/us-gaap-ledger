@@ -1,3 +1,4 @@
+import { normalizedFx, outstanding, settlement, closingAdjustment, nextDay, money, type TransactionFx, type Payment } from "./transaction-fx";
 import { US_GAAP_COA, totalByType, resolveAccount, validateCoa } from "./coa";
 import {
   dimensionSchema,
@@ -70,7 +71,9 @@ export interface JournalEntry {
     | "Manual"
     | "OpeningBalance"
     | "InventoryAdjustment"
-    | "BankStaging";
+    | "BankStaging"
+    | "FXRevaluation"
+    | "FXReversal";
   sourceId?: string | undefined;
   currency: string;
   fxRate: number;
@@ -105,7 +108,8 @@ export interface InvoiceItem {
   taxable: boolean;
 }
 
-export interface Invoice {
+export interface Invoice extends TransactionFx {
+  customerId?: string;
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
   customerName: string;
@@ -119,7 +123,7 @@ export interface Invoice {
   taxAmount: number;
   total: number;
   taxExempt: boolean;
-  status: "Open" | "Paid" | "Overdue";
+  status: "Open" | "Paid" | "Overdue" | "Partially Paid";
   projectId?: string | undefined;
   paymentDate?: string | undefined;
 }
@@ -135,7 +139,7 @@ export interface BillItem {
   projectId?: string | undefined;
 }
 
-export interface Bill {
+export interface Bill extends TransactionFx {
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
   vendorId?: string | undefined;
@@ -148,7 +152,7 @@ export interface Bill {
   foreignAmount: number;
   usdAmount: number;
   items: BillItem[];
-  status: "Open" | "Paid";
+  status: "Open" | "Paid" | "Partially Paid";
   paymentDate?: string | undefined;
   paidFxRate?: number | undefined;
   realizedFxDiff?: number | undefined;
@@ -156,6 +160,7 @@ export interface Bill {
 }
 
 export interface Project {
+  customerId?: string;
   id: string;
   code: string;
   name: string;
@@ -394,6 +399,8 @@ export interface AccountingContextType {
   recordInvoicePayment: (
     invoiceId: string,
     paymentDate: string,
+    settlementFxRate?: number,
+    amount?: number,
   ) => { success: boolean; error?: string | undefined };
 
   vendors: Vendor[];
@@ -409,7 +416,10 @@ export interface AccountingContextType {
     billId: string,
     paymentDate: string,
     settlementFxRate?: number | undefined,
+    amount?: number,
+    bankAccountId?: string,
   ) => { success: boolean; error?: string | undefined };
+  revalueOpenItems: (asOf: string, rates: Record<string,{rate:number;date:string;source:string}>) => {success:boolean;error?:string | undefined;count?:number | undefined};
 
   projects: Project[];
   createProject: (p: Omit<Project, "id">) => void;
@@ -593,7 +603,7 @@ export function createAccountingEngine(
       };
     }
 
-    const entryId = `JE-${new Date().getFullYear()}-${String(currentData.journals.length + 1).padStart(4, "0")}`;
+    const entryId = `JE-${new Date().getFullYear()}-${String(nextData.journals.length + 1).padStart(4, "0")}`;
     const newEntry: JournalEntry = {
       id: entryId,
       date,
@@ -721,8 +731,14 @@ export function createAccountingEngine(
       return { success: false, error: "Unauthorized." };
     }
     const invId = `INV-${new Date().getFullYear().toString().substr(2)}${String(currentData.invoices.length + 1).padStart(3, "0")}`;
+    const issueFx = normalizedFx(invData);
+    if (invData.customerId && !currentData.customers.some((c) => c.id === invData.customerId)) throw new Error("Select a customer belonging to this company.");
     const newInvoice: Invoice = {
       ...invData,
+      ...issueFx,
+      payments: [],
+      exchangeRateSource: invData.exchangeRateSource || "Manual",
+      exchangeRateDate: invData.exchangeRateDate || invData.date,
       id: invId,
       status: "Open",
     };
@@ -812,7 +828,7 @@ export function createAccountingEngine(
 
     jeLines.push({
       accountCode: resolveAccount(currentData.accounts, "11000", "1100"),
-      debit: newInvoice.total,
+      debit: issueFx.functionalAmount,
       credit: 0,
       memo: `AR — ${newInvoice.customerName}`,
       projectId: newInvoice.projectId,
@@ -822,8 +838,8 @@ export function createAccountingEngine(
     newInvoice.items.forEach((item, index) => {
       const amount =
         index === newInvoice.items.length - 1
-          ? Math.round((newInvoice.subtotal - revenueAllocated) * 100) / 100
-          : Math.round(item.qty * item.unitPrice * 100) / 100;
+          ? money(money(newInvoice.subtotal * issueFx.exchangeRateValue) - revenueAllocated)
+          : money(item.qty * item.unitPrice * issueFx.exchangeRateValue);
       revenueAllocated += amount;
       jeLines.push({
         accountCode: item.isProduct
@@ -841,7 +857,7 @@ export function createAccountingEngine(
       jeLines.push({
         accountCode: resolveAccount(currentData.accounts, "22100", "2200"),
         debit: 0,
-        credit: newInvoice.taxAmount,
+        credit: money(issueFx.functionalAmount-money(newInvoice.subtotal*issueFx.exchangeRateValue)),
         memo: `Sales tax collected (${newInvoice.taxRate}%) on ${invId}`,
       });
     }
@@ -879,6 +895,8 @@ export function createAccountingEngine(
       memo: `Invoice ${invId} — ${newInvoice.customerName} (${newInvoice.kind})`,
       sourceType: "Invoice",
       sourceId: invId,
+      currency: issueFx.transactionCurrency,
+      fxRate: issueFx.exchangeRateValue,
       lines: jeLines,
     });
 
@@ -902,52 +920,35 @@ export function createAccountingEngine(
     return { success: true, invoiceId: invId };
   };
 
-  const recordInvoicePayment = (invoiceId: string, paymentDate: string) => {
-    const inv = currentData.invoices.find((i) => i.id === invoiceId);
-    if (!inv) return { success: false, error: "Invoice not found." };
-    if (inv.status === "Paid") return { success: false, error: "Invoice is already paid." };
-
-    const jeLines = [
-      {
-        accountCode: resolveAccount(currentData.accounts, "10200", "1000"),
-        debit: inv.total,
-        credit: 0,
-        memo: `Cash receipt from ${inv.customerName} for ${inv.id}`,
-      },
-      {
-        accountCode: resolveAccount(currentData.accounts, "11000", "1100"),
-        debit: 0,
-        credit: inv.total,
-        memo: `Clear AR for ${inv.id}`,
-      },
+  const settleDocument = (kind: "AP" | "AR", id: string, paymentDate: string, rate?: number, requestedAmount?: number, bankAccountId?: string) => {
+    const doc = kind === "AP" ? nextData.bills.find((b) => b.id === id) : nextData.invoices.find((i) => i.id === id);
+    if (!doc) return {success:false,error:"Document not found."};
+    const fx=normalizedFx(doc), open=outstanding(doc);
+    if (!open.native) return {success:false,error:"Document is already paid."};
+    if (fx.transactionCurrency !== "USD" && rate == null) return {success:false,error:"Enter the payment date exchange rate."};
+    const appliedRate=rate ?? 1, amount=requestedAmount ?? open.native;
+    if (bankAccountId && kind === "AP") {
+      const bank=nextData.vendors.find((v) => v.id === (doc as Bill).vendorId)?.bankAccounts?.find((b) => b.id === bankAccountId);
+      if (!bank || bank.currency !== fx.transactionCurrency) return {success:false,error:"Select a bank account of this vendor in the payment currency."};
+    }
+    let result: ReturnType<typeof settlement>;
+    try { result=settlement(doc,kind,amount,appliedRate,paymentDate); } catch(e) {return {success:false,error:e instanceof Error ? e.message : "Invalid payment"};}
+    const control=resolveAccount(nextData.accounts,kind === "AP" ? "20100" : "11000",kind === "AP" ? "2000" : "1100");
+    const cash=resolveAccount(nextData.accounts,"10200","1000");
+    const lines=[
+      {accountCode:control,debit:kind === "AP" ? result.bookAmount : 0,credit:kind === "AR" ? result.bookAmount : 0,memo:"Clear historical carrying amount " + id},
+      {accountCode:cash,debit:kind === "AR" ? result.functionalAmount : 0,credit:kind === "AP" ? result.functionalAmount : 0,memo:"Settlement " + fx.transactionCurrency + " " + amount},
     ];
-
-    const postResult = postJournalEntry({
-      date: paymentDate,
-      memo: `Payment received for ${inv.id} — ${inv.customerName}`,
-      sourceType: "Payment",
-      sourceId: inv.id,
-      lines: jeLines,
-    });
-
-    if (!postResult.success) return postResult;
-
-    updateCompanyData((prev) => ({
-      ...prev,
-      invoices: prev.invoices.map((i) =>
-        i.id === invoiceId ? { ...i, status: "Paid" as const, paymentDate } : i,
-      ),
-    }));
-
-    addAuditLog(
-      "RECORD_PAYMENT",
-      "Invoice",
-      inv.id,
-      `Recorded full payment of $${inv.total.toFixed(2)} clearing Accounts Receivable.`,
-    );
-
-    return { success: true };
+    if (result.realizedGain) lines.push({accountCode:resolveAccount(nextData.accounts,"80300","6300"),debit:Math.max(0,-result.realizedGain),credit:Math.max(0,result.realizedGain),memo:"Realized FX " + id});
+    const post=postJournalEntry({date:paymentDate,memo:"Settlement " + id,sourceType:"Payment",sourceId:id,currency:fx.transactionCurrency,fxRate:appliedRate,lines});
+    if (!post.success) return post;
+    const payment:Payment={id:crypto.randomUUID(),date:paymentDate,...fx,transactionAmount:money(amount),exchangeRateValue:appliedRate,functionalAmount:result.functionalAmount,bookAmount:result.bookAmount,realizedGain:result.realizedGain,bankAccountId,journalId:post.entryId!,exchangeRateSource:"Payment rate / manual",exchangeRateDate:paymentDate};
+    const updated={...doc,payments:[...(doc.payments || []),payment],status:result.remaining === 0 ? "Paid" as const : "Partially Paid" as const,paymentDate,paidFxRate:appliedRate,realizedFxDiff:money(((doc as Bill).realizedFxDiff || 0)+result.realizedGain)};
+    updateCompanyData((prev) => kind === "AP" ? {...prev,bills:prev.bills.map((b) => b.id === id ? updated as Bill : b)} : {...prev,invoices:prev.invoices.map((i) => i.id === id ? updated as Invoice : i)});
+    addAuditLog("SETTLE_"+kind,kind === "AP" ? "Bill" : "Invoice",id,"Paid " + amount + " " + fx.transactionCurrency + "; realized gain " + result.realizedGain + " USD");
+    return {success:true};
   };
+  const recordInvoicePayment = (id:string,date:string,rate?:number,amount?:number) => settleDocument("AR",id,date,rate,amount);
 
   const saveVendor = (input: VendorInput, id?: string) => {
     if (!userPersona.canCreateJournals) throw new Error("Acesso negado.");
@@ -994,10 +995,16 @@ export function createAccountingEngine(
     }
 
     const billId = `BILL-${new Date().getFullYear().toString().substr(2)}${String(currentData.bills.length + 1).padStart(3, "0")}`;
-    const usdAmount = Math.round(billData.foreignAmount * billData.fxRate * 100) / 100;
+    const issueFx = normalizedFx(billData);
+    const usdAmount = issueFx.functionalAmount;
 
     const newBill: Bill = {
       ...billData,
+      ...issueFx,
+      currency: issueFx.transactionCurrency, fxRate: issueFx.exchangeRateValue, foreignAmount: issueFx.transactionAmount,
+      payments: [],
+      exchangeRateSource: billData.exchangeRateSource || "Manual",
+      exchangeRateDate: billData.exchangeRateDate || billData.date,
       id: billId,
       usdAmount,
       status: "Open",
@@ -1085,91 +1092,28 @@ export function createAccountingEngine(
     return { success: true, billId };
   };
 
-  const payBill = (billId: string, paymentDate: string, settlementFxRate?: number | undefined) => {
-    const bill = currentData.bills.find((b) => b.id === billId);
-    if (!bill) return { success: false, error: "Bill not found." };
-    if (bill.status === "Paid") return { success: false, error: "Bill is already paid." };
-
-    const effectiveSettlementRate = settlementFxRate || bill.fxRate;
-    const actualCashPaidUsd = Math.round(bill.foreignAmount * effectiveSettlementRate * 100) / 100;
-    const originalApUsd = bill.usdAmount;
-    const diff = Math.round((originalApUsd - actualCashPaidUsd) * 100) / 100;
-
-    const jeLines: {
-      accountCode: string;
-      debit: number;
-      credit: number;
-      memo?: string | undefined;
-      projectId?: string | undefined;
-    }[] = [];
-
-    jeLines.push({
-      accountCode: resolveAccount(currentData.accounts, "20100", "2000"),
-      debit: originalApUsd,
-      credit: 0,
-      memo: `Clear AP on ${bill.id} (${bill.vendorName})`,
-      projectId: bill.projectId,
-    });
-
-    jeLines.push({
-      accountCode: resolveAccount(currentData.accounts, "10200", "1000"),
-      debit: 0,
-      credit: actualCashPaidUsd,
-      memo: `Cash wire in ${bill.currency} @ rate ${effectiveSettlementRate}`,
-    });
-
-    if (Math.abs(diff) >= 0.01) {
-      if (diff > 0) {
-        jeLines.push({
-          accountCode: resolveAccount(currentData.accounts, "80300", "6300"),
-          debit: 0,
-          credit: diff,
-          memo: `Realized FX Gain on settlement of ${bill.id}`,
-        });
-      } else {
-        jeLines.push({
-          accountCode: resolveAccount(currentData.accounts, "80300", "6300"),
-          debit: Math.abs(diff),
-          credit: 0,
-          memo: `Realized FX Loss on settlement of ${bill.id}`,
-        });
-      }
+  const payBill = (id:string,date:string,rate?:number,amount?:number,bankId?:string) => settleDocument("AP",id,date,rate,amount,bankId);
+  const revalueOpenItems: AccountingContextType["revalueOpenItems"] = (asOf,rates) => {
+    if (!userPersona.canClosePeriod) return {success:false,error:"Closing permission is required."};
+    if (!nextDay(asOf).endsWith("-01")) return {success:false,error:"Select the last day of a month."};
+    let count=0;
+    for (const kind of ["AP","AR"] as const) for (const doc of kind === "AP" ? nextData.bills : nextData.invoices) {
+      const fx=normalizedFx(doc),open=outstanding(doc,asOf),sourceId=kind+":"+doc.id+":"+asOf;
+      if (!open.native || fx.transactionCurrency === "USD" || nextData.journals.some((j) => j.sourceType === "FXRevaluation" && j.sourceId === sourceId)) continue;
+      const quote=rates[fx.transactionCurrency];
+      if (!quote || quote.date > asOf) return {success:false,error:"Missing closing spot rate: " + fx.transactionCurrency};
+      const adjustment=closingAdjustment(doc,kind,asOf,quote.rate);
+      if (!adjustment.difference) continue;
+      const gain=adjustment.gain, control=resolveAccount(nextData.accounts,kind === "AP" ? "20100" : "11000",kind === "AP" ? "2000" : "1100");
+      const lines=[{accountCode:control,debit:Math.max(0,gain),credit:Math.max(0,-gain),memo:"Closing revaluation " + doc.id}, {accountCode:resolveAccount(nextData.accounts,"80300","6300"),debit:Math.max(0,-gain),credit:Math.max(0,gain),memo:"Unrealized FX " + doc.id}];
+      const post=postJournalEntry({date:asOf,memo:"FX revaluation " + doc.id + " / " + quote.source + " / " + quote.date + " / rate " + quote.rate,sourceType:"FXRevaluation",sourceId,currency:fx.transactionCurrency,fxRate:quote.rate,lines});
+      if (!post.success) return post;
+      const reverse=postJournalEntry({date:nextDay(asOf),memo:"Automatic reversal of " + post.entryId,sourceType:"FXReversal",sourceId,currency:fx.transactionCurrency,fxRate:quote.rate,lines:lines.map((l) => ({...l,debit:l.credit,credit:l.debit}))});
+      if (!reverse.success) return reverse;
+      count++;
     }
-
-    const postResult = postJournalEntry({
-      date: paymentDate,
-      memo: `Payment of ${bill.id} (${bill.vendorName}) — ${bill.currency} ${bill.foreignAmount.toLocaleString()}`,
-      sourceType: "Payment",
-      sourceId: bill.id,
-      currency: "USD",
-      lines: jeLines,
-    });
-
-    if (!postResult.success) return postResult;
-
-    updateCompanyData((prev) => ({
-      ...prev,
-      bills: prev.bills.map((b) =>
-        b.id === billId
-          ? {
-              ...b,
-              status: "Paid" as const,
-              paymentDate,
-              paidFxRate: effectiveSettlementRate,
-              realizedFxDiff: diff,
-            }
-          : b,
-      ),
-    }));
-
-    addAuditLog(
-      "PAY_BILL",
-      "Bill",
-      bill.id,
-      `Paid bill to ${bill.vendorName}. Cash Out: $${actualCashPaidUsd.toFixed(2)}, Realized FX Variance: $${diff.toFixed(2)}.`,
-    );
-
-    return { success: true };
+    addAuditLog("REVALUE_OPEN_ITEMS","AccountingPeriod",asOf,"Revalued " + count + " documents with automatic next-day reversing journals.");
+    return {success:true,count};
   };
 
   const createProject = (projData: Omit<Project, "id">) => {
@@ -1797,7 +1741,7 @@ export function createAccountingEngine(
     let debSum = 0;
     let credSum = 0;
 
-    currentData.journals.forEach((j) => {
+    currentData.journals.filter((j) => j.date <= new Date().toISOString().slice(0,10)).forEach((j) => {
       // Include the original and its reversal so their balances cancel.
       j.lines.forEach((l) => {
         if (!balances[l.accountCode]) {
@@ -1925,6 +1869,7 @@ export function createAccountingEngine(
       bills: currentData.bills,
       createBill,
       payBill,
+      revalueOpenItems,
       projects: currentData.projects,
       createProject,
       statements: currentData.statements,

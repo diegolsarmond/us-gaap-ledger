@@ -156,7 +156,7 @@ function VendorsPage() {
     );
   }
   function select(
-    key: "country" | "paymentTermId" | "currency" | "defaultExpenseAccountCode" | "bankAccountType",
+    key: "country" | "paymentTermId" | "defaultExpenseAccountCode" | "bankAccountType",
     label: string,
     options: { value: string; label: string }[],
   ) {
@@ -530,13 +530,7 @@ function VendorsPage() {
                     Add custom field
                   </button>
                 </div>
-                {select(
-                  "currency",
-                  "Currency",
-                  currencies
-                    .filter((c) => c.status === "Active")
-                    .map((c) => ({ value: c.code, label: c.code + " · " + c.name })),
-                )}
+
               </section>
               {writable && (
                 <button
@@ -618,7 +612,7 @@ function VendorsPage() {
                     <td className="p-3">{v.displayName}</td>
                     <td className="p-3">{v.companyName || "—"}</td>
                     <td className="p-3">{v.email || v.phone || "—"}</td>
-                    <td className="p-3">{v.currency || "—"}</td>
+                    <td className="p-3">{(v.bankAccounts || []).map((b) => b.currency).filter((c,i,a) => a.indexOf(c) === i).join(", ") || "—"}</td>
                     {customColumn && <td className="p-3">{customValue(v)?.value || "—"}</td>}
                     <td className="p-3">
                       <button className="text-brand underline" onClick={() => open(v)}>

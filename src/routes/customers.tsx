@@ -21,11 +21,11 @@ const blankAddress = { street: "", city: "", state: "", zip: "", country: "" };
 function initial(): CustomerInput {
   return {
     ...customerSchema.parse({
-      displayName: "New",
+      displayName: "New", companyName: "New", email: "draft@example.invalid",
       billingAddress: blankAddress,
       shippingAddress: blankAddress,
     }),
-    displayName: "",
+    displayName: "", companyName: "", email: "",
   };
 }
 function CustomersPage() {
@@ -33,7 +33,8 @@ function CustomersPage() {
     customers,
     addCustomer,
     updateCustomer,
-    currencies,
+    invoices,
+    projects,
     paymentTerms,
     taxJurisdictions,
     userPersona,
@@ -124,7 +125,7 @@ function CustomersPage() {
         <input
           className={control}
           type={type}
-          required={key === "displayName"}
+          required={key === "displayName" || key === "companyName" || key === "email"}
           maxLength={key === "displayName" ? 120 : key === "email" ? 254 : 2000}
           value={String(form[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
@@ -134,7 +135,6 @@ function CustomersPage() {
   }
   function select(
     key:
-      | "currency"
       | "paymentTermId"
       | "paymentMethod"
       | "deliveryMethod"
@@ -199,7 +199,7 @@ function CustomersPage() {
     <div className="space-y-5">
       <PageTitle
         title="Customers"
-        description="Manage customers by company. Only the display name is required."
+        description="One customer across all transaction currencies. Company, billing email and addresses are required."
         actions={
           allowed && !editing ? (
             <button className={button} onClick={() => open()}>
@@ -223,16 +223,16 @@ function CustomersPage() {
           <fieldset disabled={pending || uploading} className="space-y-5 min-w-0">
             <Panel title="Basic information and contact">
               <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                {input("displayName", "Customer display name *")}
+                {input("companyName", "Customer Company Name *")}
+                {input("displayName", "Customer Display Name *")}
                 {input("title", "Title")}
                 {input("firstName", "Name")}
                 {input("middleName", "Middle name")}
                 {input("lastName", "Last name")}
                 {input("suffix", "Suffix")}
-                {input("companyName", "Company")}
                 {input("customerType", "Customer type")}
                 {input("printOnChecksAs", "Print on checks as")}
-                {input("email", "Email", "email")}
+                {input("email", "Billing Email *", "email")}
                 {input("phone", "Primary phone", "tel")}
                 {input("mobile", "Mobile", "tel")}
                 {input("fax", "Fax")}
@@ -256,13 +256,6 @@ function CustomersPage() {
             <Panel title="Payment and billing">
               <div className="grid gap-4 p-4 sm:grid-cols-2">
                 {select(
-                  "currency",
-                  "Preferred currency",
-                  currencies
-                    .filter((c) => c.status === "Active" || c.code === form.currency)
-                    .map((c) => ({ value: c.code, label: c.code + " · " + c.name })),
-                )}
-                {select(
                   "paymentTermId",
                   "Payment terms",
                   paymentTerms
@@ -276,6 +269,9 @@ function CustomersPage() {
                   { value: "Cash", label: "Cash" },
                 ])}
                 {select("deliveryMethod", "Invoice delivery", [
+                  { value: "Email", label: "Email" },
+                  { value: "Portal", label: "Portal" },
+                  { value: "Print", label: "Print" },
                   { value: "Send later", label: "Email later" },
                   { value: "Print later", label: "Print later" },
                 ])}

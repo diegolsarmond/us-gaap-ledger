@@ -2,6 +2,7 @@ import { customerSchema } from "./customer-model";
 import { vendorSchema } from "./vendor-model";
 import { z } from "zod";
 import { dimensionSchema, dimensionValuesSchema } from "./dimensions";
+import { fxFields, paymentSchema } from "./transaction-fx";
 import { dateSchema as date } from "./cash-flow-model";
 const text = z.string().max(2000),
   key = z.string().min(1).max(120),
@@ -49,6 +50,8 @@ export const journalInput = z.object({
     "OpeningBalance",
     "InventoryAdjustment",
     "BankStaging",
+    "FXRevaluation",
+    "FXReversal",
   ]),
   sourceId: key.optional(),
   currency: key.optional(),
@@ -71,6 +74,9 @@ export const inventory = z.object({
   costLots: z.array(z.object({ id: key, qty: num, unitCost: num, date })).max(10000),
 });
 export const invoice = z.object({
+  ...fxFields,
+  customerId: key.optional(),
+  payments: z.array(paymentSchema).default([]),
   dimensionValues: dimensionValuesSchema,
   id: key,
   customerName: key,
@@ -97,11 +103,19 @@ export const invoice = z.object({
   taxAmount: num,
   total: num,
   taxExempt: z.boolean(),
-  status: z.enum(["Open", "Paid", "Overdue"]),
+  status: z.enum(["Open", "Paid", "Overdue", "Partially Paid"]),
   projectId,
   paymentDate: date.optional(),
 });
 export const bill = z.object({
+  transactionCurrency: z.string().regex(/^[A-Z]{3}$/).optional(),
+  transactionAmount: num.optional(),
+  functionalCurrency: z.literal("USD").default("USD"),
+  exchangeRateValue: num.positive().optional(),
+  functionalAmount: num.optional(),
+  exchangeRateSource: text.default("Manual"),
+  exchangeRateDate: date.optional(),
+  payments: z.array(paymentSchema).default([]),
   dimensionValues: dimensionValuesSchema,
   id: key,
   vendorId: key.optional(),
@@ -128,13 +142,14 @@ export const bill = z.object({
     )
     .min(1)
     .max(1000),
-  status: z.enum(["Open", "Paid"]),
+  status: z.enum(["Open", "Paid", "Partially Paid"]),
   paymentDate: date.optional(),
   paidFxRate: num.positive().optional(),
   realizedFxDiff: z.number().finite().optional(),
   projectId,
 });
 export const project = z.object({
+  customerId: key.optional(),
   id: key,
   code: key,
   name: key,
@@ -220,9 +235,10 @@ export const commandArgs = {
   adjustStock: z.tuple([key, z.number().finite(), num, text]),
   setCostMethod: z.tuple([z.enum(["FIFO", "WeightedAverage"])]),
   createInvoice: z.tuple([invoice.omit({ id: true, status: true })]),
-  recordInvoicePayment: z.tuple([key, date]),
+  recordInvoicePayment: z.tuple([key, date, num.positive().optional(), num.positive().optional()]),
   createBill: z.tuple([bill.omit({ id: true, status: true, usdAmount: true })]),
-  payBill: z.tuple([key, date, num.positive().optional()]),
+  payBill: z.tuple([key, date, num.positive().optional(), num.positive().optional(), key.optional()]),
+  revalueOpenItems: z.tuple([date, z.record(z.object({rate:num.positive(),date,source:text.min(1)}))]),
   createProject: z.tuple([project.omit({ id: true })]),
   importStatement: z.tuple([
     z.object({
