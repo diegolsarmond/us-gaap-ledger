@@ -105,9 +105,8 @@ for (const [kind, sheets] of Object.entries(source)) {
         sourceBalanceDate: null,
       };
       try {
-        if (kind === "Customer")
-          input.customers.push(
-            customerSchema.parse({
+        if (kind === "Customer") {
+          const candidate = {
               ...common,
               customerType: text(r["Customer type"]),
               billingAddress: {
@@ -118,9 +117,10 @@ for (const [kind, sheets] of Object.entries(source)) {
                 zip: text(r.Zip),
               },
               sourceOpenBalance: balance(r["Open balance"]),
-            }),
-          );
-        else {
+            };
+          const ready = customerSchema.safeParse(candidate);
+          input.customers.push(ready.success ? ready.data : customerSchema.parse({...candidate,registrationStatus:"Draft"}));
+        } else {
           const currency = currencies[text(r.Currency)];
           assert(currency, `Unmapped currency: ${r.Currency}`);
           assert(["", "True", "False"].includes(text(r["1099 Tracking"])), "Unmapped 1099 flag");
@@ -270,6 +270,7 @@ try {
       source: input[domain].length,
       inserted,
       skipped,
+      drafts: domain === "customers" ? input.customers.filter((c)=>c.registrationStatus === "Draft").length : 0,
       balanceCentsByCurrency: balances,
     };
   }

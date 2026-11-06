@@ -130,8 +130,8 @@ function InvoicesPage() {
 
       if (!customerName.trim()) {
         await modal.showAlert({
-          title: "Campo Obrigatório",
-          message: "Por favor informe a Razão Social / Nome Legal do Cliente.",
+          title: "Required Field",
+          message: "Please provide the Customer Legal Name.",
           tone: "warning",
         });
         return;
@@ -178,16 +178,16 @@ function InvoicesPage() {
         setFormItems([{ id: "item-1", sku: "", description: "", qty: 1, unitPrice: 0 }]);
         setView("list");
         await modal.showAlert({
-          title: "Fatura Emitida e Contabilizada",
-          message: `Fatura ${invId} emitida com sucesso!\n\nLançamentos automáticos no Razão Geral:\n• Débito em Contas a Receber (1100): ${usd(totalAmount)}\n• Crédito em Receita Operacional (4000/4100): ${usd(subtotal)}\n• Crédito em Impostos sobre Vendas a Recolher (2200): ${usd(taxAmount)}${
-            kind === "Product" ? "\n• Baixa no Estoque (1300) e reconhecimento de CPV (5000)." : ""
+          title: "Invoice Issued and Posted",
+          message: `Invoice ${invId} successfully issued!\n\nAutomatic General Ledger Entries:\n• Debit Accounts Receivable (1100): ${usd(totalAmount)}\n• Credit Operating Revenue (4000/4100): ${usd(subtotal)}\n• Credit Sales Tax Payable (2200): ${usd(taxAmount)}${
+            kind === "Product" ? "\n• Inventory Relief (1300) and COGS Recognition (5000)." : ""
           }`,
           tone: "success",
         });
       } else {
         await modal.showAlert({
-          title: "Erro ao Emitir Fatura",
-          message: result.error || "Não foi possível emitir a fatura.",
+          title: "Error Issuing Invoice",
+          message: result.error || "Unable to issue invoice.",
           tone: "error",
         });
       }
@@ -269,7 +269,7 @@ function InvoicesPage() {
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Plus className="size-4" />
-                  Emitir Nova Fatura
+                  Issue New Invoice
                 </button>
               )}
             </div>
@@ -305,7 +305,7 @@ function InvoicesPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por ID ou nome do cliente..."
+                placeholder="Search by ID or customer name..."
                 className="w-full rounded-md border border-line bg-white/90 py-1.5 pl-8 pr-3 text-[12px] text-ink outline-none ring-1 ring-transparent focus:border-brand focus:ring-brand/20 transition-all"
               />
             </div>
@@ -321,7 +321,7 @@ function InvoicesPage() {
                       : "bg-surface text-ink2 hover:bg-muted ring-1 ring-line"
                   }`}
                 >
-                  {st === "ALL" ? "Todas as Faturas" : st}
+                  {st === "ALL" ? "All Invoices" : st}
                 </button>
               ))}
             </div>
@@ -330,7 +330,7 @@ function InvoicesPage() {
           {/* Invoices List Full Width */}
           <Panel
             title="Invoices Register"
-            subtitle={`${filteredInvoices.length} de ${invoices.length} faturas emitidas`}
+            subtitle={`${filteredInvoices.length} of ${invoices.length} issued invoices`}
             aside={
               <span className="text-[11.5px] text-ink3">
                 State Sales Tax by Customer Jurisdiction
@@ -357,7 +357,7 @@ function InvoicesPage() {
                   {filteredInvoices.length === 0 ? (
                     <tr>
                       <Td colSpan={10} className="py-8 text-center text-[12px] text-ink3">
-                        Nenhuma fatura encontrada para o filtro informado.
+                        No invoices found matching the current filter.
                       </Td>
                     </tr>
                   ) : (
@@ -414,7 +414,7 @@ function InvoicesPage() {
                               onClick={() => handleRecordPayment(inv.id)}
                               className="rounded bg-up/10 px-2.5 py-1 text-[11px] font-semibold text-up hover:bg-up/20 ring-1 ring-up/25 transition-colors cursor-pointer shadow-2xs"
                             >
-                              Receber $
+                              Receive Payment
                             </button>
                           )}
                         </Td>
@@ -426,9 +426,9 @@ function InvoicesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP: Faturas emitidas debitam Contas a Receber (1100) e creditam Receita
-                (4000/4100). A apropriação dos impostos é mantida no Passivo (2200) até o efetivo
-                recolhimento.
+                US GAAP: Issued invoices debit Accounts Receivable (1100) and credit Revenue
+                (4000/4100). Sales tax accruals are credited to Current Liabilities (2200) until
+                remitted.
               </Note>
             </div>
           </Panel>
@@ -445,34 +445,34 @@ function InvoicesPage() {
                 className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer shadow-2xs"
               >
                 <ArrowLeft className="size-3.5" />
-                Voltar para Faturas
+                Back to Invoices
               </button>
               <div>
-                <h1 className="text-[16px] font-semibold text-ink">Emitir Nova Fatura de Venda</h1>
+                <h1 className="text-[16px] font-semibold text-ink">Issue New Customer Invoice</h1>
                 <p className="text-[12px] text-ink3">
-                  Lançamento de contas a receber com integração automática ao Razão Geral e Estoque
+                  Accounts receivable entry with automated General Ledger and inventory relief integration
                 </p>
               </div>
             </div>
           </div>
 
           {!userPersona.canCreateJournals ? (
-            <Panel title="Acesso Restrito">
+            <Panel title="Restricted Access">
               <div className="p-6 text-center text-ink3 text-[12.5px]">
-                Usuários do portal do cliente possuem permissão apenas para consulta de faturas.
+                Customer portal users only have permission to view invoices.
               </div>
             </Panel>
           ) : (
             <form onSubmit={handleCreateInvoice} className="space-y-4">
               <Panel
-                title="Dados do Cliente e Parâmetros da Fatura"
-                subtitle="Informações cadastrais e alocação de centro de custo"
+                title="Customer Details & Invoice Parameters"
+                subtitle="Master data information and cost center allocation"
               >
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Razão Social do Cliente (Legal Name) *
+                        Customer Legal Name *
                       </label>
                       <select
                         value={customerId}
@@ -496,7 +496,7 @@ function InvoicesPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Tax ID / EIN do Cliente (Opcional)
+                        Customer Tax ID / EIN (Optional)
                       </label>
                       <input
                         type="text"
@@ -511,28 +511,28 @@ function InvoicesPage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Tipo de Faturamento
+                        Billing Type
                       </label>
                       <select
                         value={kind}
                         onChange={(e) => setKind(e.target.value as "Product" | "Service")}
                         className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                       >
-                        <option value="Product">Produto (Baixa Estoque & CPV)</option>
-                        <option value="Service">Serviço / Consultoria</option>
+                        <option value="Product">Product (Inventory Relief & COGS)</option>
+                        <option value="Service">Service / Consulting</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Alocação de Projeto
+                        Project Allocation
                       </label>
                       <select
                         value={projectId}
                         onChange={(e) => setProjectId(e.target.value)}
                         className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                       >
-                        <option value="">Geral (Sem Projeto)</option>
+                        <option value="">General (No Project)</option>
                         {projects
                           .filter((p) => !p.customerId || p.customerId === customerId)
                           .map((p) => (
@@ -545,7 +545,7 @@ function InvoicesPage() {
 
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Data de Emissão *
+                        Issue Date *
                       </label>
                       <input
                         type="date"
@@ -558,7 +558,7 @@ function InvoicesPage() {
 
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Data de Vencimento *
+                        Due Date *
                       </label>
                       <input
                         type="date"

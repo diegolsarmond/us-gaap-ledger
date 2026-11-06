@@ -410,6 +410,7 @@ export interface AccountingContextType {
     paymentDate: string,
     settlementFxRate?: number,
     amount?: number,
+    quote?: {source:string;date:string},
   ) => { success: boolean; error?: string | undefined };
 
   vendors: Vendor[];
@@ -427,6 +428,7 @@ export interface AccountingContextType {
     settlementFxRate?: number | undefined,
     amount?: number,
     bankAccountId?: string,
+    quote?: {source:string;date:string},
   ) => { success: boolean; error?: string | undefined };
   revalueOpenItems: (
     asOf: string,
@@ -948,6 +950,7 @@ export function createAccountingEngine(
     rate?: number,
     requestedAmount?: number,
     bankAccountId?: string,
+    quote?: {source:string;date:string},
   ) => {
     const doc =
       kind === "AP"
@@ -1025,8 +1028,8 @@ export function createAccountingEngine(
       realizedGain: result.realizedGain,
       bankAccountId,
       journalId: post.entryId!,
-      exchangeRateSource: "Payment rate / manual",
-      exchangeRateDate: paymentDate,
+      exchangeRateSource: quote?.source || "Payment rate / manual",
+      exchangeRateDate: quote?.date || paymentDate,
     };
     const updated = {
       ...doc,
@@ -1055,8 +1058,8 @@ export function createAccountingEngine(
     );
     return { success: true };
   };
-  const recordInvoicePayment = (id: string, date: string, rate?: number, amount?: number) =>
-    settleDocument("AR", id, date, rate, amount);
+  const recordInvoicePayment = (id: string, date: string, rate?: number, amount?: number,quote?:{source:string;date:string}) =>
+    settleDocument("AR", id, date, rate, amount,undefined,quote);
 
   const saveVendor = (input: VendorInput, id?: string) => {
     if (!userPersona.canCreateJournals) throw new Error("Acesso negado.");
@@ -1205,8 +1208,8 @@ export function createAccountingEngine(
     return { success: true, billId };
   };
 
-  const payBill = (id: string, date: string, rate?: number, amount?: number, bankId?: string) =>
-    settleDocument("AP", id, date, rate, amount, bankId);
+  const payBill = (id: string, date: string, rate?: number, amount?: number, bankId?: string,quote?:{source:string;date:string}) =>
+    settleDocument("AP", id, date, rate, amount, bankId,quote);
   const revalueOpenItems: AccountingContextType["revalueOpenItems"] = (asOf, rates) => {
     if (!userPersona.canClosePeriod)
       return { success: false, error: "Closing permission is required." };

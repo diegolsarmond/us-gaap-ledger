@@ -176,6 +176,24 @@ try {
       [b, record.id],
     ),
   );
+  const {state:fxState}=await import("./test-transaction-fx.mjs");
+  // Persist all new transaction amounts, payment allocations and bank accounts together.
+  fxState.vendors.push({...record,customFields:record.customFields.slice(0,1),addressLines:[]});
+  await client.query("BEGIN");
+  for(const domain of ["accounts","fiscalPeriods","customers","vendors","projects","invoices","bills","journals","auditLogs"])
+    await replaceLedger(client,a,domain,fxState[domain]);
+  await client.query("COMMIT");
+  for(const domain of ["invoices","bills"]) {
+    const saved=await readLedger(client,a,domain);
+    assert.equal(saved.length,fxState[domain].length);
+    for(const row of saved) {
+      const original=fxState[domain].find((r)=>r.id===row.id);
+      assert.equal(row.transactionCurrency,original.transactionCurrency);
+      assert.equal(row.functionalAmount,original.functionalAmount);
+      assert.deepEqual(row.payments,original.payments.map((p)=>Object.fromEntries(Object.entries(p).filter(([,v])=>v!==undefined))));
+    }
+  }
+  assert.equal((await readLedger(client,a,"vendors")).find((v)=>v.id!==record.id).bankAccounts.length,1);
   console.log(
     "PASS: required names, email lists, ACH boundaries, nullable rates/balances, custom types, import columns, migration rerun, PostgreSQL round trip, child removal, attachment preservation and company isolation.",
   );
