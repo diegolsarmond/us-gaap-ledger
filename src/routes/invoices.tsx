@@ -590,15 +590,15 @@ function InvoicesPage() {
                 onChange={setDimensionValues}
               />
               <Panel
-                title="Itens e Serviços da Fatura"
-                subtitle="Discrimine as mercadorias ou serviços prestados com quantidades e valores unitários"
+                title="Invoice Line Items & Services"
+                subtitle="Itemize products or services provided with quantities and unit prices"
                 aside={
                   <button
                     type="button"
                     onClick={handleAddItemRow}
                     className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline cursor-pointer"
                   >
-                    <Plus className="size-3.5" /> Adicionar Item
+                    <Plus className="size-3.5" /> Add Line Item
                   </button>
                 }
               >
@@ -611,8 +611,8 @@ function InvoicesPage() {
                       <div className="col-span-12 sm:col-span-5">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                           {kind === "Product"
-                            ? "Item do Catálogo de Estoque"
-                            : "Descrição do Serviço"}
+                            ? "Inventory Catalog Item"
+                            : "Service Description"}
                         </label>
                         {kind === "Product" ? (
                           <select
@@ -624,7 +624,7 @@ function InvoicesPage() {
                               .filter((i) => i.type === "Product")
                               .map((it) => (
                                 <option key={it.sku} value={it.sku}>
-                                  {it.sku} · {it.name} (Disp: {it.qtyOnHand})
+                                  {it.sku} · {it.name} (Avail: {it.qtyOnHand})
                                 </option>
                               ))}
                           </select>
@@ -633,7 +633,7 @@ function InvoicesPage() {
                             type="text"
                             value={item.description}
                             onChange={(e) => handleUpdateItem(idx, "description", e.target.value)}
-                            placeholder="Descrição detalhada do serviço..."
+                            placeholder="Detailed description of service rendered..."
                             className="w-full rounded-md bg-surface px-2.5 py-1.5 text-[12px] border border-line outline-none focus:border-brand"
                           />
                         )}
@@ -641,7 +641,7 @@ function InvoicesPage() {
 
                       <div className="col-span-6 sm:col-span-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          Quantidade
+                          Quantity
                         </label>
                         <input
                           type="number"
@@ -654,7 +654,7 @@ function InvoicesPage() {
 
                       <div className="col-span-5 sm:col-span-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          Preço Unitário ($)
+                          Unit Price ($)
                         </label>
                         <input
                           type="number"
@@ -673,7 +673,7 @@ function InvoicesPage() {
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
                             className="text-rose-500 hover:text-rose-700 transition-colors p-1 cursor-pointer"
-                            title="Remover linha"
+                            title="Remove line item"
                           >
                             <Trash2 className="size-4" />
                           </button>
@@ -695,7 +695,7 @@ function InvoicesPage() {
 
               {/* Taxes & Financial Summary */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Panel title="Tributação Estadual (Sales Tax)">
+                <Panel title="Sales Tax & Jurisdiction">
                   <div className="p-4 space-y-3">
                     <label className="flex items-center gap-2 text-[12.5px] text-ink cursor-pointer">
                       <input
@@ -705,14 +705,14 @@ function InvoicesPage() {
                         className="size-4 rounded accent-brand"
                       />
                       <span className="font-medium">
-                        Cliente Isento de Imposto (Certificado Form ST-3)
+                        Tax-Exempt Customer (Resale / Exemption Certificate Form ST-3)
                       </span>
                     </label>
 
                     {!taxExempt && (
                       <div className="flex items-center justify-between gap-3 pt-2">
                         <span className="text-[12px] text-ink2">
-                          Alíquota Estadual / Municipal (%):
+                          State / Local Tax Rate (%):
                         </span>
                         <div className="flex items-center gap-1">
                           <input
@@ -729,20 +729,20 @@ function InvoicesPage() {
                   </div>
                 </Panel>
 
-                <Panel title="Resumo Contábil da Fatura">
+                <Panel title="Accounting Summary">
                   <div className="p-4 space-y-2 text-[12.5px] font-mono">
                     <div className="flex justify-between">
-                      <span className="text-ink3 font-sans">Subtotal dos Itens:</span>
+                      <span className="text-ink3 font-sans">Line Items Subtotal:</span>
                       <span>{usd(subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-ink3 font-sans">
-                        Impostos Calculados ({effectiveTaxRate}%):
+                        Calculated Sales Tax ({effectiveTaxRate}%):
                       </span>
                       <span>{usd(taxAmount)}</span>
                     </div>
                     <div className="flex justify-between border-t border-line/60 pt-2 font-semibold text-[14px]">
-                      <span className="text-ink font-sans">Total Contábil (AR):</span>
+                      <span className="text-ink font-sans">Total Accounts Receivable (AR):</span>
                       <span className="text-brand">{usd(totalAmount)}</span>
                     </div>
                   </div>
@@ -756,13 +756,13 @@ function InvoicesPage() {
                   onClick={() => setView("list")}
                   className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-md bg-brand px-6 py-2.5 text-[13px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
                 >
-                  Emitir e Contabilizar Fatura
+                  Issue & Post Invoice
                 </button>
               </div>
             </form>
