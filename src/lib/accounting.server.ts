@@ -13,6 +13,8 @@ import {
 import { commandArgs, domains, type AccountingCommand } from "./accounting-model";
 import type { PoolClient } from "pg";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
+import { normalizedFx, money } from "./transaction-fx";
+import { revalueAtClose } from "./fx-close.server";
 
 export function persona(
   user: { name: string },
@@ -133,6 +135,19 @@ export function validateState(state: CompanyState) {
   for (const s of state.stagingRows)
     ref("stagingRows", s.id, s.classifiedAccount, undefined, s.fileId);
   for (const i of state.invoices) {
+    const fx = normalizedFx(i);
+    if (money(i.total) !== fx.transactionAmount)
+      throw new Error("Invoice transaction amount must equal its total.");
+    if (i.customerId && !state.customers.some((c) => c.id === i.customerId))
+      throw new Error("Customer does not belong to this company.");
+    if (
+      i.projectId &&
+      i.customerId &&
+      state.projects.some(
+        (p) => p.id === i.projectId && p.customerId && p.customerId !== i.customerId,
+      )
+    )
+      throw new Error("Project belongs to another customer.");
     ref("invoices", i.id, undefined, i.projectId);
     const subtotal = Math.round(i.items.reduce((s, l) => s + l.qty * l.unitPrice, 0) * 100) / 100;
     const taxable = i.items.filter((l) => l.taxable).reduce((s, l) => s + l.qty * l.unitPrice, 0);
@@ -162,6 +177,14 @@ export function validateState(state: CompanyState) {
       throw new Error("Payment term does not belong to this company.");
   }
   for (const b of state.bills) {
+    const fx = normalizedFx(b);
+    if (
+      fx.transactionCurrency !== b.currency ||
+      fx.transactionAmount !== money(b.foreignAmount) ||
+      fx.exchangeRateValue !== b.fxRate ||
+      fx.functionalAmount !== money(b.usdAmount)
+    )
+      throw new Error("Bill currency fields are inconsistent.");
     if (b.vendorId && !state.vendors.some((v) => v.id === b.vendorId))
       throw new Error("Vendor does not belong to this company.");
     ref("bills", b.id, undefined, b.projectId);
@@ -173,6 +196,9 @@ export function validateState(state: CompanyState) {
         throw new Error("Estoque não pertence à empresa.");
     }
   }
+  for (const p of state.projects)
+    if (p.customerId && !state.customers.some((c) => c.id === p.customerId))
+      throw new Error("Project customer does not belong to this company.");
   for (const c of state.currencies)
     if (c.code === "USD" ? !c.isBaseCurrency || c.status !== "Active" : c.isBaseCurrency)
       throw new Error("USD é a única moeda base, com paridade 1.");
@@ -221,6 +247,7 @@ export async function execute(
     "updateFiscalPeriod",
     "deleteFiscalPeriod",
     "resetParametersToDefault",
+    "revalueOpenItems",
   ].includes(command)
     ? "close_periods"
     : "write_accounting";
@@ -238,7 +265,27 @@ export async function execute(
         "Os dados foram alterados em outra sessão. Atualize a página e tente novamente.",
       );
     await setActor(client, auth.user.id);
-    const state = await readState(input.companyId, client);
+    let state = await readState(input.companyId, client);
+    let closingDate: string | undefined;
+    if (
+      command === "updateFiscalPeriod" &&
+      (args[1] as { status?: string }).status &&
+      (args[1] as { status?: string }).status !== "Open"
+    )
+      closingDate = state.fiscalPeriods.find(
+        (p) => p.id === args[0] && p.status === "Open",
+      )?.endDate;
+    if (command === "togglePeriodLock" && !auth.company.isPeriodClosed)
+      closingDate = state.fiscalPeriods.find(
+        (p) => p.periodCode === auth.company.activePeriod,
+      )?.endDate;
+    if (closingDate)
+      state = await revalueAtClose(
+        state,
+        auth.company,
+        persona(auth.user, auth.permissions),
+        closingDate,
+      );
     if (command === "deleteAccount" || command === "updateAccount") {
       const code = String(args[0]);
       const linked = await client.query(

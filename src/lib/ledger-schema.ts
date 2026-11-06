@@ -24,8 +24,10 @@ const schema = (spec: string, children: Record<string, string> = {}): LedgerSche
 const scope = " scope? sharedId?:uuid";
 const scopeChildren = { companyIds: "value:uuid" };
 const dimensionValues = "dimensionId valueId lineId?";
-const transaction = " transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric exchangeRateSource exchangeRateDate?:date";
-const payments = "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric bankAccountId? journalId exchangeRateSource exchangeRateDate?:date";
+const transaction =
+  " transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric exchangeRateSource exchangeRateDate?:date";
+const payments =
+  "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric bankAccountId? journalId exchangeRateSource exchangeRateDate?:date";
 const contact =
   "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email sourceCurrency paymentTermId taxId notes";
 export const ledgerSchemas: Record<string, LedgerSchema> = {
@@ -37,13 +39,18 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   ),
   customers: schema(
     contact +
-      " customerType? printOnChecksAs billingAddress.street billingAddress.city billingAddress.state billingAddress.zip billingAddress.country shippingAddress.street shippingAddress.city shippingAddress.state shippingAddress.zip shippingAddress.country shippingSameAsBilling:boolean paymentMethod deliveryMethod taxExempt:boolean exemptionReason defaultTaxCode parentCustomerId billWithParent:boolean",
+      " registrationStatus customerType? printOnChecksAs billingAddress.street billingAddress.city billingAddress.state billingAddress.zip billingAddress.country shippingAddress.street shippingAddress.city shippingAddress.state shippingAddress.zip shippingAddress.country shippingSameAsBilling:boolean paymentMethod deliveryMethod taxExempt:boolean exemptionReason defaultTaxCode parentCustomerId billWithParent:boolean",
     { attachments: "id:uuid name size:integer content", customFields: "name type value" },
   ),
   vendors: schema(
     contact +
       " printOnCheckAs cc bcc otherContact streetAddress streetAddress2 city stateProvince zipCode country defaultExpenseAccountCode accountNumber track1099:boolean costRate?:numeric billingRate?:numeric bankName routingNumber bankAccountNumber bankAccountType",
-    { addressLines: "line", customFields: "name type value", bankAccounts: "id:uuid label currency bankName accountNumber routingNumber swiftBic paymentType" },
+    {
+      addressLines: "line",
+      customFields: "name type value",
+      bankAccounts:
+        "id:uuid label currency bankName accountNumber routingNumber swiftBic paymentType",
+    },
   ),
   accounts: schema(
     "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode?",
@@ -60,7 +67,8 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     "id code name clientName customerId? budget:numeric contractValue:numeric status startDate:date endDate:date notes",
   ),
   invoices: schema(
-    "id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" + transaction,
+    "id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" +
+      transaction,
     {
       items: "id description sku? isProduct:boolean qty:numeric unitPrice:numeric taxable:boolean",
       dimensionValues,
@@ -68,7 +76,8 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     },
   ),
   bills: schema(
-    "id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" + transaction,
+    "id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" +
+      transaction,
     {
       items:
         "id description accountCode isInventory:boolean sku? qty?:numeric amount:numeric projectId?",

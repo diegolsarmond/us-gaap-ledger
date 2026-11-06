@@ -1,3 +1,5 @@
+import { ContactActivity } from "@/components/contact-activity";
+import { ContactCustomFields } from "@/components/contact-custom-fields";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
@@ -20,12 +22,16 @@ const button = "rounded-md bg-brand px-4 py-2 text-sm text-white disabled:opacit
 const blankAddress = { street: "", city: "", state: "", zip: "", country: "" };
 function initial(): CustomerInput {
   return {
-    ...customerSchema.parse({
-      displayName: "New", companyName: "New", email: "draft@example.invalid",
+    ...customerSchema.innerType().parse({
+      displayName: "New",
+      companyName: "New",
+      email: "draft@example.invalid",
       billingAddress: blankAddress,
       shippingAddress: blankAddress,
     }),
-    displayName: "", companyName: "", email: "",
+    displayName: "",
+    companyName: "",
+    email: "",
   };
 }
 function CustomersPage() {
@@ -125,7 +131,7 @@ function CustomersPage() {
         <input
           className={control}
           type={type}
-          required={key === "displayName" || key === "companyName" || key === "email"}
+          required={key === "displayName" || (form.registrationStatus === "Active" && (key === "companyName" || key === "email"))}
           maxLength={key === "displayName" ? 120 : key === "email" ? 254 : 2000}
           value={String(form[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
@@ -135,11 +141,7 @@ function CustomersPage() {
   }
   function select(
     key:
-      | "paymentTermId"
-      | "paymentMethod"
-      | "deliveryMethod"
-      | "defaultTaxCode"
-      | "parentCustomerId",
+      "paymentTermId" | "paymentMethod" | "deliveryMethod" | "defaultTaxCode" | "parentCustomerId",
     label: string,
     options: { value: string; label: string }[],
   ) {
@@ -180,6 +182,7 @@ function CustomersPage() {
               <input
                 className={control}
                 maxLength={2000}
+                required={form.registrationStatus === "Active" && (field === "street" || field === "city" || field === "country")}
                 value={form[key][field]}
                 onChange={(e) => change(key, { ...form[key], [field]: e.target.value })}
               />
@@ -190,7 +193,13 @@ function CustomersPage() {
     );
   }
   const rows = customers.filter((c) =>
-    [c.displayName, c.companyName, c.email, c.taxId]
+    [
+      c.displayName,
+      c.companyName,
+      c.email,
+      c.taxId,
+      ...(c.customFields || []).flatMap((f) => [f.name, f.value]),
+    ]
       .join(" ")
       .toLowerCase()
       .includes(search.toLowerCase()),
@@ -221,6 +230,16 @@ function CustomersPage() {
       {editing ? (
         <form onSubmit={save}>
           <fieldset disabled={pending || uploading} className="space-y-5 min-w-0">
+            <ContactActivity
+              label="Lifetime Value"
+              projects={projects}
+              documents={invoices.filter(
+                (i) =>
+                  i.customerId === editing ||
+                  (!i.customerId && i.customerName === form.displayName),
+              )}
+            />
+            <label className="block text-sm">Registration status<select className={control} value={form.registrationStatus || "Active"} onChange={(e) => change("registrationStatus",e.target.value as "Draft"|"Active")}><option value="Active">Active — complete billing details required</option><option value="Draft">Draft — invoicing blocked</option></select></label>
             <Panel title="Basic information and contact">
               <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {input("companyName", "Customer Company Name *")}
@@ -253,6 +272,10 @@ function CustomersPage() {
                 {!form.shippingSameAsBilling && address("shippingAddress", "Shipping address")}
               </div>
             </Panel>
+            <ContactCustomFields
+              value={form.customFields || []}
+              onChange={(value) => change("customFields", value)}
+            />
             <Panel title="Payment and billing">
               <div className="grid gap-4 p-4 sm:grid-cols-2">
                 {select(
@@ -417,7 +440,7 @@ function CustomersPage() {
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.id}>
-                    <Td>{c.displayName}</Td>
+                    <Td>{c.displayName} {c.registrationStatus === "Draft" && <span className="text-ink3">(Draft — billing blocked)</span>}</Td>
                     <Td>{c.companyName || "—"}</Td>
                     <Td>{c.email || c.phone || "—"}</Td>
                     <Td>

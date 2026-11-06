@@ -1,3 +1,5 @@
+import { VendorBankAccounts } from "@/components/vendor-bank-accounts";
+import { ContactActivity } from "@/components/contact-activity";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -42,6 +44,8 @@ function VendorsPage() {
   const {
     activeCompany,
     vendors,
+    bills,
+    projects,
     addVendor,
     updateVendor,
     accounts,
@@ -229,6 +233,14 @@ function VendorsPage() {
           </button>
           <form onSubmit={save} className="space-y-4">
             <fieldset disabled={!writable || pending} className="space-y-4">
+              <ContactActivity
+                label="Consolidated Spend"
+                projects={projects}
+                documents={bills.filter(
+                  (b) =>
+                    b.vendorId === editingId || (!b.vendorId && b.vendorName === draft.displayName),
+                )}
+              />
               <section className="space-y-4 rounded-lg border border-line bg-white p-4">
                 <h2 className="font-semibold">1. Identification, Name and Contact</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -357,6 +369,10 @@ function VendorsPage() {
                   Opens a draft in your email application. Requests are not sent automatically; a
                   secure collection link is not configured.
                 </p>
+                <VendorBankAccounts
+                  value={draft.bankAccounts || []}
+                  onChange={(value) => change("bankAccounts", value)}
+                />
                 <details>
                   <summary className="cursor-pointer text-sm">Additional bank details</summary>
                   <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -530,7 +546,6 @@ function VendorsPage() {
                     Add custom field
                   </button>
                 </div>
-
               </section>
               {writable && (
                 <button
@@ -596,7 +611,7 @@ function VendorsPage() {
                     "Display name",
                     "Company",
                     "Contact",
-                    "Currency",
+                    "Bank currencies",
                     ...(customColumn ? [customColumn] : []),
                     "Action",
                   ].map((h) => (
@@ -612,7 +627,12 @@ function VendorsPage() {
                     <td className="p-3">{v.displayName}</td>
                     <td className="p-3">{v.companyName || "—"}</td>
                     <td className="p-3">{v.email || v.phone || "—"}</td>
-                    <td className="p-3">{(v.bankAccounts || []).map((b) => b.currency).filter((c,i,a) => a.indexOf(c) === i).join(", ") || "—"}</td>
+                    <td className="p-3">
+                      {(v.bankAccounts || [])
+                        .map((b) => b.currency)
+                        .filter((c, i, a) => a.indexOf(c) === i)
+                        .join(", ") || "—"}
+                    </td>
                     {customColumn && <td className="p-3">{customValue(v)?.value || "—"}</td>}
                     <td className="p-3">
                       <button className="text-brand underline" onClick={() => open(v)}>

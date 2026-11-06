@@ -1,3 +1,4 @@
+import { normalizedFx } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
@@ -22,7 +23,8 @@ export const Route = createFileRoute("/projects")({
 
 function ProjectsPage() {
   const modal = useModal();
-  const { activeCompany, projects, invoices, bills, createProject, userPersona } = useAccounting();
+  const { activeCompany, projects, customers, invoices, bills, createProject, userPersona } =
+    useAccounting();
 
   // Screen View Mode
   const [view, setView] = useState<"list" | "create">("list");
@@ -33,6 +35,7 @@ function ProjectsPage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [budget, setBudget] = useState("0");
   const [contractValue, setContractValue] = useState("0");
   const [status, setStatus] = useState<"Active" | "Completed" | "On Hold">("Active");
@@ -45,14 +48,19 @@ function ProjectsPage() {
     const projectInvoices = invoices.filter((i) => i.projectId === p.id);
     const projectBills = bills.filter((b) => b.projectId === p.id);
 
-    const revenue = projectInvoices.reduce((s, i) => s + i.subtotal, 0);
+    const revenue = projectInvoices.reduce(
+      (s, i) => s + i.subtotal * normalizedFx(i).exchangeRateValue,
+      0,
+    );
     const actualCosts = projectBills.reduce((s, b) => s + b.usdAmount, 0);
     const grossMargin = revenue - actualCosts;
     const marginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0;
     const budgetUtilizationPct = p.budget > 0 ? (actualCosts / p.budget) * 100 : 0;
     const budgetVariance = p.budget - actualCosts;
     const cashImpact =
-      projectInvoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0) -
+      projectInvoices
+        .filter((i) => i.status === "Paid")
+        .reduce((s, i) => s + (i.payments || []).reduce((t, p) => t + p.functionalAmount, 0), 0) -
       projectBills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
 
     return {
@@ -92,6 +100,7 @@ function ProjectsPage() {
         code: code.toUpperCase().trim(),
         name: name.trim(),
         clientName: clientName.trim() || "Cliente Direto",
+        customerId: customerId || undefined,
         budget: Number(budget) || 0,
         contractValue: Number(contractValue) || 0,
         status,
@@ -431,13 +440,23 @@ function ProjectsPage() {
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                   Cliente Destinatário (Client Legal Name)
                 </label>
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Ex: Northgate Supply Co. ou Cliente Interno"
-                  className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
-                />
+                <select
+                  className="w-full rounded-md border border-line p-2"
+                  value={customerId}
+                  onChange={(e) => {
+                    setCustomerId(e.target.value);
+                    setClientName(
+                      customers.find((c) => c.id === e.target.value)?.displayName || "",
+                    );
+                  }}
+                >
+                  <option value="">Internal / no customer</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.displayName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

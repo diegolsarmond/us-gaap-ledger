@@ -49,10 +49,29 @@ export async function loadSources(companyId: string): Promise<Source[]> {
       labels[id] ?? id,
       records.map((r) => ({
         ...r,
+        ...("customFields" in r
+          ? Object.fromEntries(
+              (r.customFields as { name: string; value: string; type: string }[]).map((f) => [
+                "custom." + f.name,
+                f.type === "Number" && f.value !== ""
+                  ? Number(f.value)
+                  : f.type === "Checkbox" && f.value !== ""
+                    ? f.value === "true"
+                    : f.value,
+              ]),
+            )
+          : {}),
         ...dimensionFields("dimensionValues" in r ? (r.dimensionValues as DimensionValue[]) : []),
       })),
     );
-    for (const field of ["lines", "items", "costLots"]) {
+    for (const field of [
+      "lines",
+      "items",
+      "costLots",
+      "payments",
+      "bankAccounts",
+      "customFields",
+    ]) {
       const children = records.flatMap((r: Record<string, unknown>) =>
         Array.isArray(r[field])
           ? (r[field] as Record<string, unknown>[]).map((child) => ({

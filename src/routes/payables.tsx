@@ -1,3 +1,7 @@
+import { TradeSettlement } from "@/components/trade-settlement";
+import { TradeAging } from "@/components/trade-aging";
+import { TransactionRateFields, useTransactionQuote } from "@/components/transaction-rate-fields";
+import { normalizedFx, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
@@ -34,7 +38,6 @@ function PayablesPage() {
     inventory,
     dimensions,
     createBill,
-    payBill,
     userPersona,
     currencies,
   } = useAccounting();
@@ -51,7 +54,8 @@ function PayablesPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [currency, setCurrency] = useState("USD");
-  const [fxRateInput, setFxRateInput] = useState("1.0");
+  const issueQuote = useTransactionQuote(currency, date);
+  const fxRateInput = issueQuote.rate;
   const [foreignAmount, setForeignAmount] = useState("0");
   const [accountCode, setAccountCode] = useState("");
   const [isInventory, setIsInventory] = useState(false);
@@ -60,24 +64,19 @@ function PayablesPage() {
   const [projectId, setProjectId] = useState("");
   const [dimensionValues, setDimensionValues] = useState<DimensionValue[]>([]);
 
-  // Pay Modal State
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
-  const [settlementRate, setSettlementRate] = useState<string>("1.0");
-  const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]!);
 
   // Computations
   const numForeign = Number(foreignAmount) || 0;
-  const effectiveRate = currency === "USD" ? 1.0 : Number(fxRateInput) || 1.0;
+  const effectiveRate = currency === "USD" ? 1.0 : Number(fxRateInput);
   const calculatedUsd = currency === "USD" ? numForeign : numForeign * effectiveRate;
 
-  const totalOpenAp = bills.filter((b) => b.status === "Open").reduce((s, b) => s + b.usdAmount, 0);
+  const totalOpenAp = bills
+    .filter((b) => b.status !== "Paid")
+    .reduce((s, b) => s + outstanding(b).functional, 0);
   const totalPaidAp = bills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
 
-  const handleCurrencyChange = (curr: string) => {
-    setCurrency(curr);
-    if (curr === "USD") setFxRateInput("1.0");
-    else setFxRateInput(String(currencies.find((c) => c.code === curr)?.exchangeRateToUsd ?? ""));
-  };
+  const handleCurrencyChange = (curr: string) => setCurrency(curr);
 
   const handleCreateBill = async (e: React.FormEvent) => {
     try {
@@ -101,6 +100,12 @@ function PayablesPage() {
         dueDate,
         currency,
         fxRate: effectiveRate,
+        transactionCurrency: currency,
+        transactionAmount: numForeign,
+        functionalCurrency: "USD",
+        exchangeRateValue: effectiveRate,
+        exchangeRateSource: issueQuote.source,
+        exchangeRateDate: issueQuote.rateDate,
         foreignAmount: numForeign,
         items: [
           {
@@ -139,41 +144,7 @@ function PayablesPage() {
     }
   };
 
-  const openPayModal = (bill: (typeof bills)[0]) => {
-    setPayingBillId(bill.id);
-    setSettlementRate(String(bill.fxRate));
-  };
-
-  const handleConfirmPay = async (e: React.FormEvent) => {
-    try {
-      e.preventDefault();
-      if (!payingBillId) return;
-
-      const rate = Number(settlementRate) || undefined;
-      const res = await payBill(payingBillId, payDate, rate);
-      if (res.success) {
-        const currentBill = bills.find((b) => b.id === payingBillId);
-        setPayingBillId(null);
-        await modal.showAlert({
-          title: "Quitação de Título Efetuada",
-          message: `Título ${currentBill?.billNumber || payingBillId} liquidado com sucesso!\n\nDébito em Contas a Pagar (2000) e crédito em Caixa/Banco (1000).${
-            currentBill && currentBill.currency !== "USD"
-              ? " A variação cambial realizada (Realized FX Gain/Loss) foi calculada e postada automaticamente."
-              : ""
-          }`,
-          tone: "success",
-        });
-      } else {
-        await modal.showAlert({
-          title: "Erro na Quitação",
-          message: res.error || "Não foi possível liquidar o título.",
-          tone: "error",
-        });
-      }
-    } catch {
-      /* The company provider displays the server error and preserves the form. */
-    }
-  };
+  const openPayModal = (bill: (typeof bills)[0]) => setPayingBillId(bill.id);
 
   const handleExportCsv = () => {
     const headers = [
@@ -205,8 +176,6 @@ function PayablesPage() {
     exportToCsv(`${activeCompany.id}_vendor_bills`, headers, rows);
   };
 
-  const selectedPayingBill = bills.find((b) => b.id === payingBillId);
-
   const filteredBills = bills.filter((b) => {
     const matchesSearch =
       b.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -221,6 +190,7 @@ function PayablesPage() {
       {view === "list" ? (
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
+          <TradeAging kind="AP" />
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
@@ -429,6 +399,7 @@ function PayablesPage() {
                   <select
                     aria-label="Fornecedor cadastrado"
                     className="mb-2 w-full rounded-md border border-line p-2 text-sm"
+                    required
                     value={vendorId}
                     onChange={(e) => {
                       const id = e.target.value;
@@ -446,7 +417,7 @@ function PayablesPage() {
                       setDueDate(due.toISOString().slice(0, 10));
                     }}
                   >
-                    <option value="">Selecionar fornecedor ou informar nome</option>
+                    <option value="">Selecionar fornecedor cadastrado</option>
                     {vendors.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.displayName}
@@ -455,6 +426,7 @@ function PayablesPage() {
                   </select>
                   <input
                     type="text"
+                    readOnly
                     value={vendorName}
                     onChange={(e) => {
                       setVendorName(e.target.value);
@@ -482,36 +454,14 @@ function PayablesPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Moeda da Fatura
-                  </label>
-                  <select
-                    value={currency}
-                    onChange={(e) => handleCurrencyChange(e.target.value)}
-                    className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono font-semibold"
-                  >
-                    <option value="USD">USD ($ - Base)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="GBP">GBP (£ - Libra)</option>
-                    <option value="MXN">MXN ($ - Peso Mexicano)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Cotação Spot Cambial (FX Rate)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    disabled={currency === "USD"}
-                    value={fxRateInput}
-                    onChange={(e) => setFxRateInput(e.target.value)}
-                    className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:opacity-50"
+                <div className="sm:col-span-2">
+                  <TransactionRateFields
+                    currency={currency}
+                    date={date}
+                    onCurrency={handleCurrencyChange}
+                    quote={issueQuote}
                   />
                 </div>
-
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                     Valor Original ({currency}) *
@@ -681,72 +631,13 @@ function PayablesPage() {
         </div>
       )}
 
-      {/* Settlement / Pay Modal Dialog */}
-      {payingBillId && selectedPayingBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-2xl space-y-4">
-            <div>
-              <h2 className="text-[16px] font-semibold text-ink">
-                Liquidar Título: {selectedPayingBill.billNumber}
-              </h2>
-              <p className="text-[12px] text-ink3">
-                Fornecedor: {selectedPayingBill.vendorName} · Valor Original:{" "}
-                {selectedPayingBill.currency} {selectedPayingBill.foreignAmount.toLocaleString()}
-              </p>
-            </div>
-
-            <form onSubmit={handleConfirmPay} className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                  Data do Pagamento
-                </label>
-                <input
-                  type="date"
-                  value={payDate}
-                  onChange={(e) => setPayDate(e.target.value)}
-                  required
-                  className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand"
-                />
-              </div>
-
-              {selectedPayingBill.currency !== "USD" && (
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Cotação Spot na Data de Liquidação (Settlement FX Rate)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={settlementRate}
-                    onChange={(e) => setSettlementRate(e.target.value)}
-                    required
-                    className="w-full rounded-md bg-canvas px-3 py-2 text-right font-mono text-[13px] border border-line outline-none focus:border-brand"
-                  />
-                  <span className="block mt-1 text-[11px] text-ink3">
-                    Taxa original de emissão: {selectedPayingBill.fxRate}. A diferença apura
-                    ganho/perda cambial.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-line/60">
-                <button
-                  type="button"
-                  onClick={() => setPayingBillId(null)}
-                  className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-md bg-brand px-5 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
-                >
-                  Confirmar Quitação
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {payingBillId && (
+        <TradeSettlement
+          key={payingBillId}
+          kind="AP"
+          documentId={payingBillId}
+          onClose={() => setPayingBillId(null)}
+        />
       )}
     </div>
   );

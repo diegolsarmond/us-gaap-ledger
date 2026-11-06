@@ -108,7 +108,10 @@ export const invoice = z.object({
   paymentDate: date.optional(),
 });
 export const bill = z.object({
-  transactionCurrency: z.string().regex(/^[A-Z]{3}$/).optional(),
+  transactionCurrency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .optional(),
   transactionAmount: num.optional(),
   functionalCurrency: z.literal("USD").default("USD"),
   exchangeRateValue: num.positive().optional(),
@@ -237,8 +240,17 @@ export const commandArgs = {
   createInvoice: z.tuple([invoice.omit({ id: true, status: true })]),
   recordInvoicePayment: z.tuple([key, date, num.positive().optional(), num.positive().optional()]),
   createBill: z.tuple([bill.omit({ id: true, status: true, usdAmount: true })]),
-  payBill: z.tuple([key, date, num.positive().optional(), num.positive().optional(), key.optional()]),
-  revalueOpenItems: z.tuple([date, z.record(z.object({rate:num.positive(),date,source:text.min(1)}))]),
+  payBill: z.tuple([
+    key,
+    date,
+    num.positive().optional(),
+    num.positive().optional(),
+    key.optional(),
+  ]),
+  revalueOpenItems: z.tuple([
+    date,
+    z.record(z.object({ rate: num.positive(), date, source: text.min(1) })),
+  ]),
   createProject: z.tuple([project.omit({ id: true })]),
   importStatement: z.tuple([
     z.object({

@@ -1,3 +1,7 @@
+import { TradeSettlement } from "@/components/trade-settlement";
+import { TradeAging } from "@/components/trade-aging";
+import { TransactionRateFields, useTransactionQuote } from "@/components/transaction-rate-fields";
+import { normalizedFx, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
@@ -27,11 +31,11 @@ function InvoicesPage() {
   const {
     activeCompany,
     invoices,
+    customers,
     inventory,
     dimensions,
     projects,
     createInvoice,
-    recordInvoicePayment,
     userPersona,
   } = useAccounting();
 
@@ -42,8 +46,12 @@ function InvoicesPage() {
 
   // Invoice creation form state
   const [customerName, setCustomerName] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
   const [customerEin, setCustomerEin] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const issueQuote = useTransactionQuote(currency, date);
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [kind, setKind] = useState<"Product" | "Service">("Product");
   const [projectId, setProjectId] = useState("");
@@ -61,11 +69,20 @@ function InvoicesPage() {
   const taxAmount = Math.round(((subtotal * effectiveTaxRate) / 100) * 100) / 100;
   const totalAmount = subtotal + taxAmount;
 
-  const totalOpen = invoices.filter((i) => i.status === "Open").reduce((s, i) => s + i.total, 0);
+  const totalOpen = invoices
+    .filter((i) => i.status !== "Paid")
+    .reduce((s, i) => s + outstanding(i).functional, 0);
   const totalOverdue = invoices
     .filter((i) => i.status === "Overdue")
     .reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0);
+  const totalPaid = invoices.reduce(
+    (s, i) =>
+      s +
+      (i.payments || [])
+        .filter((p) => p.date.startsWith(new Date().toISOString().slice(0, 7)))
+        .reduce((t, p) => t + p.functionalAmount, 0),
+    0,
+  );
 
   const handleAddItemRow = () => {
     setFormItems([
@@ -133,6 +150,13 @@ function InvoicesPage() {
       const result = await createInvoice({
         dimensionValues,
         customerName: customerName.trim(),
+        customerId: customerId || undefined,
+        transactionCurrency: currency,
+        transactionAmount: totalAmount,
+        functionalCurrency: "USD",
+        exchangeRateValue: Number(issueQuote.rate),
+        exchangeRateSource: issueQuote.source,
+        exchangeRateDate: issueQuote.rateDate,
         customerEin: customerEin.trim() || undefined,
         date,
         dueDate,
@@ -172,27 +196,7 @@ function InvoicesPage() {
     }
   };
 
-  const handleRecordPayment = async (invId: string) => {
-    try {
-      const paymentDate = new Date().toISOString().split("T")[0]!;
-      const res = await recordInvoicePayment(invId, paymentDate);
-      if (!res.success) {
-        await modal.showAlert({
-          title: "Erro no Recebimento",
-          message: res.error || "Não foi possível registrar o recebimento.",
-          tone: "error",
-        });
-      } else {
-        await modal.showAlert({
-          title: "Recebimento Confirmado",
-          message: `Recebimento da fatura ${invId} registrado com sucesso!\n\nConciliado no Razão Geral com crédito em Contas a Receber (1100) e débito em Disponibilidades / Caixa (1000).`,
-          tone: "success",
-        });
-      }
-    } catch {
-      /* The company provider displays the server error and preserves the form. */
-    }
-  };
+  const handleRecordPayment = (id: string) => setPayingInvoiceId(id);
 
   const handleExportCsv = () => {
     const headers = [
@@ -232,9 +236,18 @@ function InvoicesPage() {
 
   return (
     <div className="space-y-4">
+      {payingInvoiceId && (
+        <TradeSettlement
+          key={payingInvoiceId}
+          kind="AR"
+          documentId={payingInvoiceId}
+          onClose={() => setPayingInvoiceId(null)}
+        />
+      )}
       {view === "list" ? (
         /* ================= TELA DE LISTAGEM ================= */
         <div className="space-y-4">
+          <TradeAging kind="AR" />
           {/* Page Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
@@ -297,7 +310,7 @@ function InvoicesPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {["ALL", "Open", "Paid", "Overdue"].map((st) => (
+              {["ALL", "Open", "Partially Paid", "Paid", "Overdue"].map((st) => (
                 <button
                   key={st}
                   type="button"
@@ -372,13 +385,14 @@ function InvoicesPage() {
                         <Td className="text-ink3 text-[11.5px]">{formatDate(inv.date)}</Td>
                         <Td className="text-ink3 text-[11.5px]">{formatDate(inv.dueDate)}</Td>
                         <Td align="right" className="font-mono text-[12px]">
-                          {usd(inv.subtotal)}
+                          {normalizedFx(inv).transactionCurrency} {inv.subtotal.toFixed(2)}
                         </Td>
                         <Td align="right" className="font-mono text-[12px] text-ink3">
-                          {usd(inv.taxAmount)}
+                          {normalizedFx(inv).transactionCurrency} {inv.taxAmount.toFixed(2)}
                         </Td>
                         <Td align="right" className="font-mono font-semibold text-[12px] text-ink">
-                          {usd(inv.total)}
+                          {normalizedFx(inv).transactionCurrency} {inv.total.toFixed(2)} /{" "}
+                          {usd(normalizedFx(inv).functionalAmount)}
                         </Td>
                         <Td align="center">
                           <Badge
@@ -460,14 +474,25 @@ function InvoicesPage() {
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
                         Razão Social do Cliente (Legal Name) *
                       </label>
-                      <input
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ex: Acme Marine Logistics LLC"
+                      <select
+                        value={customerId}
                         required
-                        className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-inner"
-                      />
+                        className="w-full rounded-md border border-line p-2"
+                        onChange={(e) => {
+                          setCustomerId(e.target.value);
+                          const c = customers.find((c) => c.id === e.target.value);
+                          setCustomerName(c?.displayName || "");
+                          setCustomerEin(c?.taxId || "");
+                          setProjectId("");
+                        }}
+                      >
+                        <option value="">Select a customer</option>
+                        {customers.filter((c) => c.registrationStatus !== "Draft").map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.displayName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
@@ -508,11 +533,13 @@ function InvoicesPage() {
                         className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                       >
                         <option value="">Geral (Sem Projeto)</option>
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.code} — {p.name}
-                          </option>
-                        ))}
+                        {projects
+                          .filter((p) => !p.customerId || p.customerId === customerId)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.code} — {p.name}
+                            </option>
+                          ))}
                       </select>
                     </div>
 
@@ -545,6 +572,16 @@ function InvoicesPage() {
                 </div>
               </Panel>
 
+              <Panel title="Transaction currency and issue-date exchange rate">
+                <div className="p-4">
+                  <TransactionRateFields
+                    currency={currency}
+                    date={date}
+                    onCurrency={setCurrency}
+                    quote={issueQuote}
+                  />
+                </div>
+              </Panel>
               {/* Line Items */}
               <DimensionFields
                 dimensions={dimensions}

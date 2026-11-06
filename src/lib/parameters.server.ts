@@ -4,6 +4,8 @@ import { parameterSchemas, type mutationSchema } from "./parameters-model";
 import { db } from "./db.server";
 import type { z } from "zod";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
+import { revalueAtClose } from "./fx-close.server";
+import { persona } from "./accounting.server";
 export async function listParameterCompanies() {
   return (await (await import("./companies.server")).listCompanies()).companies.filter(
     (c) => c.active,
@@ -76,7 +78,36 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
       await client.query("SELECT revision FROM companies WHERE id=$1 FOR UPDATE", [companyId]);
     }
     for (const companyId of affected) {
-      const state = await readState(companyId, client);
+      let state = await readState(companyId, client);
+      if (
+        input.domain === "fiscalPeriods" &&
+        value &&
+        "status" in value &&
+        value.status !== "Open"
+      ) {
+        const previous = state.fiscalPeriods.find((p) => p.id === input.id);
+        if (previous?.status === "Open") {
+          const scope = await authorizeCompany(companyId, permission, client);
+          state = await revalueAtClose(
+            state,
+            scope.company,
+            persona(auth.user, auth.permissions),
+            previous.endDate,
+          );
+          await replaceLedger(
+            client,
+            companyId,
+            "journals",
+            state.journals as unknown as Record<string, unknown>[],
+          );
+          await replaceLedger(
+            client,
+            companyId,
+            "auditLogs",
+            state.auditLogs as unknown as Record<string, unknown>[],
+          );
+        }
+      }
       const rows = state[input.domain] as unknown as Record<string, unknown>[];
       const existing = rows.find(
         (r) =>
