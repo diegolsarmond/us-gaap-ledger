@@ -97,7 +97,10 @@ export async function contactUsage(
     else usage.vendors[row.id] = { journalLines: row.n, attachments: 0 };
   }
   for (const row of files.rows)
-    usage.vendors[row.id] = { journalLines: usage.vendors[row.id]?.journalLines ?? 0, attachments: row.n };
+    usage.vendors[row.id] = {
+      journalLines: usage.vendors[row.id]?.journalLines ?? 0,
+      attachments: row.n,
+    };
   return usage;
 }
 

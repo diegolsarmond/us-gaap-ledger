@@ -215,9 +215,7 @@ function VendorsPage() {
   }
   const customValue = (vendor: Vendor) => vendor.customFields?.find((f) => f.name === customColumn);
   const term = search.trim().toLowerCase();
-  const currenciesOf = (v: Vendor) => [
-    ...new Set((v.bankAccounts || []).map((b) => b.currency)),
-  ];
+  const currenciesOf = (v: Vendor) => [...new Set((v.bankAccounts || []).map((b) => b.currency))];
   const linksOf = (v: Vendor) => vendorLinks({ bills }, v, usage.data?.vendors[v.id]);
   const deleteBlock = (v: Vendor) =>
     !usage.isSuccess ? "Checking linked records…" : blockedBy(linksOf(v));
@@ -620,10 +618,7 @@ function VendorsPage() {
                 </div>
               </section>
               {writable && (
-                <button
-                  className={primaryButton}
-                  type="submit"
-                >
+                <button className={primaryButton} type="submit">
                   {pending ? "Saving…" : "Save vendor"}
                 </button>
               )}
@@ -640,7 +635,10 @@ function VendorsPage() {
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi label="Vendors" value={String(vendors.length)} />
-            <Kpi label="Tracked for 1099" value={String(vendors.filter((v) => v.track1099).length)} />
+            <Kpi
+              label="Tracked for 1099"
+              value={String(vendors.filter((v) => v.track1099).length)}
+            />
             <Kpi
               label="With bank accounts"
               value={String(vendors.filter((v) => currenciesOf(v).length).length)}
@@ -731,7 +729,11 @@ function VendorsPage() {
                       </div>
                     </Td>
                     <Td>
-                      {v.track1099 ? <Badge tone="brand">Tracked</Badge> : <span className="text-ink3">—</span>}
+                      {v.track1099 ? (
+                        <Badge tone="brand">Tracked</Badge>
+                      ) : (
+                        <span className="text-ink3">—</span>
+                      )}
                     </Td>
                     {customColumn && <Td>{customValue(v)?.value || "—"}</Td>}
                     <Td align="right">{billCount(v)}</Td>
@@ -789,7 +791,10 @@ function VendorsPage() {
                         .join(" "),
                     },
                     { label: "Email", value: viewing.email },
-                    { label: "Cc / Bcc", value: [viewing.cc, viewing.bcc].filter(Boolean).join(" · ") },
+                    {
+                      label: "Cc / Bcc",
+                      value: [viewing.cc, viewing.bcc].filter(Boolean).join(" · "),
+                    },
                     { label: "Phone", value: viewing.phone },
                     { label: "Mobile", value: viewing.mobile },
                     { label: "Fax", value: viewing.fax },

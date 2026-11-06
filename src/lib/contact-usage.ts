@@ -26,7 +26,8 @@ export function customerLinks(
   usage?: ContactUsage["customers"][string],
 ) {
   const invoices = state.invoices.filter(
-    (i) => i.customerId === customer.id || (!i.customerId && i.customerName === customer.displayName),
+    (i) =>
+      i.customerId === customer.id || (!i.customerId && i.customerName === customer.displayName),
   ).length;
   const projects = state.projects.filter((p) => p.customerId === customer.id).length;
   const children = state.customers.filter((c) => c.parentCustomerId === customer.id).length;

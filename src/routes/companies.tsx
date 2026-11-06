@@ -362,11 +362,7 @@ function CompanyFormModal({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className={primaryButton}
-              >
+              <button type="submit" disabled={pending} className={primaryButton}>
                 {pending ? "Saving…" : "Save company"}
               </button>
             </div>
@@ -500,7 +496,10 @@ function CompaniesPage() {
         ]}
       />
 
-      <Panel title="Registered companies" subtitle={`${rows.length} of ${companies.length} records`}>
+      <Panel
+        title="Registered companies"
+        subtitle={`${rows.length} of ${companies.length} records`}
+      >
         <Table>
           <thead className="bg-canvas/50">
             <tr>
@@ -590,7 +589,10 @@ function CompaniesPage() {
                     { label: "Legal name", value: viewing.name },
                     { label: "Trade name / DBA", value: viewing.tradeName },
                     { label: "Legal entity type", value: viewing.entity },
-                    { label: "Federal tax classification", value: viewing.federalTaxClassification },
+                    {
+                      label: "Federal tax classification",
+                      value: viewing.federalTaxClassification,
+                    },
                     { label: "State of formation", value: viewing.state },
                     { label: "EIN", value: formatEin(viewing.ein) },
                     { label: "RFC / local tax ID", value: viewing.taxId },

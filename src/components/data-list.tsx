@@ -409,7 +409,10 @@ export function ConfirmDelete({
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
-          <p role="alert" className="rounded border border-down/20 bg-down/10 p-3 text-sm text-down">
+          <p
+            role="alert"
+            className="rounded border border-down/20 bg-down/10 p-3 text-sm text-down"
+          >
             {error}
           </p>
         )}
@@ -437,5 +440,4 @@ export function blockedBy(reasons: (string | false | null | undefined)[]) {
   return list.length ? `Cannot delete: linked to ${list.join(", ")}.` : null;
 }
 
-export const plural = (count: number, word: string) =>
-  `${count} ${word}${count === 1 ? "" : "s"}`;
+export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;

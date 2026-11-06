@@ -191,7 +191,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
       `${p.name} ${grantedPermissions(p).join(" ")}`.toLowerCase().includes(term) &&
       (!statusFilter || (statusFilter === "protected") === p.system_admin) &&
       (!groupFilter ||
-        (groupFilter === "all" ? p.all_companies || p.system_admin : !p.all_companies && !p.system_admin)),
+        (groupFilter === "all"
+          ? p.all_companies || p.system_admin
+          : !p.all_companies && !p.system_admin)),
   );
   const rows: (ManagedUser | Profile)[] = users ? userRows : profileRows;
   const paging = usePagination(rows, `${term}|${statusFilter}|${groupFilter}|${kind}`);
@@ -267,21 +269,39 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 <Kpi label="Users" value={String(data.users.length)} />
                 <Kpi label="Active" value={String(data.users.filter((u) => u.active).length)} />
                 <Kpi label="Inactive" value={String(data.users.filter((u) => !u.active).length)} />
-                <Kpi label="Profiles in use" value={String(new Set(data.users.map((u) => u.profile_id)).size)} />
+                <Kpi
+                  label="Profiles in use"
+                  value={String(new Set(data.users.map((u) => u.profile_id)).size)}
+                />
               </>
             ) : (
               <>
                 <Kpi label="Profiles" value={String(data.profiles.length)} />
-                <Kpi label="Protected" value={String(data.profiles.filter((p) => p.system_admin).length)} />
-                <Kpi label="All companies" value={String(data.profiles.filter((p) => p.all_companies || p.system_admin).length)} />
-                <Kpi label="Unassigned" value={String(data.profiles.filter((p) => !usageOf(p.id).length && !p.system_admin).length)} />
+                <Kpi
+                  label="Protected"
+                  value={String(data.profiles.filter((p) => p.system_admin).length)}
+                />
+                <Kpi
+                  label="All companies"
+                  value={String(
+                    data.profiles.filter((p) => p.all_companies || p.system_admin).length,
+                  )}
+                />
+                <Kpi
+                  label="Unassigned"
+                  value={String(
+                    data.profiles.filter((p) => !usageOf(p.id).length && !p.system_admin).length,
+                  )}
+                />
               </>
             )}
           </div>
           <ListToolbar
             search={search}
             onSearch={setSearch}
-            placeholder={users ? "Search by name, email or profile…" : "Search by name or permission…"}
+            placeholder={
+              users ? "Search by name, email or profile…" : "Search by name or permission…"
+            }
             filters={
               users
                 ? [
@@ -363,9 +383,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                         <Td>
                           <IdentityCell
                             title={r.name}
-                            subtitle={
-                              r.id === data.currentUserId ? `${r.email} · you` : r.email
-                            }
+                            subtitle={r.id === data.currentUserId ? `${r.email} · you` : r.email}
                           />
                         </Td>
                         <Td>{profileName(r.profile_id)}</Td>
@@ -414,12 +432,11 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                         onView={() => setViewing(r)}
                         onEdit={() => openEdit(r)}
                         edit={{
-                          blocked:
-                            pending
-                              ? "Please wait…"
-                              : "system_admin" in r && r.system_admin
-                                ? "The administrator profile is protected."
-                                : null,
+                          blocked: pending
+                            ? "Please wait…"
+                            : "system_admin" in r && r.system_admin
+                              ? "The administrator profile is protected."
+                              : null,
                         }}
                         onDelete={() => openDelete(r)}
                         remove={{ blocked: pending ? "Please wait…" : deleteBlock(r) }}
@@ -590,7 +607,10 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
               </DialogHeader>
 
               {error && (
-                <p role="alert" className="text-down text-sm bg-down/10 border border-down/20 rounded p-3">
+                <p
+                  role="alert"
+                  className="text-down text-sm bg-down/10 border border-down/20 rounded p-3"
+                >
                   {error}
                 </p>
               )}
@@ -623,11 +643,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       >
                         Close
                       </button>
-                      <button
-                        type="button"
-                        className={button}
-                        onClick={() => void copyPassword()}
-                      >
+                      <button type="button" className={button} onClick={() => void copyPassword()}>
                         {copied ? "Password copied!" : "Copy password"}
                       </button>
                     </div>
@@ -700,7 +716,10 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
               </DialogHeader>
 
               {error && (
-                <p role="alert" className="text-down text-sm bg-down/10 border border-down/20 rounded p-3">
+                <p
+                  role="alert"
+                  className="text-down text-sm bg-down/10 border border-down/20 rounded p-3"
+                >
                   {error}
                 </p>
               )}
@@ -733,7 +752,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                           type="email"
                           required
                           maxLength={254}
-                          defaultValue={editing !== "new" && "email" in editing ? editing.email : ""}
+                          defaultValue={
+                            editing !== "new" && "email" in editing ? editing.email : ""
+                          }
                           className={control}
                           placeholder="user@example.com"
                         />
@@ -772,7 +793,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                           minLength={12}
                           maxLength={256}
                           className={control}
-                          placeholder={editing === "new" ? "••••••••••••" : "Leave blank to keep current"}
+                          placeholder={
+                            editing === "new" ? "••••••••••••" : "Leave blank to keep current"
+                          }
                         />
                       </label>
                       <label className="flex items-center gap-2 text-sm text-ink cursor-pointer pt-1">
@@ -795,7 +818,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                             type="checkbox"
                             name="all_companies"
                             defaultChecked={
-                              editing !== "new" && "all_companies" in editing && editing.all_companies
+                              editing !== "new" &&
+                              "all_companies" in editing &&
+                              editing.all_companies
                             }
                             className="rounded border-line mt-0.5"
                           />
@@ -806,7 +831,10 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                         </p>
                         <div className="ml-6 mt-3 space-y-1.5 max-h-40 overflow-y-auto">
                           {query.data?.companies.map((c) => (
-                            <label key={c.id} className="flex items-center gap-2 text-sm text-ink cursor-pointer">
+                            <label
+                              key={c.id}
+                              className="flex items-center gap-2 text-sm text-ink cursor-pointer"
+                            >
                               <input
                                 type="checkbox"
                                 name="company_ids"
@@ -825,7 +853,9 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold text-ink uppercase tracking-wider">Module Permissions</p>
+                        <p className="text-xs font-semibold text-ink uppercase tracking-wider">
+                          Module Permissions
+                        </p>
                         <ul className="divide-y divide-line rounded-md border border-line bg-white">
                           {Object.entries(permissions).map(([key, label]) => (
                             <li key={key} className="px-3 py-2.5">
@@ -861,11 +891,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     >
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      className={button}
-                      disabled={pending}
-                    >
+                    <button type="submit" className={button} disabled={pending}>
                       {pending ? "Saving…" : "Save"}
                     </button>
                   </div>
