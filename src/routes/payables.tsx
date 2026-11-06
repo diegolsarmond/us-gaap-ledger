@@ -59,7 +59,12 @@ function PayablesPage() {
   const [billNumber, setBillNumber] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(
+    () =>
+      currencies.find((c) => c.code === "USD" && c.status === "Active")?.code ??
+      currencies.find((c) => c.status === "Active")?.code ??
+      "",
+  );
   const issueQuote = useTransactionQuote(currency, date);
   const fxRateInput = issueQuote.rate;
   const [foreignAmount, setForeignAmount] = useState("0");
@@ -84,7 +89,9 @@ function PayablesPage() {
   const totalPaidAp = bills.reduce(
     (s, b) =>
       s +
-      (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+      (b.payments || [])
+        .filter((p) => p.date.startsWith(new Date().toISOString().slice(0, 7)))
+        .reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
     0,
   );
 
@@ -142,7 +149,7 @@ function PayablesPage() {
         setView("list");
         await modal.showAlert({
           title: "Vendor Bill Recorded",
-          message: `Bill ${bId} successfully recorded in Accounts Payable (AP)!\n\nGeneral Ledger Entries:\n• Credit Accounts Payable (2000): ${usd(calculatedUsd)}\n• Debit Account ${accountCode}: ${usd(calculatedUsd)}`,
+          message: `Bill ${bId} successfully recorded in Accounts Payable (AP)!\n\nGeneral Ledger Entries:\n• Credit Accounts Payable (${resolvePostingAccount(accounts, postingAccounts, "20100", "2000")}): ${usd(calculatedUsd)}\n• Debit Account ${accountCode}: ${usd(calculatedUsd)}`,
           tone: "success",
         });
       } else {
@@ -236,7 +243,7 @@ function PayablesPage() {
             <Kpi
               label="Total Open Obligations (AP)"
               value={usd(totalOpenAp)}
-              hint="Account 2000 · Due to vendors"
+              hint={`Account ${resolvePostingAccount(accounts, postingAccounts, "20100", "2000")} · Due to vendors`}
               tone={totalOpenAp > 0 ? "neutral" : "up"}
             />
             <Kpi
@@ -248,7 +255,7 @@ function PayablesPage() {
             <Kpi
               label="Foreign Currency Bills"
               value={bills.filter((b) => b.currency !== "USD").length.toString()}
-              hint="MXN, GBP, EUR multi-currency exposure"
+              hint="Bills issued in currencies other than USD"
               tone="neutral"
             />
           </section>
@@ -266,7 +273,13 @@ function PayablesPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {["ALL", "USD", "EUR", "GBP", "MXN"].map((curr) => (
+              {[
+                "ALL",
+                ...new Set([
+                  ...currencies.filter((c) => c.status === "Active").map((c) => c.code),
+                  ...bills.map((b) => b.currency),
+                ]),
+              ].map((curr) => (
                 <button
                   key={curr}
                   type="button"
@@ -368,7 +381,8 @@ function PayablesPage() {
               <Note tone="brand">
                 US GAAP ASC 830 (Foreign Currency Matters): Foreign currency payables are recorded
                 at the spot exchange rate on the transaction date. Upon settlement, any exchange
-                rate difference generates Realized Foreign Exchange Gain/Loss (Account 6300).
+                rate difference generates Realized Foreign Exchange Gain/Loss using the configured
+                account.
               </Note>
             </div>
           </Panel>

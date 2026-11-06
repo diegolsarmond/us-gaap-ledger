@@ -26,15 +26,21 @@ type Methods = {
     K in keyof Rows as `add${K extends "postingAccounts" ? "PostingAccount" : K extends "currencies" ? "Currency" : K extends "taxJurisdictions" ? "TaxJurisdiction" : K extends "paymentTerms" ? "PaymentTerm" : K extends "costCenters" ? "CostCenter" : K extends "expenseCategories" ? "ExpenseCategory" : "FiscalPeriod"}`
   ]: (value: Omit<Rows[K][number], "id">) => Promise<void>;
 } & { [key: string]: any };
-const Context = createContext<
+const newContext = createContext<
   | (Rows &
       Methods & {
         activeCompany: Models.ClientCompany;
         accounts: Models.Account[];
+        canWrite: boolean;
         userPersona: { name: string; canClosePeriod: boolean; canManageUsers: boolean };
       })
   | null
 >(null);
+// Route chunks can retain consumers across HMR; all providers must keep the same context object.
+const contextStore = globalThis as typeof globalThis & {
+  __ledgerParametersContext?: typeof newContext;
+};
+const Context = (contextStore.__ledgerParametersContext ??= newContext);
 export function useAccounting() {
   const value = useContext(Context);
   if (!value) throw new Error("ParametersProvider is missing");
@@ -112,9 +118,14 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
             },
           });
           await Promise.all(
-            ["parameters", "accounting", "journal-parameters", "cash-flow"].map((key) =>
-              queryClient.invalidateQueries({ queryKey: [key] }),
-            ),
+            [
+              "parameters",
+              "accounting",
+              "journal-parameters",
+              "cash-flow",
+              "trial-balance",
+              "trial-activity",
+            ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
           );
         } catch (e) {
           setError(e instanceof Error ? e.message : "Unable to save.");
@@ -124,7 +135,7 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
         }
       };
   return (
-    <Context.Provider value={{ ...data, ...methods, activeCompany } as any}>
+    <Context.Provider key={activeCompany.id} value={{ ...data, ...methods, activeCompany } as any}>
       <p className="mb-3 text-sm text-ink3">
         Global parameters are shared with all companies. Company-specific parameters can be linked
         to one or more companies. The parameters shown apply to the active company.

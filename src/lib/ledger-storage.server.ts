@@ -64,6 +64,59 @@ export async function readLedger(
     );
   return result;
 }
+/** Read a complete company snapshot without one network round-trip per child table. */
+export async function readLedgerDomains(
+  client: Connection,
+  companyId: string,
+  domains: readonly string[],
+): Promise<Record<string, Row[]>> {
+  if (!domains.length) return {};
+  const selects: string[] = [];
+  for (const domain of domains) {
+    const table = ledgerTable(domain); // whitelist domain before constructing identifiers/literals
+    selects.push(
+      `SELECT '${domain}' AS domain, '' AS collection, t.id AS parent_id, t.position, to_jsonb(t) AS value FROM ${table} t WHERE company_id=$1`,
+    );
+    for (const collection of Object.keys(ledgerSchemas[domain]!.children))
+      selects.push(
+        `SELECT '${domain}', '${collection}', t.parent_id, t.position, to_jsonb(t) FROM ${childTable(domain, collection)} t WHERE company_id=$1`,
+      );
+  }
+  const data = await client.query(
+    selects.join(" UNION ALL ") + " ORDER BY domain,collection,parent_id,position",
+    [companyId],
+  );
+  const result: Record<string, Row[]> = {};
+  for (const domain of domains) {
+    const spec = ledgerSchemas[domain]!;
+    const roots = data.rows
+      .filter((r) => r.domain === domain && r.collection === "")
+      .sort((a, b) => a.position - b.position);
+    const rows = roots.map((r) => decode(r.value, spec.fields));
+    for (const [collection, fields] of Object.entries(spec.children)) {
+      const grouped = new Map<string, unknown[]>();
+      for (const row of data.rows.filter(
+        (r) => r.domain === domain && r.collection === collection,
+      )) {
+        const values = grouped.get(row.parent_id) ?? [];
+        const value = decode(row.value, fields);
+        values.push(collection === "companyIds" ? value["value"] : value);
+        grouped.set(row.parent_id, values);
+      }
+      roots.forEach((root, index) => {
+        rows[index]![collection] = grouped.get(root.parent_id) ?? [];
+      });
+    }
+    result[domain] = rows;
+  }
+  if (domains.includes("journals"))
+    result["journals"]!.push(
+      ...(await (
+        await import("./journal-projection.server")
+      ).postedJournalProjection(client, companyId)),
+    );
+  return result;
+}
 export async function replaceLedger(
   client: Connection,
   companyId: string,

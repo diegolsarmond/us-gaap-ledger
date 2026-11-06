@@ -13,7 +13,7 @@ import {
 } from "./accounting-engine";
 import { commandArgs, domains, type AccountingCommand } from "./accounting-model";
 import type { PoolClient } from "pg";
-import { readLedger, replaceLedger } from "./ledger-storage.server";
+import { readLedger, readLedgerDomains, replaceLedger } from "./ledger-storage.server";
 import { normalizedFx, money } from "./transaction-fx";
 import { revalueAtClose } from "./fx-close.server";
 import type { ContactUsage } from "./contact-usage";
@@ -34,9 +34,7 @@ export function persona(
 }
 export async function readState(companyId: string, client: Pick<PoolClient, "query"> = db()) {
   const state = createInitialCompanyData();
-  for (const domain of domains) {
-    (state[domain] as unknown[]) = await readLedger(client, companyId, domain);
-  }
+  Object.assign(state, await readLedgerDomains(client, companyId, domains));
   return state;
 }
 export async function load(companyId: string) {

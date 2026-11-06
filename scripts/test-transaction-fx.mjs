@@ -514,3 +514,53 @@ console.log("PASS: operational CRUD, stock valuation preservation and linked-his
     "PASS: AP early discount, deadline boundaries, proportional partial discount and balanced settlement.",
   );
 }
+
+// Reconfiguring AR does not move existing open invoices to a different control account.
+{
+  const repriced = structuredClone(mappedEngine.getState());
+  repriced.postingAccounts[0].glAccountCode = "10200";
+  const re = createAccountingEngine(repriced, company, user);
+  const result = re.value.revalueOpenItems("2026-01-31", {
+    GBP: { rate: 1.5, date: "2026-01-31", source: "Test closing" },
+  });
+  assert.equal(result.success, true, result.error);
+  const adjustment = re
+    .getState()
+    .journals.find(
+      (j) =>
+        j.sourceType === "FXRevaluation" &&
+        j.sourceId === "AR:" + mappedInvoice.invoiceId + ":2026-01-31",
+    );
+  assert.ok(adjustment, "Mapped invoice must receive a closing revaluation");
+  assert.ok(adjustment.lines.some((l) => l.accountCode === "11999"));
+  assert.ok(adjustment.lines.every((l) => l.accountCode !== "10200"));
+  assert.ok(adjustment.lines.every((l) => l.costCenterId === "ops"));
+  console.log("PASS: closing revaluation preserves historical control account and cost center.");
+}
+{
+  const { salesTaxSummary } = await import("../src/lib/sales-tax-summary.ts");
+  const doc = {
+    ...sourceInvoice,
+    date: "2026-01-05",
+    transactionCurrency: "GBP",
+    exchangeRateValue: 1.5,
+    transactionAmount: 107.5,
+    functionalAmount: 161.25,
+    subtotal: 100,
+    total: 107.5,
+    taxAmount: 7.5,
+    taxExempt: false,
+    items: [
+      { id: "tax", qty: 1, unitPrice: 75, taxable: true },
+      { id: "exempt", qty: 1, unitPrice: 25, taxable: false },
+    ],
+  };
+  const summary = salesTaxSummary(
+    [doc, { ...doc, date: "2025-12-01" }, { ...doc, date: "2026-01-20" }],
+    "2026-01-10",
+  );
+  assert.deepEqual(summary, { taxableSales: 112.5, exemptSales: 37.5, collected: 11.25 });
+  console.log(
+    "PASS: month-to-date sales tax converts foreign amounts and separates taxable/exempt lines.",
+  );
+}

@@ -24,7 +24,7 @@ export function useTransactionQuote(currency: string, date: string) {
     source: overridden ? "Manual / contractual override" : query.data?.source || "Manual",
     rateDate: overridden ? date : query.data?.date || date,
     setRate: (value: string) => setManual({ key, value }),
-    loading: query.isPending && currency !== "USD",
+    loading: query.isFetching && !!currency && currency !== "USD",
     error: query.isError && !overridden ? query.error.message : "",
   };
 }

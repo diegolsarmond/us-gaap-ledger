@@ -1,3 +1,5 @@
+import { JournalSettings } from "@/components/journal-settings";
+import { useCompanies } from "@/components/company-context";
 import { PostingAccountSettings } from "@/components/posting-account-settings";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/parameters/")({
 });
 
 function ParametersIndexPage() {
+  const { permissions } = useCompanies();
   const {
     activeCompany,
     currencies,
@@ -86,7 +89,7 @@ function ParametersIndexPage() {
       title: "Tax Jurisdictions & Sales Tax",
       subtitle: "State Department of Revenue · Nexus & Rates",
       description:
-        "Sales tax rates by US state (FL, TX, CA, NY, WA), filing frequency, and links to liability account 2200.",
+        "Sales tax rates by US state (FL, TX, CA, NY, WA), filing frequency, and configured liability accounts.",
       to: "/parameters/tax-jurisdictions",
       icon: Scale,
       countLabel: `${activeTaxesCount} active jurisdictions`,
@@ -161,7 +164,11 @@ function ParametersIndexPage() {
           hint={`Base: ${activeCompany.baseCurrency}`}
         />
         <Kpi label="Tax Jurisdictions" value={activeTaxesCount.toString()} hint="Sales Tax Nexus" />
-        <Kpi label="Payment Terms" value={activeTermsCount.toString()} hint="Default: Net 30" />
+        <Kpi
+          label="Payment Terms"
+          value={activeTermsCount.toString()}
+          hint={`Customer default: ${paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active")?.name ?? "None"}`}
+        />
         <Kpi
           label="Cost Centers"
           value={activeCostCentersCount.toString()}
@@ -224,6 +231,9 @@ function ParametersIndexPage() {
       </div>
 
       <PostingAccountSettings />
+      {permissions.manage_profiles && (
+        <JournalSettings key={activeCompany.id} companyId={activeCompany.id} />
+      )}
       {/* Compliance & US GAAP Notice */}
       <Panel
         title="Parameter Governance & US GAAP Compliance"
@@ -235,8 +245,8 @@ function ParametersIndexPage() {
             <div className="text-[12px]">
               <p className="font-semibold text-ink">Company Data Isolation (Multi-Tenant)</p>
               <p className="text-ink3 mt-0.5 leading-relaxed">
-                All changes to currencies, tax rates, cost centers, and categories remain isolated
-                within the active client company.
+                Currencies and posting accounts are configured per company. Shared tax rates, cost
+                centers, and categories follow their selected global or company-specific scope.
               </p>
             </div>
           </div>

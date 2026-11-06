@@ -4,6 +4,7 @@ import { postingRoles, type PostingAccount } from "@/lib/posting-accounts";
 import { Panel } from "./ui-kit";
 export function PostingAccountSettings() {
   const {
+    canWrite,
     postingAccounts,
     accounts,
     activeCompany,
@@ -45,6 +46,7 @@ export function PostingAccountSettings() {
           <label key={role} className="text-sm">
             {postingRoles[role].name}
             <select
+              disabled={!canWrite}
               className="w-full rounded border border-line p-2"
               value={postingAccounts.find((r) => r.code === role)?.glAccountCode ?? ""}
               onChange={(e) => void save(role, e.target.value)}

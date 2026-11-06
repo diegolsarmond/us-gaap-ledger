@@ -1,3 +1,4 @@
+import { resolvePostingAccount } from "@/lib/posting-accounts";
 import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
 import { TransactionRateFields } from "@/components/transaction-rate-fields";
@@ -34,6 +35,9 @@ function InvoicesPage() {
     invoices,
     customers,
     inventory,
+    accounts,
+    postingAccounts,
+    currencies,
     paymentTerms,
     taxJurisdictions,
     dimensions,
@@ -51,7 +55,12 @@ function InvoicesPage() {
   // Invoice creation form state
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(
+    () =>
+      currencies.find((c) => c.code === "USD" && c.status === "Active")?.code ??
+      currencies.find((c) => c.status === "Active")?.code ??
+      "",
+  );
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
   const [customerEin, setCustomerEin] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -69,6 +78,14 @@ function InvoicesPage() {
   >([{ id: "item-1", sku: "", description: "", qty: 1, unitPrice: 0 }]);
 
   // Computations
+  const transactionAmount = (amount: number) =>
+    currency
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency,
+          currencyDisplay: "code",
+        }).format(amount)
+      : amount.toFixed(2);
   const subtotal = formItems.reduce((s, it) => s + it.qty * it.unitPrice, 0);
   const effectiveTaxRate = taxExempt ? 0 : Number(taxRate) || 0;
   const taxAmount = Math.round(((subtotal * effectiveTaxRate) / 100) * 100) / 100;
@@ -178,6 +195,10 @@ function InvoicesPage() {
 
       if (result.success) {
         const invId = result.invoiceId;
+        setCustomerId("");
+        setProjectId("");
+        setTaxExempt(false);
+        setTaxRate("0");
         setCustomerName("");
         setCustomerEin("");
         setDimensionValues([]);
@@ -185,9 +206,7 @@ function InvoicesPage() {
         setView("list");
         await modal.showAlert({
           title: "Invoice Issued and Posted",
-          message: `Invoice ${invId} successfully issued!\n\nAutomatic General Ledger Entries:\n• Debit Accounts Receivable (1100): ${usd(totalAmount)}\n• Credit Operating Revenue (4000/4100): ${usd(subtotal)}\n• Credit Sales Tax Payable (2200): ${usd(taxAmount)}${
-            kind === "Product" ? "\n• Inventory Relief (1300) and COGS Recognition (5000)." : ""
-          }`,
+          message: `Invoice ${invId} issued in ${currency}. The general ledger uses the configured posting accounts and the issue-date exchange rate. Review Journal Entries for the posted USD amounts.`,
           tone: "success",
         });
       } else {
@@ -294,7 +313,7 @@ function InvoicesPage() {
             <Kpi
               label="Open Receivables (AR)"
               value={usd(totalOpen)}
-              hint="Account 1100 · Current terms"
+              hint={`Account ${resolvePostingAccount(accounts, postingAccounts, "11000", "1100")} · Current terms`}
               tone="neutral"
             />
             <Kpi
@@ -306,7 +325,7 @@ function InvoicesPage() {
             <Kpi
               label="Collections Received MTD"
               value={usd(totalPaid)}
-              hint="Cleared to Cash (Account 1000)"
+              hint={`Cleared to Cash (Account ${resolvePostingAccount(accounts, postingAccounts, "10200", "1000")})`}
               tone="up"
             />
           </section>
@@ -440,9 +459,9 @@ function InvoicesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP: Issued invoices debit Accounts Receivable (1100) and credit Revenue
-                (4000/4100). Sales tax accruals are credited to Current Liabilities (2200) until
-                remitted.
+                US GAAP: Issued invoices debit Accounts Receivable and credit Revenue using the
+                configured accounts. Sales tax accruals are credited to the configured liability
+                account until remitted.
               </Note>
             </div>
           </Panel>
@@ -712,7 +731,7 @@ function InvoicesPage() {
 
                       <div className="col-span-5 sm:col-span-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          Unit Price ($)
+                          Unit Price ({currency || "select currency"})
                         </label>
                         <input
                           type="number"
@@ -789,17 +808,17 @@ function InvoicesPage() {
                   <div className="p-4 space-y-2 text-[12.5px] font-mono">
                     <div className="flex justify-between">
                       <span className="text-ink3 font-sans">Line Items Subtotal:</span>
-                      <span>{usd(subtotal)}</span>
+                      <span>{transactionAmount(subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-ink3 font-sans">
                         Calculated Sales Tax ({effectiveTaxRate}%):
                       </span>
-                      <span>{usd(taxAmount)}</span>
+                      <span>{transactionAmount(taxAmount)}</span>
                     </div>
                     <div className="flex justify-between border-t border-line/60 pt-2 font-semibold text-[14px]">
                       <span className="text-ink font-sans">Total Accounts Receivable (AR):</span>
-                      <span className="text-brand">{usd(totalAmount)}</span>
+                      <span className="text-brand">{transactionAmount(totalAmount)}</span>
                     </div>
                   </div>
                 </Panel>

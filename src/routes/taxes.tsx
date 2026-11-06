@@ -1,3 +1,5 @@
+import { salesTaxSummary } from "@/lib/sales-tax-summary";
+import { resolvePostingAccount } from "@/lib/posting-accounts";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
@@ -29,6 +31,9 @@ function TaxesPage() {
     recordTaxRemittance,
     userPersona,
     taxJurisdictions,
+    accounts,
+    postingAccounts,
+    journals,
   } = useAccounting();
 
   // Manual Tax Calculator
@@ -39,16 +44,25 @@ function TaxesPage() {
   const totalCalcRate = (Number(calcStateRate) || 0) + (Number(calcCountyRate) || 0);
   const calculatedTax = (Number(calcBase) || 0) * (totalCalcRate / 100);
 
-  // Compute live tax collection stats from issued invoices
-  const totalTaxableSales = invoices
-    .filter((i) => !i.taxExempt)
-    .reduce((s, i) => s + i.subtotal, 0);
-
-  const totalExemptSales = invoices.filter((i) => i.taxExempt).reduce((s, i) => s + i.subtotal, 0);
-
-  const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
+  const {
+    taxableSales: totalTaxableSales,
+    exemptSales: totalExemptSales,
+    collected: totalSalesTaxCollected,
+  } = salesTaxSummary(invoices, new Date().toISOString().slice(0, 10));
   const taxAccounts = [
-    ...new Set(["22100", "2200", ...taxJurisdictions.map((t) => t.glAccountCode)]),
+    ...new Set([
+      resolvePostingAccount(accounts, postingAccounts, "22100", "2200"),
+      "22100",
+      "2200",
+      ...taxJurisdictions.map((t) => t.glAccountCode),
+      ...journals
+        .filter((j) => j.sourceType === "Invoice")
+        .flatMap((j) =>
+          j.lines
+            .filter((l) => l.memo?.startsWith("Sales tax collected"))
+            .map((l) => l.accountCode),
+        ),
+    ]),
   ];
   const salesTaxPayableBalance = taxAccounts.reduce(
     (sum, code) => sum + (accountBalances[code]?.net || 0),
@@ -72,7 +86,7 @@ function TaxesPage() {
       await modal.showAlert({
         title: "Pagamento de Imposto Registrado",
         message:
-          "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable (2200)\n• Crédito: Cash / Banco (1000)\n\nComprovante anexado: " +
+          "Lançamento contábil registrado no Razão Geral:\n• Débito: Sales Tax Payable\n• Crédito: Cash / Banco\n\nComprovante anexado: " +
           fileName,
         tone: "success",
       });
@@ -109,7 +123,7 @@ function TaxesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Sales Tax Collection & Compliance Summary"
-          description={`State and county manual tax ledger for ${activeCompany.name} · Account 2200`}
+          description={`State and county manual tax ledger for ${activeCompany.name} · Configured tax accounts`}
         />
         <button
           type="button"
@@ -125,7 +139,7 @@ function TaxesPage() {
         <Kpi
           label="Sales Tax Payable Balance"
           value={usd(salesTaxPayableBalance)}
-          hint="Account 2200 · Due to revenue departments"
+          hint="Configured tax accounts · Due to revenue departments"
           tone={salesTaxPayableBalance > 0 ? "neutral" : "up"}
         />
         <Kpi

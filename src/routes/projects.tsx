@@ -218,6 +218,16 @@ function ProjectsPage() {
                   type="button"
                   onClick={() => {
                     setEditingId("");
+                    setCode("");
+                    setName("");
+                    setClientName("");
+                    setCustomerId("");
+                    setBudget("0");
+                    setContractValue("0");
+                    setStatus("Active");
+                    setNotes("");
+                    setStartDate(new Date().toISOString().slice(0, 10));
+                    setEndDate(new Date().toISOString().slice(0, 10));
                     setView("create");
                   }}
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"

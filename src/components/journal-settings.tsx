@@ -164,7 +164,11 @@ export function JournalSettings({ companyId }: { companyId: string }) {
                     await saveJournalConfiguration({ data });
                     setDraft(null);
                     await cache.invalidateQueries({ queryKey: ["journal-config", companyId] });
-                    await cache.invalidateQueries({ queryKey: ["journal-list", companyId] });
+                    await Promise.all(
+                      ["journal-list", "journal-parameters", "parameters", "accounting"].map(
+                        (key) => cache.invalidateQueries({ queryKey: [key, companyId] }),
+                      ),
+                    );
                     setError("Configuration saved.");
                   } catch (e) {
                     setError(e instanceof Error ? e.message : "Unable to save configuration");

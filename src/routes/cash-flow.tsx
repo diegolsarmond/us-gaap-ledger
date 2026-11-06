@@ -4,7 +4,7 @@ import { useCompanies } from "@/components/company-context";
 import { CashManagementReport } from "@/components/cash-management-report";
 import { SearchableSelect } from "@/components/searchable-select";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   loadCashData,
@@ -103,6 +103,14 @@ function EntryFormAccountiner({
 }
 function CashFlowPage() {
   const { activeCompany } = useCompanies();
+  return activeCompany ? (
+    <CompanyCashFlowPage key={activeCompany.id} />
+  ) : (
+    <p>Select a company to view cash flow.</p>
+  );
+}
+function CompanyCashFlowPage() {
+  const { activeCompany } = useCompanies();
   const companyId = activeCompany!.id;
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -115,15 +123,28 @@ function CashFlowPage() {
   });
   const activeCurrencies =
     parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ?? [];
-  const currencyOptions = [
-    ...new Set([...activeCurrencies, ...(query.data?.accounts.map((a) => a.currency) ?? [])]),
-  ];
+  const currencyOptions = useMemo(
+    () => [
+      ...new Set([
+        ...(parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ??
+          []),
+        ...(query.data?.accounts.map((a) => a.currency) ?? []),
+      ]),
+    ],
+    [parameters.data?.currencies, query.data?.accounts],
+  );
   const [start, setStart] = useState(() => relativeDate(-28));
   const [end, setEnd] = useState(() => relativeDate(90));
   const [interval, setInterval] = useState<Interval>("weekly");
   const [projected, setProjected] = useState(true);
   const [currency, setCurrency] = useState("USD");
   const [accountId, setAccountId] = useState("");
+  useEffect(() => {
+    if (currencyOptions.length && !currencyOptions.includes(currency)) {
+      setCurrency(currencyOptions[0]!);
+      setAccountId("");
+    }
+  }, [currencyOptions, currency]);
   const [activeTab, setActiveTab] = useState("over-time");
   const [form, setForm] = useState<"account" | "transaction" | null>(null);
   const [direction, setDirection] = useState<"in" | "out">("in");
@@ -343,7 +364,7 @@ function CashFlowPage() {
             </Link>
             <button
               className={button}
-              disabled={!query.isSuccess || pending}
+              disabled={!query.isSuccess || !activeCurrencies.length || pending}
               onClick={() => {
                 setEditingAccount(null);
                 setOpeningBalanceCents("0");
@@ -375,6 +396,23 @@ function CashFlowPage() {
           </>
         }
       />
+      {parameters.isError && (
+        <p role="alert">
+          Unable to load company currencies.{" "}
+          <button className="underline" onClick={() => void parameters.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
+      {parameters.data && !activeCurrencies.length && (
+        <p className="rounded border border-line p-3 text-sm">
+          Add an active company currency in{" "}
+          <Link className="underline" to="/parameters/currencies">
+            Currencies & FX Rates
+          </Link>{" "}
+          before creating a cash account.
+        </p>
+      )}
       {query.isPending && <p role="status">Loading data…</p>}
       {query.isError && (
         <div

@@ -1,4 +1,11 @@
-import { createContext, useContext, useRef, useState, type Context as ReactContext, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type Context as ReactContext,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import {
@@ -12,8 +19,8 @@ import { Link } from "@tanstack/react-router";
 export type * from "./accounting-engine";
 type AsyncContext = {
   [K in keyof AccountingContextType]: AccountingContextType[K] extends (...args: infer A) => infer R
-  ? (...args: A) => Promise<R>
-  : AccountingContextType[K];
+    ? (...args: A) => Promise<R>
+    : AccountingContextType[K];
 };
 // Keep a single context instance across HMR re-executions of this module. Route chunks cached
 // by TanStack's code splitter can otherwise hold a stale Provider while consumers read a new one.
@@ -58,7 +65,7 @@ function CompanyAccounting({
     [error, setError] = useState("");
   const revision = useRef(0);
   revision.current = query.data?.revision ?? 0;
-  if (query.isPending) return <p role="status">Loading companies…</p>;
+  if (query.isPending) return <p role="status">Loading accounting data…</p>;
   if (query.isError)
     return (
       <div role="alert">
@@ -94,11 +101,20 @@ function CompanyAccounting({
             company: result.company,
             revision: result.revision,
           });
-          if (["installUsGaapCoa", "addAccount", "updateAccount", "deleteAccount"].includes(command)) {
+          if (
+            ["installUsGaapCoa", "addAccount", "updateAccount", "deleteAccount"].includes(command)
+          ) {
             await client.invalidateQueries({ queryKey: ["parameters", companyId] });
+            await client.invalidateQueries({ queryKey: ["journal-parameters", companyId] });
+            await client.invalidateQueries({ queryKey: ["journal-config", companyId] });
             await client.invalidateQueries({ queryKey: ["cash-flow", companyId] });
             await client.invalidateQueries({ queryKey: ["cash-flow-links", companyId] });
           }
+          await Promise.all(
+            ["trial-balance", "trial-activity", "journal-list"].map((key) =>
+              client.invalidateQueries({ queryKey: [key] }),
+            ),
+          );
           return result.result;
         } catch (e) {
           const message = e instanceof Error ? e.message : "Unable to save.";

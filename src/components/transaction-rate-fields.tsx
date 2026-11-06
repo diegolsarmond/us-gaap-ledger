@@ -22,6 +22,14 @@ export function TransactionRateFields({
           value={currency}
           onChange={(e) => onCurrency(e.target.value)}
         >
+          <option value="" disabled>
+            Select an active company currency
+          </option>
+          {!currencies.some((c) => c.status === "Active" && c.code === currency) && currency && (
+            <option value={currency} disabled>
+              {currency} (inactive — select another currency)
+            </option>
+          )}
           {currencies
             .filter((c) => c.status === "Active")
             .map((c) => c.code)

@@ -1040,6 +1040,19 @@ export function createAccountingEngine(
     return { success: true, invoiceId: invId };
   };
 
+  const documentControlAccount = (kind: "AP" | "AR", id: string) => {
+    const original = nextData.journals.find(
+      (j) => j.sourceId === id && j.sourceType === (kind === "AP" ? "Bill" : "Invoice"),
+    );
+    return (
+      (kind === "AP" ? original?.lines.at(-1)?.accountCode : original?.lines[0]?.accountCode) ??
+      resolveAccount(
+        nextData.accounts,
+        kind === "AP" ? "20100" : "11000",
+        kind === "AP" ? "2000" : "1100",
+      )
+    );
+  };
   const settleDocument = (
     kind: "AP" | "AR",
     id: string,
@@ -1092,20 +1105,7 @@ export function createAccountingEngine(
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Invalid payment" };
     }
-    const originalJournal = nextData.journals.find(
-      (j) => j.sourceId === id && j.sourceType === (kind === "AP" ? "Bill" : "Invoice"),
-    );
-    const originalControl =
-      kind === "AP"
-        ? originalJournal?.lines.at(-1)?.accountCode
-        : originalJournal?.lines[0]?.accountCode;
-    const control =
-      originalControl ??
-      resolveAccount(
-        nextData.accounts,
-        kind === "AP" ? "20100" : "11000",
-        kind === "AP" ? "2000" : "1100",
-      );
+    const control = documentControlAccount(kind, id);
     const discountAmount = earlyPaymentDiscount(doc, paymentDate, amount);
     const discountFunctional = money(discountAmount * appliedRate);
     const cashFunctionalAmount = money(result.functionalAmount - discountFunctional);
@@ -1145,6 +1145,7 @@ export function createAccountingEngine(
     const post = postJournalEntry({
       date: paymentDate,
       memo: "Settlement " + id,
+      costCenterId: doc.costCenterId,
       sourceType: "Payment",
       sourceId: id,
       currency: fx.transactionCurrency,
@@ -1432,11 +1433,7 @@ export function createAccountingEngine(
         const adjustment = closingAdjustment(doc, kind, asOf, quote.rate);
         if (!adjustment.difference) continue;
         const gain = adjustment.gain,
-          control = resolveAccount(
-            nextData.accounts,
-            kind === "AP" ? "20100" : "11000",
-            kind === "AP" ? "2000" : "1100",
-          );
+          control = documentControlAccount(kind, doc.id);
         const lines = [
           {
             accountCode: control,
@@ -1465,6 +1462,7 @@ export function createAccountingEngine(
           sourceType: "FXRevaluation",
           sourceId,
           currency: fx.transactionCurrency,
+          costCenterId: doc.costCenterId,
           fxRate: quote.rate,
           lines,
         });
@@ -1475,6 +1473,7 @@ export function createAccountingEngine(
           sourceType: "FXReversal",
           sourceId,
           currency: fx.transactionCurrency,
+          costCenterId: doc.costCenterId,
           fxRate: quote.rate,
           lines: lines.map((l) => ({ ...l, debit: l.credit, credit: l.debit })),
         });
@@ -1701,11 +1700,16 @@ export function createAccountingEngine(
 
   const recordTaxRemittance = (taxId: string, receiptName: string) => {
     const tax = currentData.taxes.find((t) => t.id === taxId);
-    if (!tax) return;
+    if (!tax) throw new Error("Tax record not found.");
+    if (tax.status === "Paid") throw new Error("This tax remittance has already been recorded.");
+    const jurisdiction = currentData.taxJurisdictions.find(
+      (t) => t.code === tax.jurisdiction || t.name === tax.jurisdiction,
+    );
 
     const jeLines = [
       {
-        accountCode: resolveAccount(currentData.accounts, "22100", "2200"),
+        accountCode:
+          jurisdiction?.glAccountCode ?? resolveAccount(currentData.accounts, "22100", "2200"),
         debit: tax.dueAmount,
         credit: 0,
         memo: `Tax remittance: ${tax.jurisdiction}`,
@@ -1722,6 +1726,7 @@ export function createAccountingEngine(
       date: new Date().toISOString().split("T")[0]!,
       memo: `Sales Tax Remittance — ${tax.jurisdiction} (${tax.period})`,
       sourceType: "Payment",
+      sourceId: taxId,
       lines: jeLines,
     });
     if (!posting.success) throw new Error(posting.error);
