@@ -34,6 +34,8 @@ function InvoicesPage() {
     invoices,
     customers,
     inventory,
+    paymentTerms,
+    taxJurisdictions,
     dimensions,
     projects,
     createInvoice,
@@ -494,6 +496,19 @@ function InvoicesPage() {
                           setCustomerName(c?.displayName || "");
                           setCustomerEin(c?.taxId || "");
                           setProjectId("");
+                          setTaxExempt(c?.taxExempt ?? false);
+                          const tax = taxJurisdictions.find(
+                            (t) => t.code === c?.defaultTaxCode && t.status === "Active",
+                          );
+                          setTaxRate(String(tax?.rate ?? 0));
+                          const term =
+                            paymentTerms.find(
+                              (t) => t.id === c?.paymentTermId && t.status === "Active",
+                            ) ??
+                            paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active");
+                          const due = new Date(date + "T00:00:00Z");
+                          due.setUTCDate(due.getUTCDate() + (term?.days ?? 0));
+                          setDueDate(due.toISOString().slice(0, 10));
                         }}
                       >
                         <option value="">Select a customer</option>
@@ -562,7 +577,20 @@ function InvoicesPage() {
                       <input
                         type="date"
                         value={date}
-                        onChange={(e) => setDate(e.target.value)}
+                        onChange={(e) => {
+                          const nextDate = e.target.value;
+                          setDate(nextDate);
+                          if (!nextDate) return;
+                          const contact = customers.find((c) => c.id === customerId);
+                          const term =
+                            paymentTerms.find(
+                              (t) => t.id === contact?.paymentTermId && t.status === "Active",
+                            ) ??
+                            paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active");
+                          const due = new Date(nextDate + "T00:00:00Z");
+                          due.setUTCDate(due.getUTCDate() + (term?.days ?? 0));
+                          setDueDate(due.toISOString().slice(0, 10));
+                        }}
                         required
                         className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                       />

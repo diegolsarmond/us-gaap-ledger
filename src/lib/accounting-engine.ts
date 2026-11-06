@@ -578,6 +578,11 @@ export function createAccountingEngine(
         success: false,
         error: "Cadastre um período fiscal que inclua a data do lançamento.",
       };
+    if (period?.status === "Soft-Close" && !userPersona.canClosePeriod)
+      return {
+        success: false,
+        error: "This fiscal period is soft-closed. Closing permission is required.",
+      };
     if (activeCompany.isPeriodClosed || period?.status === "Locked") {
       if (!userPersona.canClosePeriod) {
         return {
@@ -884,7 +889,10 @@ export function createAccountingEngine(
 
     if (newInvoice.taxAmount > 0) {
       jeLines.push({
-        accountCode: resolveAccount(currentData.accounts, "22100", "2200"),
+        accountCode:
+          currentData.taxJurisdictions.find(
+            (t) => t.code === customer.defaultTaxCode && t.status === "Active",
+          )?.glAccountCode ?? resolveAccount(currentData.accounts, "22100", "2200"),
         debit: 0,
         credit: money(
           issueFx.functionalAmount - money(newInvoice.subtotal * issueFx.exchangeRateValue),

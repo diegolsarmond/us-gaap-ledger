@@ -1,3 +1,4 @@
+import { useAccounting } from "@/lib/accounting-store";
 import type { useTransactionQuote } from "@/lib/use-transaction-quote";
 export function TransactionRateFields({
   currency,
@@ -10,6 +11,7 @@ export function TransactionRateFields({
   onCurrency: (value: string) => void;
   quote: ReturnType<typeof useTransactionQuote>;
 }) {
+  const { currencies } = useAccounting();
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="text-sm">
@@ -20,9 +22,12 @@ export function TransactionRateFields({
           value={currency}
           onChange={(e) => onCurrency(e.target.value)}
         >
-          {[...new Set(["USD", "EUR", "GBP", "MXN", "BRL", "CAD", "JPY", currency])].map((c) => (
-            <option key={c}>{c}</option>
-          ))}
+          {currencies
+            .filter((c) => c.status === "Active")
+            .map((c) => c.code)
+            .map((c) => (
+              <option key={c}>{c}</option>
+            ))}
         </select>
       </label>
       <label className="text-sm">

@@ -109,7 +109,11 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
               value,
             },
           });
-          await queryClient.invalidateQueries({ queryKey: ["parameters"] });
+          await Promise.all(
+            ["parameters", "accounting", "journal-parameters", "cash-flow"].map((key) =>
+              queryClient.invalidateQueries({ queryKey: [key] }),
+            ),
+          );
         } catch (e) {
           setError(e instanceof Error ? e.message : "Unable to save.");
           throw e;

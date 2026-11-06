@@ -34,6 +34,7 @@ function PayablesPage() {
     bills,
     vendors,
     paymentTerms,
+    expenseCategories,
     accounts,
     projects,
     inventory,
@@ -410,9 +411,10 @@ function PayablesPage() {
                       setVendorName(vendor.displayName);
                       setAccountCode(vendor.defaultExpenseAccountCode);
                       // Currency is selected on each bill, independently of the vendor.
-                      const term = paymentTerms.find(
-                        (t) => t.id === vendor.paymentTermId && t.status === "Active",
-                      );
+                      const term =
+                        paymentTerms.find(
+                          (t) => t.id === vendor.paymentTermId && t.status === "Active",
+                        ) ?? paymentTerms.find((t) => t.isDefaultVendor && t.status === "Active");
                       const due = new Date(date + "T00:00:00Z");
                       due.setUTCDate(due.getUTCDate() + (term?.days ?? 0));
                       setDueDate(due.toISOString().slice(0, 10));
@@ -495,7 +497,19 @@ function PayablesPage() {
                   <input
                     type="date"
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setDate(nextDate);
+                      if (!nextDate) return;
+                      const contact = vendors.find((c) => c.id === vendorId);
+                      const term =
+                        paymentTerms.find(
+                          (t) => t.id === contact?.paymentTermId && t.status === "Active",
+                        ) ?? paymentTerms.find((t) => t.isDefaultVendor && t.status === "Active");
+                      const due = new Date(nextDate + "T00:00:00Z");
+                      due.setUTCDate(due.getUTCDate() + (term?.days ?? 0));
+                      setDueDate(due.toISOString().slice(0, 10));
+                    }}
                     required
                     className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                   />
@@ -533,6 +547,29 @@ function PayablesPage() {
                 </div>
               </div>
 
+              <label className="block text-sm">
+                Expense category
+                <select
+                  className="w-full rounded border border-line p-2"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const category = expenseCategories.find((c) => c.id === e.target.value);
+                    if (category) {
+                      setAccountCode(category.glAccountCode);
+                      setIsInventory(false);
+                    }
+                  }}
+                >
+                  <option value="">Select category (optional)</option>
+                  {expenseCategories
+                    .filter((c) => c.status === "Active")
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
               {/* Expense Account Classification */}
               <DimensionFields
                 dimensions={dimensions}

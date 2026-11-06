@@ -243,6 +243,25 @@ const attempted = createAccountingEngine(state, company, user).value.createInvoi
 assert.equal(attempted.success, false);
 assert.match(attempted.error, /draft/i);
 export { state };
+
+// Parameter integration regressions: soft-close and jurisdiction GL mapping.
+const parameterState = structuredClone(state);
+parameterState.fiscalPeriods[0].status = "Soft-Close";
+let parameterEngine = createAccountingEngine(parameterState, company, { ...user, canClosePeriod: false });
+const sourceInvoice = structuredClone(state.invoices[0]);
+const denied = parameterEngine.value.createInvoice({ ...sourceInvoice, date: "2026-01-05" });
+assert.equal(denied.success, false);
+assert.match(denied.error, /soft-closed/);
+assert.equal(parameterEngine.getState().invoices.length, parameterState.invoices.length);
+parameterState.fiscalPeriods[0].status = "Open";
+parameterState.accounts.push({ code: "22999", name: "Configured sales tax", type: "Liability", balanceType: "Credit" });
+parameterState.taxJurisdictions = [{ id: "configured-tax", code: "TX-CUSTOM", name: "Configured tax", rate: 5, status: "Active", glAccountCode: "22999", state: "TX", taxType: "Combined", filingFrequency: "Monthly" }];
+parameterState.customers.find((c) => c.id === customerId).defaultTaxCode = "TX-CUSTOM";
+parameterEngine = createAccountingEngine(parameterState, company, user);
+const configured = parameterEngine.value.createInvoice({ ...sourceInvoice, date: "2026-01-05", transactionCurrency: "USD", exchangeRateValue: 1, transactionAmount: 105, functionalAmount: 105, subtotal: 100, taxRate: 5, taxAmount: 5, total: 105, taxExempt: false, items: [{ id: "tax-line", description: "Taxable service", qty: 1, unitPrice: 100, taxable: true, isProduct: false }] });
+assert.equal(configured.success, true, configured.error);
+assert.ok(parameterEngine.getState().journals.some((j) => j.sourceId === configured.invoiceId && j.lines.some((l) => l.accountCode === "22999" && l.credit === 5)));
+console.log("PASS: operational soft-close and configured jurisdiction GL account.");
 console.log(
   "PASS: single contact across currencies, required customer fields, foreign invoice posting, AP/AR partial settlement and both FX signs, bank ownership, historical aging, month-end revaluation, next-day reversal, idempotence, balanced unique journals and empty-engine regression.",
 );

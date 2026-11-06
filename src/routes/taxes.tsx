@@ -21,8 +21,15 @@ export const Route = createFileRoute("/taxes")({
 
 function TaxesPage() {
   const modal = useModal();
-  const { activeCompany, taxes, invoices, accountBalances, recordTaxRemittance, userPersona } =
-    useAccounting();
+  const {
+    activeCompany,
+    taxes,
+    invoices,
+    accountBalances,
+    recordTaxRemittance,
+    userPersona,
+    taxJurisdictions,
+  } = useAccounting();
 
   // Manual Tax Calculator
   const [calcBase, setCalcBase] = useState("0");
@@ -40,8 +47,13 @@ function TaxesPage() {
   const totalExemptSales = invoices.filter((i) => i.taxExempt).reduce((s, i) => s + i.subtotal, 0);
 
   const totalSalesTaxCollected = invoices.reduce((s, i) => s + i.taxAmount, 0);
-  const salesTaxPayableBalance =
-    (accountBalances["22100"]?.net || 0) + (accountBalances["2200"]?.net || 0);
+  const taxAccounts = [
+    ...new Set(["22100", "2200", ...taxJurisdictions.map((t) => t.glAccountCode)]),
+  ];
+  const salesTaxPayableBalance = taxAccounts.reduce(
+    (sum, code) => sum + (accountBalances[code]?.net || 0),
+    0,
+  );
 
   const handleRemitPayment = async (taxId: string) => {
     try {
@@ -216,6 +228,27 @@ function TaxesPage() {
         {/* Manual Tax Estimator */}
         <div className="lg:col-span-4">
           <Panel title="Manual Sales Tax Estimator" subtitle="Jurisdiction calculation assistant">
+            <label className="block p-4 text-sm">
+              Tax jurisdiction
+              <select
+                className="w-full rounded border p-2"
+                defaultValue=""
+                onChange={(e) => {
+                  const tax = taxJurisdictions.find((t) => t.id === e.target.value);
+                  setCalcStateRate(String(tax?.rate ?? 0));
+                  setCalcCountyRate("0");
+                }}
+              >
+                <option value="">Manual rate</option>
+                {taxJurisdictions
+                  .filter((t) => t.status === "Active")
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.rate}%)
+                    </option>
+                  ))}
+              </select>
+            </label>
             <div className="p-4 space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
