@@ -451,6 +451,50 @@ export async function execute(
       throw new Error(String("error" in result ? result.error : "Operação recusada."));
     const next = engine.getState();
     const refs = validateState(next);
+    const rules = await client.query("SELECT * FROM journal_account_rules WHERE company_id=$1", [
+      input.companyId,
+    ]);
+    for (const domain of ["invoices", "bills"] as const) {
+      const priorIds = new Set(state[domain].map((d) => d.id));
+      for (const doc of next[domain].filter((d) => !priorIds.has(d.id))) {
+        const currency = normalizedFx(doc).transactionCurrency;
+        if (!next.currencies.some((c) => c.code === currency && c.status === "Active"))
+          throw new Error("Select an active company currency in System Parameters.");
+      }
+    }
+    const priorJournalIds = new Set(state.journals.map((j) => j.id));
+    for (const journal of next.journals.filter((j) => !priorJournalIds.has(j.id))) {
+      for (const line of journal.lines) {
+        const rule = rules.rows.find((r) => r.account_code === line.accountCode);
+        if (
+          rule &&
+          (!rule.active ||
+            !rule.posting_allowed ||
+            (rule.valid_from &&
+              journal.date <
+                String(
+                  rule.valid_from instanceof Date
+                    ? rule.valid_from.toISOString().slice(0, 10)
+                    : rule.valid_from,
+                )) ||
+            (rule.valid_to &&
+              journal.date >
+                String(
+                  rule.valid_to instanceof Date
+                    ? rule.valid_to.toISOString().slice(0, 10)
+                    : rule.valid_to,
+                )))
+        )
+          throw new Error("Posting account is inactive, restricted or outside its validity dates.");
+        if (rule?.cost_center_required && !line.costCenterId)
+          throw new Error("A cost center is required for this posting account.");
+        if (
+          line.costCenterId &&
+          !next.costCenters.some((c) => c.id === line.costCenterId && c.status === "Active")
+        )
+          throw new Error("Select an active cost center.");
+      }
+    }
     if (batch?.preview) {
       await client.query("ROLLBACK");
       return {

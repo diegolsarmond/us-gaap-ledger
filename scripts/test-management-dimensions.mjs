@@ -118,7 +118,10 @@ const company = {
 };
 const persona = { canCreateJournals: true, canClosePeriod: true, name: "Tester" };
 const makeEngine = (state) => createAccountingEngine(state, company, persona);
+initial.vendors = [{ id: "carrier", displayName: "Carrier" }];
+initial.customers = [{ id: "customer", displayName: "Customer", registrationStatus: "Active" }];
 const invoice = {
+  customerId: "customer",
   customerName: "Customer",
   date: "2026-11-06",
   dueDate: "2026-11-30",
@@ -205,6 +208,7 @@ assert.equal(
 // A single bill can use document defaults and a different value per expense line.
 engine = makeEngine(state);
 const bill = {
+  vendorId: "carrier",
   vendorName: "Carrier",
   billNumber: "FREIGHT",
   date: "2026-11-06",

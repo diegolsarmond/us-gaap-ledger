@@ -10,7 +10,7 @@ import {
   type Payment,
 } from "./transaction-fx";
 import { resolvePostingAccount, type PostingAccount } from "./posting-accounts";
-import { US_GAAP_COA, totalByType, resolveAccount, validateCoa } from "./coa";
+import { US_GAAP_COA, totalByType, validateCoa } from "./coa";
 import {
   dimensionSchema,
   validateDimensionDefinitions,
@@ -356,6 +356,7 @@ export function createInitialCompanyData(_companyId?: string): CompanyState {
 }
 
 export interface AccountingContextType {
+  postingAccounts: PostingAccount[];
   dimensions: Dimension[];
   saveDimension: (dimension: Dimension) => void;
   customers: Customer[];
@@ -404,9 +405,9 @@ export interface AccountingContextType {
     error?: string | undefined;
   };
 
-  updateInventoryItem: (id: string, data: {name: string; unitPrice: number}) => void;
+  updateInventoryItem: (id: string, data: { name: string; unitPrice: number }) => void;
   deleteInventoryItem: (id: string) => void;
-  updateProject: (id: string, data: Omit<Project,"id">) => void;
+  updateProject: (id: string, data: Omit<Project, "id">) => void;
   deleteProject: (id: string) => void;
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, "id" | "costLots">) => void;
@@ -767,32 +768,62 @@ export function createAccountingEngine(
     return { success: true };
   };
 
-  const updateInventoryItem: AccountingContextType["updateInventoryItem"] = (id,data) => {
-    if (!currentData.inventory.some((i) => i.id === id)) throw new Error("Inventory item not found.");
-    updateCompanyData((prev) => ({...prev, inventory: prev.inventory.map((i) => i.id === id ? {...i,...data} : i)}));
-    addAuditLog("UPDATE_INVENTORY","Inventory",id,"Updated catalog name and selling price.");
+  const updateInventoryItem: AccountingContextType["updateInventoryItem"] = (id, data) => {
+    if (!currentData.inventory.some((i) => i.id === id))
+      throw new Error("Inventory item not found.");
+    updateCompanyData((prev) => ({
+      ...prev,
+      inventory: prev.inventory.map((i) => (i.id === id ? { ...i, ...data } : i)),
+    }));
+    addAuditLog("UPDATE_INVENTORY", "Inventory", id, "Updated catalog name and selling price.");
   };
   const deleteInventoryItem = (id: string) => {
     const item = currentData.inventory.find((i) => i.id === id);
-    if(!item) throw new Error("Inventory item not found.");
-    if(item.qtyOnHand !== 0 || currentData.invoices.some((d) => d.items.some((l) => l.sku === item.sku)) || currentData.bills.some((d) => d.items.some((l) => l.sku === item.sku)) || currentData.journals.some((j) => j.sourceType === "InventoryAdjustment" && j.sourceId === id)) throw new Error("An item with stock or transaction history cannot be deleted.");
-    updateCompanyData((prev) => ({...prev, inventory:prev.inventory.filter((i) => i.id !== id)}));
-    addAuditLog("DELETE_INVENTORY","Inventory",id,"Deleted unused catalog item.");
+    if (!item) throw new Error("Inventory item not found.");
+    if (
+      item.qtyOnHand !== 0 ||
+      currentData.invoices.some((d) => d.items.some((l) => l.sku === item.sku)) ||
+      currentData.bills.some((d) => d.items.some((l) => l.sku === item.sku)) ||
+      currentData.journals.some(
+        (j) =>
+          j.sourceType === "InventoryAdjustment" &&
+          (j.sourceId === id || j.memo === `Physical Inventory Count Adjustment — ${item.sku}`),
+      )
+    )
+      throw new Error("An item with stock or transaction history cannot be deleted.");
+    updateCompanyData((prev) => ({
+      ...prev,
+      inventory: prev.inventory.filter((i) => i.id !== id),
+    }));
+    addAuditLog("DELETE_INVENTORY", "Inventory", id, "Deleted unused catalog item.");
   };
-  const updateProject: AccountingContextType["updateProject"] = (id,data) => {
+  const updateProject: AccountingContextType["updateProject"] = (id, data) => {
     const old = currentData.projects.find((p) => p.id === id);
-    if(!old) throw new Error("Project not found.");
-    if(data.startDate > data.endDate) throw new Error("Project start must precede end date.");
-    const used = currentData.invoices.some((i) => i.projectId === id) || currentData.bills.some((b) => b.projectId === id || b.items.some((l) => l.projectId === id));
-    if(used && old.customerId !== data.customerId) throw new Error("The customer cannot change after project activity.");
-    updateCompanyData((prev) => ({...prev,projects:prev.projects.map((p) => p.id === id ? {...data,id} : p)}));
-    addAuditLog("UPDATE_PROJECT","Project",id,"Updated project details.");
+    if (!old) throw new Error("Project not found.");
+    if (data.startDate > data.endDate) throw new Error("Project start must precede end date.");
+    const used =
+      currentData.invoices.some((i) => i.projectId === id) ||
+      currentData.bills.some((b) => b.projectId === id || b.items.some((l) => l.projectId === id));
+    if (used && old.customerId !== data.customerId)
+      throw new Error("The customer cannot change after project activity.");
+    updateCompanyData((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) => (p.id === id ? { ...data, id } : p)),
+    }));
+    addAuditLog("UPDATE_PROJECT", "Project", id, "Updated project details.");
   };
   const deleteProject = (id: string) => {
-    if(!currentData.projects.some((p) => p.id === id)) throw new Error("Project not found.");
-    if(currentData.invoices.some((i) => i.projectId === id) || currentData.bills.some((b) => b.projectId === id || b.items.some((l) => l.projectId === id)) || currentData.journals.some((j) => j.lines.some((l) => l.projectId === id))) throw new Error("A project with transaction history cannot be deleted.");
-    updateCompanyData((prev) => ({...prev,projects:prev.projects.filter((p) => p.id !== id)}));
-    addAuditLog("DELETE_PROJECT","Project",id,"Deleted unused project.");
+    if (!currentData.projects.some((p) => p.id === id)) throw new Error("Project not found.");
+    if (
+      currentData.invoices.some((i) => i.projectId === id) ||
+      currentData.bills.some(
+        (b) => b.projectId === id || b.items.some((l) => l.projectId === id),
+      ) ||
+      currentData.journals.some((j) => j.lines.some((l) => l.projectId === id))
+    )
+      throw new Error("A project with transaction history cannot be deleted.");
+    updateCompanyData((prev) => ({ ...prev, projects: prev.projects.filter((p) => p.id !== id) }));
+    addAuditLog("DELETE_PROJECT", "Project", id, "Deleted unused project.");
   };
   const createInvoice: AccountingContextType["createInvoice"] = (invData) => {
     if (!userPersona.canCreateJournals) {
@@ -1502,6 +1533,7 @@ export function createAccountingEngine(
       date: new Date().toISOString().split("T")[0]!,
       memo: `Physical Inventory Count Adjustment — ${item.sku}`,
       sourceType: "InventoryAdjustment",
+      sourceId: itemId,
       lines: jeLines,
     });
     if (!posting.success) throw new Error(posting.error);
@@ -2232,6 +2264,7 @@ export function createAccountingEngine(
       taxes: currentData.taxes,
       recordTaxRemittance,
       auditLogs: currentData.auditLogs,
+      postingAccounts: currentData.postingAccounts ?? [],
       currencies: currentData.currencies || [],
       addCurrency,
       updateCurrency,

@@ -23,8 +23,17 @@ export const Route = createFileRoute("/projects")({
 
 function ProjectsPage() {
   const modal = useModal();
-  const { activeCompany, projects, customers, invoices, bills, createProject, updateProject, deleteProject, userPersona } =
-    useAccounting();
+  const {
+    activeCompany,
+    projects,
+    customers,
+    invoices,
+    bills,
+    createProject,
+    updateProject,
+    deleteProject,
+    userPersona,
+  } = useAccounting();
 
   // Screen View Mode
   const [view, setView] = useState<"list" | "create">("list");
@@ -111,7 +120,9 @@ function ProjectsPage() {
         return;
       }
 
-      const save = editingId ? (data: Parameters<typeof createProject>[0]) => updateProject(editingId,data) : createProject;
+      const save = editingId
+        ? (data: Parameters<typeof createProject>[0]) => updateProject(editingId, data)
+        : createProject;
       await save({
         code: code.toUpperCase().trim(),
         name: name.trim(),
@@ -133,7 +144,7 @@ function ProjectsPage() {
       setView("list");
 
       await modal.showAlert({
-        title: "Projeto Registrado com Sucesso",
+        title: "Projeto salvo com sucesso",
         message: `O projeto ${createdCode} foi cadastrado com sucesso no módulo de Job Costing da empresa ${activeCompany.name}.`,
         tone: "success",
       });
@@ -205,7 +216,10 @@ function ProjectsPage() {
               {userPersona.canCreateJournals && (
                 <button
                   type="button"
-                  onClick={() => {setEditingId(""); setView("create");}}
+                  onClick={() => {
+                    setEditingId("");
+                    setView("create");
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Plus className="size-4" />
@@ -310,10 +324,45 @@ function ProjectsPage() {
                             {p.code}
                           </p>
                           <p className="text-[12px] truncate max-w-[220px]">{p.name}</p>
-                          {userPersona.canCreateJournals && <div className="flex gap-2 text-xs">
-                            <button onClick={() => {setEditingId(p.id);setCode(p.code);setName(p.name);setClientName(p.clientName);setCustomerId(p.customerId ?? "");setBudget(String(p.budget));setContractValue(String(p.contractValue));setStatus(p.status);setStartDate(p.startDate);setEndDate(p.endDate);setNotes(p.notes ?? "");setView("create");}}>Edit</button>
-                            <button onClick={async () => {try {if(await modal.showConfirm({title:"Delete unused project?",message:p.name})) await deleteProject(p.id);} catch { /* Provider displays errors. */ }}}>Delete</button>
-                          </div>}
+                          {userPersona.canCreateJournals && (
+                            <div className="flex gap-2 text-xs">
+                              <button
+                                onClick={() => {
+                                  setEditingId(p.id);
+                                  setCode(p.code);
+                                  setName(p.name);
+                                  setClientName(p.clientName);
+                                  setCustomerId(p.customerId ?? "");
+                                  setBudget(String(p.budget));
+                                  setContractValue(String(p.contractValue));
+                                  setStatus(p.status);
+                                  setStartDate(p.startDate);
+                                  setEndDate(p.endDate);
+                                  setNotes(p.notes ?? "");
+                                  setView("create");
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    if (
+                                      await modal.showConfirm({
+                                        title: "Delete unused project?",
+                                        message: p.name,
+                                      })
+                                    )
+                                      await deleteProject(p.id);
+                                  } catch {
+                                    /* Provider displays errors. */
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </Td>
                         <Td className="text-ink2 text-[12px] font-medium">{p.clientName}</Td>
                         <Td align="right" className="font-mono text-[12px]">

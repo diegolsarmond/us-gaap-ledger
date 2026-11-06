@@ -473,7 +473,12 @@ function CashFlowPage() {
                           onChange={(e) => setAccountCurrency(e.target.value)}
                           className={control}
                         >
-                          {activeCurrencies.map((c) => (
+                          {[
+                            ...new Set([
+                              ...activeCurrencies,
+                              ...(editingAccount ? [editingAccount.currency] : []),
+                            ]),
+                          ].map((c) => (
                             <option key={c}>{c}</option>
                           ))}
                         </select>

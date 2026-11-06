@@ -1,3 +1,4 @@
+import { resolvePostingAccount } from "@/lib/posting-accounts";
 import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
 import { TransactionRateFields } from "@/components/transaction-rate-fields";
@@ -35,6 +36,7 @@ function PayablesPage() {
     vendors,
     paymentTerms,
     expenseCategories,
+    postingAccounts,
     accounts,
     projects,
     inventory,
@@ -45,6 +47,7 @@ function PayablesPage() {
     currencies,
   } = useAccounting();
 
+  const inventoryAccountCode = resolvePostingAccount(accounts, postingAccounts, "13000", "1300");
   // Screen View Mode
   const [view, setView] = useState<"list" | "create">("list");
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,9 +125,9 @@ function PayablesPage() {
             id: "bill-item",
             description: `Bill ${billNumber} — ${vendorName}`,
             accountCode,
-            isInventory: ["1300", "13000"].includes(accountCode) && isInventory,
-            sku: ["1300", "13000"].includes(accountCode) ? skuPurchased : undefined,
-            qty: ["1300", "13000"].includes(accountCode) ? qtyPurchased : undefined,
+            isInventory: [inventoryAccountCode].includes(accountCode) && isInventory,
+            sku: [inventoryAccountCode].includes(accountCode) ? skuPurchased : undefined,
+            qty: [inventoryAccountCode].includes(accountCode) ? qtyPurchased : undefined,
             amount: calculatedUsd,
             projectId: projectId || undefined,
           },
@@ -608,7 +611,7 @@ function PayablesPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setAccountCode(val);
-                    if (["1300", "13000"].includes(val)) setIsInventory(true);
+                    if ([inventoryAccountCode].includes(val)) setIsInventory(true);
                     else setIsInventory(false);
                   }}
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono"
@@ -625,7 +628,7 @@ function PayablesPage() {
                   </optgroup>
                   <optgroup label="Inventory & Costs (Assets / COGS)">
                     {accounts
-                      .filter((a) => a.type === "COGS" || ["1300", "13000"].includes(a.code))
+                      .filter((a) => a.type === "COGS" || [inventoryAccountCode].includes(a.code))
                       .map((a) => (
                         <option key={a.code} value={a.code}>
                           {a.code} · {a.name}
@@ -634,7 +637,7 @@ function PayablesPage() {
                   </optgroup>
                 </select>
 
-                {["1300", "13000"].includes(accountCode) && (
+                {[inventoryAccountCode].includes(accountCode) && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-line/60">
                     <div>
                       <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">

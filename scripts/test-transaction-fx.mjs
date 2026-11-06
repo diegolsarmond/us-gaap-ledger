@@ -359,19 +359,158 @@ console.log(
 );
 
 const discountState = structuredClone(mappedState);
-discountState.paymentTerms = [{id:"early",code:"2-10",name:"2/10 Net 30",days:30,earlyDiscountPercentage:2,discountDays:10,isDefaultCustomer:true,isDefaultVendor:true,status:"Active"}];
-let de = createAccountingEngine(discountState,company,user);
-const di = de.value.createInvoice({...sourceInvoice,date:"2026-01-02",transactionCurrency:"USD",exchangeRateValue:1,transactionAmount:100,functionalAmount:100,subtotal:100,total:100,taxAmount:0,taxRate:0,taxExempt:true,items:[{id:"svc",description:"Service",isProduct:false,qty:1,unitPrice:100,taxable:false}]});
-assert.equal(di.success,true,di.error);
-let ds=de.getState();ds.paymentTerms[0].earlyDiscountPercentage=10;
-de=createAccountingEngine(ds,company,user);
-const dp=de.value.recordInvoicePayment(di.invoiceId,"2026-01-05",1,100);
-assert.equal(dp.success,true,dp.error);
-const paidDoc=de.getState().invoices.find((i)=>i.id===di.invoiceId);
-assert.equal(paidDoc.payments[0].discountAmount,2);
-assert.equal(paidDoc.payments[0].cashFunctionalAmount,98);
-assert.equal(outstanding(paidDoc).native,0);
-assert.equal(paidDoc.status,"Paid");
-const pj=de.getState().journals.find((j)=>j.id===paidDoc.payments[0].journalId);
-assert.equal(pj.lines.reduce((t,l)=>t+l.debit-l.credit,0),0);
+discountState.paymentTerms = [
+  {
+    id: "early",
+    code: "2-10",
+    name: "2/10 Net 30",
+    days: 30,
+    earlyDiscountPercentage: 2,
+    discountDays: 10,
+    isDefaultCustomer: true,
+    isDefaultVendor: true,
+    status: "Active",
+  },
+];
+let de = createAccountingEngine(discountState, company, user);
+const di = de.value.createInvoice({
+  ...sourceInvoice,
+  date: "2026-01-02",
+  transactionCurrency: "USD",
+  exchangeRateValue: 1,
+  transactionAmount: 100,
+  functionalAmount: 100,
+  subtotal: 100,
+  total: 100,
+  taxAmount: 0,
+  taxRate: 0,
+  taxExempt: true,
+  items: [
+    { id: "svc", description: "Service", isProduct: false, qty: 1, unitPrice: 100, taxable: false },
+  ],
+});
+assert.equal(di.success, true, di.error);
+let ds = de.getState();
+ds.paymentTerms[0].earlyDiscountPercentage = 10;
+de = createAccountingEngine(ds, company, user);
+const dp = de.value.recordInvoicePayment(di.invoiceId, "2026-01-05", 1, 100);
+assert.equal(dp.success, true, dp.error);
+const paidDoc = de.getState().invoices.find((i) => i.id === di.invoiceId);
+assert.equal(paidDoc.payments[0].discountAmount, 2);
+assert.equal(paidDoc.payments[0].cashFunctionalAmount, 98);
+assert.equal(outstanding(paidDoc).native, 0);
+assert.equal(paidDoc.status, "Paid");
+const pj = de.getState().journals.find((j) => j.id === paidDoc.payments[0].journalId);
+assert.equal(
+  pj.lines.reduce((t, l) => t + l.debit - l.credit, 0),
+  0,
+);
 console.log("PASS: snapshotted early discount, net cash, full AR clearance and balanced posting.");
+
+// Operational CRUD preserves stock valuation and linked history.
+const crudState = structuredClone(mappedState);
+crudState.inventory = [
+  {
+    id: "unused",
+    sku: "UNUSED",
+    name: "Unused",
+    type: "Product",
+    qtyOnHand: 0,
+    unitCost: 10,
+    unitPrice: 20,
+    valuationMethod: "FIFO",
+    costLots: [],
+  },
+];
+let ce = createAccountingEngine(crudState, company, user);
+ce.value.updateInventoryItem("unused", { name: "Renamed", unitPrice: 25 });
+assert.equal(ce.getState().inventory[0].unitPrice, 25);
+assert.equal(ce.getState().inventory[0].unitCost, 10);
+ce = createAccountingEngine(ce.getState(), company, user);
+ce.value.deleteInventoryItem("unused");
+assert.equal(ce.getState().inventory.length, 0);
+crudState.inventory[0].qtyOnHand = 1;
+assert.throws(
+  () => createAccountingEngine(crudState, company, user).value.deleteInventoryItem("unused"),
+  /stock|history/,
+);
+const project = {
+  id: "project-crud",
+  code: "CRUD",
+  name: "Project",
+  clientName: "Customer",
+  budget: 100,
+  contractValue: 200,
+  status: "Active",
+  startDate: "2026-01-01",
+  endDate: "2026-01-31",
+  notes: "",
+};
+crudState.projects = [project];
+ce = createAccountingEngine(crudState, company, user);
+ce.value.updateProject(project.id, { ...project, budget: 150 });
+assert.equal(ce.getState().projects[0].budget, 150);
+ce = createAccountingEngine(ce.getState(), company, user);
+ce.value.deleteProject(project.id);
+assert.equal(ce.getState().projects.length, 0);
+crudState.invoices[0].projectId = project.id;
+assert.throws(
+  () => createAccountingEngine(crudState, company, user).value.deleteProject(project.id),
+  /history/,
+);
+console.log("PASS: operational CRUD, stock valuation preservation and linked-history protection.");
+
+{
+  const { earlyPaymentDiscount } = await import("../src/lib/transaction-fx.ts");
+  assert.equal(
+    earlyPaymentDiscount(
+      { date: "2026-01-01", earlyDiscountPercentage: 2, discountDays: 10 },
+      "2026-01-12",
+      100,
+    ),
+    0,
+  );
+  assert.equal(
+    earlyPaymentDiscount(
+      { date: "2026-01-01", earlyDiscountPercentage: 2, discountDays: 10 },
+      "2026-01-11",
+      50,
+    ),
+    1,
+  );
+  let ae = createAccountingEngine(discountState, company, user);
+  const ab = ae.value.createBill({
+    vendorId,
+    vendorName: "Vendor",
+    billNumber: "DISCOUNT",
+    date: "2026-01-02",
+    dueDate: "2026-01-31",
+    currency: "USD",
+    fxRate: 1,
+    foreignAmount: 100,
+    items: [
+      {
+        id: "expense",
+        description: "Expense",
+        accountCode: "60100",
+        isInventory: false,
+        amount: 100,
+      },
+    ],
+  });
+  assert.equal(ab.success, true, ab.error);
+  ae = createAccountingEngine(ae.getState(), company, user);
+  const discountedAp = ae.value.payBill(ab.billId, "2026-01-05", 1, 100);
+  assert.equal(discountedAp.success, true, discountedAp.error);
+  const apDoc = ae.getState().bills.find((b) => b.id === ab.billId);
+  assert.equal(apDoc.payments[0].cashFunctionalAmount, 98);
+  assert.equal(outstanding(apDoc).native, 0);
+  const apJournal = ae.getState().journals.find((j) => j.id === apDoc.payments[0].journalId);
+  assert.equal(
+    apJournal.lines.reduce((t, l) => t + l.debit - l.credit, 0),
+    0,
+  );
+  console.log(
+    "PASS: AP early discount, deadline boundaries, proportional partial discount and balanced settlement.",
+  );
+}
