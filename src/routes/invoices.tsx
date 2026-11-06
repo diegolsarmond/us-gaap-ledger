@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
+import type { DimensionValue } from "@/lib/dimensions";
 import { AccountingProvider, useAccounting, type InvoiceItem } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, exportToCsv } from "@/lib/format";
@@ -26,6 +28,7 @@ function InvoicesPage() {
     activeCompany,
     invoices,
     inventory,
+    dimensions,
     projects,
     createInvoice,
     recordInvoicePayment,
@@ -44,12 +47,13 @@ function InvoicesPage() {
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [kind, setKind] = useState<"Product" | "Service">("Product");
   const [projectId, setProjectId] = useState("");
+  const [dimensionValues, setDimensionValues] = useState<DimensionValue[]>([]);
   const [taxExempt, setTaxExempt] = useState(false);
   const [taxRate, setTaxRate] = useState("0");
 
   const [formItems, setFormItems] = useState<
-    { sku: string; description: string; qty: number; unitPrice: number }[]
-  >([{ sku: "", description: "", qty: 1, unitPrice: 0 }]);
+    { id: string; sku: string; description: string; qty: number; unitPrice: number }[]
+  >([{ id: "item-1", sku: "", description: "", qty: 1, unitPrice: 0 }]);
 
   // Computations
   const subtotal = formItems.reduce((s, it) => s + it.qty * it.unitPrice, 0);
@@ -64,7 +68,10 @@ function InvoicesPage() {
   const totalPaid = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + i.total, 0);
 
   const handleAddItemRow = () => {
-    setFormItems([...formItems, { sku: "", description: "", qty: 1, unitPrice: 0 }]);
+    setFormItems([
+      ...formItems,
+      { id: crypto.randomUUID(), sku: "", description: "", qty: 1, unitPrice: 0 },
+    ]);
   };
 
   const handleUpdateItem = (
@@ -96,6 +103,7 @@ function InvoicesPage() {
 
   const handleRemoveItem = (idx: number) => {
     if (formItems.length <= 1) return;
+    setDimensionValues(dimensionValues.filter((v) => v.lineId !== formItems[idx]!.id));
     setFormItems(formItems.filter((_, i) => i !== idx));
   };
 
@@ -113,7 +121,7 @@ function InvoicesPage() {
       }
 
       const invoiceLines: InvoiceItem[] = formItems.map((it, idx) => ({
-        id: `it-${Date.now()}-${idx}`,
+        id: it.id,
         description: it.description,
         sku: it.sku,
         isProduct: kind === "Product",
@@ -123,6 +131,7 @@ function InvoicesPage() {
       }));
 
       const result = await createInvoice({
+        dimensionValues,
         customerName: customerName.trim(),
         customerEin: customerEin.trim() || undefined,
         date,
@@ -141,6 +150,8 @@ function InvoicesPage() {
         const invId = result.invoiceId;
         setCustomerName("");
         setCustomerEin("");
+        setDimensionValues([]);
+        setFormItems([{ id: "item-1", sku: "", description: "", qty: 1, unitPrice: 0 }]);
         setView("list");
         await modal.showAlert({
           title: "Fatura Emitida e Contabilizada",
@@ -347,6 +358,7 @@ function InvoicesPage() {
                         </Td>
                         <Td className="text-ink2 font-medium">
                           <p className="font-semibold text-ink text-[12px]">{inv.customerName}</p>
+                          <DimensionLabels dimensions={dimensions} value={inv.dimensionValues} />
                           {inv.customerEin && (
                             <span className="block text-[10.5px] font-mono text-ink3">
                               EIN: {inv.customerEin}
@@ -534,6 +546,12 @@ function InvoicesPage() {
               </Panel>
 
               {/* Line Items */}
+              <DimensionFields
+                dimensions={dimensions}
+                document="invoices"
+                value={dimensionValues}
+                onChange={setDimensionValues}
+              />
               <Panel
                 title="Itens e Serviços da Fatura"
                 subtitle="Discrimine as mercadorias ou serviços prestados com quantidades e valores unitários"
@@ -550,7 +568,7 @@ function InvoicesPage() {
                 <div className="p-5 space-y-3">
                   {formItems.map((item, idx) => (
                     <div
-                      key={idx}
+                      key={item.id}
                       className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center rounded-lg bg-canvas p-3 border border-line"
                     >
                       <div className="col-span-12 sm:col-span-5">
@@ -623,6 +641,15 @@ function InvoicesPage() {
                             <Trash2 className="size-4" />
                           </button>
                         )}
+                      </div>
+                      <div className="col-span-12">
+                        <DimensionFields
+                          dimensions={dimensions}
+                          document="invoices"
+                          value={dimensionValues}
+                          onChange={setDimensionValues}
+                          lineId={item.id}
+                        />
                       </div>
                     </div>
                   ))}

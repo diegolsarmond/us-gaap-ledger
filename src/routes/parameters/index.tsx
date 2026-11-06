@@ -46,6 +46,18 @@ function ParametersIndexPage() {
 
   const modules = [
     {
+      id: "dimensions",
+      title: "Management Dimensions & Tags",
+      subtitle: "Product categories, logistics and operation types",
+      description:
+        "Create selectable fields for invoices and vendor bills; compare profit and loss by dimension.",
+      to: "/dimensions",
+      icon: Tag,
+      countLabel: "Configurable fields and options",
+      badgeTone: "brand" as const,
+      tag: "Management reporting",
+    },
+    {
       id: "cash-categories",
       title: "Cash flow categories",
       subtitle: "Inflow and outflow classification",

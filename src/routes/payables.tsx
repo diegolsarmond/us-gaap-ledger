@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
+import type { DimensionValue } from "@/lib/dimensions";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { usd, formatDate, acct, exportToCsv } from "@/lib/format";
@@ -30,6 +32,7 @@ function PayablesPage() {
     accounts,
     projects,
     inventory,
+    dimensions,
     createBill,
     payBill,
     userPersona,
@@ -55,6 +58,7 @@ function PayablesPage() {
   const [skuPurchased, setSkuPurchased] = useState("");
   const [qtyPurchased, setQtyPurchased] = useState(0);
   const [projectId, setProjectId] = useState("");
+  const [dimensionValues, setDimensionValues] = useState<DimensionValue[]>([]);
 
   // Pay Modal State
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
@@ -89,6 +93,7 @@ function PayablesPage() {
       }
 
       const result = await createBill({
+        dimensionValues,
         vendorId: vendorId || undefined,
         vendorName: vendorName.trim(),
         billNumber: billNumber.trim(),
@@ -99,7 +104,7 @@ function PayablesPage() {
         foreignAmount: numForeign,
         items: [
           {
-            id: `bi-${Date.now()}`,
+            id: "bill-item",
             description: `Fatura ${billNumber} — ${vendorName}`,
             accountCode,
             isInventory: ["1300", "13000"].includes(accountCode) && isInventory,
@@ -115,6 +120,7 @@ function PayablesPage() {
       if (result.success) {
         const bId = result.billId;
         setBillNumber("");
+        setDimensionValues([]);
         setView("list");
         await modal.showAlert({
           title: "Fatura de Fornecedor Registrada",
@@ -329,7 +335,10 @@ function PayablesPage() {
                       >
                         <Td className="font-mono text-[11.5px] font-semibold text-brand">{b.id}</Td>
                         <Td className="font-mono text-[11px] text-ink3">{b.billNumber}</Td>
-                        <Td className="text-ink font-medium text-[12px]">{b.vendorName}</Td>
+                        <Td className="text-ink font-medium text-[12px]">
+                          {b.vendorName}
+                          <DimensionLabels dimensions={dimensions} value={b.dimensionValues} />
+                        </Td>
                         <Td className="font-mono text-[11.5px]">
                           {b.currency} {b.foreignAmount.toLocaleString()}
                           {b.currency !== "USD" && (
@@ -574,6 +583,12 @@ function PayablesPage() {
               </div>
 
               {/* Expense Account Classification */}
+              <DimensionFields
+                dimensions={dimensions}
+                document="bills"
+                value={dimensionValues}
+                onChange={setDimensionValues}
+              />
               <div className="rounded-lg bg-surface p-4 border border-line space-y-3">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
                   Classificação Contábil da Despesa / Ativo

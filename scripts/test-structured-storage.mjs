@@ -55,6 +55,7 @@ try {
   const records = {};
   // All domains, scalar types, flattened objects and child collections are covered.
   for (const [domain, spec] of Object.entries(ledgerSchemas)) {
+    if (domain === "dimensions") continue; // Introduced after the legacy JSON migration.
     const row = {};
     for (const field of spec.fields) {
       let value =
@@ -78,6 +79,10 @@ try {
       target[keys.at(-1)] = value;
     }
     for (const [key, fields] of Object.entries(spec.children)) {
+      if (key === "dimensionValues") {
+        row[key] = [];
+        continue;
+      }
       if (key === "companyIds") {
         row[key] = [company];
         continue;
@@ -105,7 +110,11 @@ try {
         delete row[key];
     await client.query(
       `INSERT INTO ledger_${domain.toLowerCase()}(company_id,id,position,data) VALUES($1,$2,0,$3)`,
-      [company, row.code && ["accounts", "currencies"].includes(domain) ? row.code : row.id, row],
+      [
+        company,
+        row.code && ["accounts", "currencies"].includes(domain) ? row.code : row.id,
+        { ...row, dimensionValues: undefined },
+      ],
     );
   }
   const snapshot = {
@@ -129,6 +138,22 @@ try {
   await migration("022_journal_incomplete_drafts.sql");
   await migration("023_account_detail_type.sql");
   await migration("023_account_detail_type.sql");
+  await migration("025_management_dimensions.sql");
+  await migration("025_management_dimensions.sql");
+  const dimension = {
+    id: "transport",
+    code: "LOGISTICS",
+    name: "Transport mode",
+    status: "Active",
+    required: false,
+    applyInvoices: true,
+    applyBills: true,
+    options: [{ id: "air", code: "AIR", name: "Air Freight", status: "Active" }],
+  };
+  await client.query("BEGIN");
+  await replaceLedger(client, company, "dimensions", [dimension]);
+  await client.query("COMMIT");
+  assert.deepEqual(await readLedger(client, company, "dimensions"), [dimension]);
   await client.query(
     "INSERT INTO companies(id,name,entity,state) VALUES('90918cc9-bcda-4f10-99ee-20e47f07cb8f','COA template test','LLC','FL')",
   );
@@ -159,6 +184,14 @@ try {
     const rows = await readLedger(client, company, domain);
     assert.deepEqual(rows, [expected], `backfill ${domain}`);
     if (domain === "accounts") rows[0].detailType = "Checking / Operating Checking Account";
+    if (["invoices", "bills", "journals"].includes(domain))
+      rows[0].dimensionValues = [
+        {
+          dimensionId: "transport",
+          valueId: "air",
+          lineId: rows[0][domain === "journals" ? "lines" : "items"][0].id,
+        },
+      ];
     await client.query("BEGIN");
     await replaceLedger(client, company, domain, rows);
     await client.query("COMMIT");
@@ -185,6 +218,30 @@ try {
     )
   ).id;
   let revision = 0;
+  revision = (
+    await accounting.execute({
+      companyId: liveCompany,
+      revision,
+      command: "saveDimension",
+      args: [dimension],
+    })
+  ).revision;
+  assert.deepEqual((await accounting.load(liveCompany)).state.dimensions, [dimension]);
+  await assert.rejects(
+    () =>
+      accounting.execute({
+        companyId: liveCompany,
+        revision,
+        command: "saveDimension",
+        args: [{ ...dimension, id: "duplicate-code" }],
+      }),
+    /unique/,
+  );
+  assert.equal(
+    (await accounting.load(liveCompany)).revision,
+    revision,
+    "rejected dimension save must not increment revision",
+  );
   for (const account of [
     { code: "1000", name: "Bank", type: "Asset" },
     { code: "3000", name: "Equity", type: "Equity" },

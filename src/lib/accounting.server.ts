@@ -1,4 +1,5 @@
 import { validateCoa } from "./coa";
+import { validateDimensionDefinitions, validateDimensionValues } from "./dimensions";
 import { importCatalog, type ImportDomain } from "./bulk-import";
 import { validateCustomers } from "./customer-model";
 import { db } from "./db.server";
@@ -68,6 +69,13 @@ export async function cashAccountLinks(
 }
 
 export function validateState(state: CompanyState) {
+  validateDimensionDefinitions(state.dimensions);
+  for (const doc of [...state.invoices, ...state.bills, ...state.journals])
+    validateDimensionValues(
+      state.dimensions,
+      doc.dimensionValues,
+      "items" in doc ? doc.items.map((i) => i.id) : doc.lines.map((l) => l.id),
+    );
   validateCoa(state.accounts);
   validateCustomers(
     state.customers,

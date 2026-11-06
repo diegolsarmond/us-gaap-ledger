@@ -16,7 +16,9 @@
     "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs",
     "test:journals": "node --env-file-if-exists=.env scripts/test-journals.mjs",
     "test:trial-balance": "node --env-file-if-exists=.env scripts/test-trial-balance.mjs",
-    "migrate:journals": "node --env-file-if-exists=.env scripts/migrate-journals.mjs"
+    "migrate:journals": "node --env-file-if-exists=.env scripts/migrate-journals.mjs",
+    "migrate:dimensions": "node --env-file-if-exists=.env scripts/migrate-dimensions.mjs",
+    "test:dimensions": "node scripts/test-management-dimensions.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

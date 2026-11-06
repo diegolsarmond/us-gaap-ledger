@@ -1,4 +1,14 @@
 import { US_GAAP_COA, totalByType, resolveAccount, validateCoa } from "./coa";
+import {
+  dimensionSchema,
+  validateDimensionDefinitions,
+  validateDimensionValues,
+  effectiveDimensions,
+  requireDimensions,
+  isProfitLoss,
+  type Dimension,
+  type DimensionValue,
+} from "./dimensions";
 import { customerSchema, type Customer, type CustomerInput } from "./customer-model";
 import { vendorSchema, type Vendor, type VendorInput } from "./vendor-model";
 import { parseStatementCsv } from "./statement-csv";
@@ -49,6 +59,7 @@ export interface JournalLine {
 }
 
 export interface JournalEntry {
+  dimensionValues?: DimensionValue[] | undefined;
   id: string;
   date: string;
   memo: string;
@@ -95,6 +106,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice {
+  dimensionValues?: DimensionValue[] | undefined;
   id: string;
   customerName: string;
   customerEin?: string | undefined;
@@ -124,6 +136,7 @@ export interface BillItem {
 }
 
 export interface Bill {
+  dimensionValues?: DimensionValue[] | undefined;
   id: string;
   vendorId?: string | undefined;
   vendorName: string;
@@ -276,6 +289,7 @@ export interface FiscalPeriodParam extends ParameterScope {
 }
 
 export interface CompanyState {
+  dimensions: Dimension[];
   customers: Customer[];
   vendors: Vendor[];
   accounts: Account[];
@@ -297,6 +311,7 @@ export interface CompanyState {
 }
 export function createInitialCompanyData(_companyId?: string): CompanyState {
   return {
+    dimensions: [],
     customers: [],
     accounts: [],
     journals: [],
@@ -319,6 +334,8 @@ export function createInitialCompanyData(_companyId?: string): CompanyState {
 }
 
 export interface AccountingContextType {
+  dimensions: Dimension[];
+  saveDimension: (dimension: Dimension) => void;
   customers: Customer[];
   addCustomer: (data: CustomerInput) => void;
   updateCustomer: (id: string, data: CustomerInput) => void;
@@ -349,6 +366,7 @@ export interface AccountingContextType {
       credit: number;
       memo?: string | undefined;
       projectId?: string | undefined;
+      dimensionValues?: DimensionValue[] | undefined;
     }[];
     overrideReason?: string | undefined;
   }) => { success: boolean; error?: string | undefined; entryId?: string | undefined };
@@ -597,6 +615,9 @@ export function createAccountingEngine(
         projectId: l.projectId,
       })),
     };
+    newEntry.dimensionValues = lines.flatMap((l, idx) =>
+      (l.dimensionValues ?? []).map((v) => ({ ...v, lineId: newEntry.lines[idx]!.id })),
+    );
 
     updateCompanyData((prev) => ({
       ...prev,
@@ -651,6 +672,10 @@ export function createAccountingEngine(
       createdBy: userPersona.name,
       createdAt: new Date().toISOString(),
       lines: reversedLines,
+      dimensionValues: (target.dimensionValues ?? []).map((v) => ({
+        ...v,
+        lineId: reversedLines[target.lines.findIndex((l) => l.id === v.lineId)]?.id,
+      })),
     };
 
     updateCompanyData((prev) => ({
@@ -701,8 +726,22 @@ export function createAccountingEngine(
       id: invId,
       status: "Open",
     };
+    validateDimensionValues(
+      currentData.dimensions,
+      invData.dimensionValues,
+      invData.items.map((i) => i.id),
+      "invoices",
+      true,
+    );
+    for (const item of invData.items)
+      requireDimensions(
+        currentData.dimensions,
+        effectiveDimensions(invData.dimensionValues, item.id),
+        "invoices",
+      );
 
     let totalCogsToRelieve = 0;
+    const cogsByLine = new Map<string, number>();
     const updatedInventory = currentData.inventory.map((item) => {
       const matching = invData.items.filter((i) => i.sku === item.sku && i.isProduct);
       const line = matching.length
@@ -717,19 +756,34 @@ export function createAccountingEngine(
 
       if (activeCompany.costMethod === "FIFO" && item.costLots.length > 0) {
         const remainingLots: typeof item.costLots = [];
+        const consumedLots: { qty: number; unitCost: number }[] = [];
         for (const lot of item.costLots) {
           if (neededQty <= 0) {
             remainingLots.push(lot);
           } else if (lot.qty <= neededQty) {
+            consumedLots.push({ qty: lot.qty, unitCost: lot.unitCost });
             neededQty -= lot.qty;
             lineCogs += lot.qty * lot.unitCost;
           } else {
+            consumedLots.push({ qty: neededQty, unitCost: lot.unitCost });
             lineCogs += neededQty * lot.unitCost;
             remainingLots.push({ ...lot, qty: lot.qty - neededQty });
             neededQty = 0;
           }
         }
         totalCogsToRelieve += lineCogs;
+        for (const invoiceLine of matching) {
+          let quantity = invoiceLine.qty,
+            cost = 0;
+          for (const lot of consumedLots) {
+            const consumed = Math.min(quantity, lot.qty);
+            cost += consumed * lot.unitCost;
+            lot.qty -= consumed;
+            quantity -= consumed;
+            if (quantity <= 0) break;
+          }
+          cogsByLine.set(invoiceLine.id, cost);
+        }
         return {
           ...item,
           qtyOnHand: Math.max(0, item.qtyOnHand - line.qty),
@@ -738,6 +792,8 @@ export function createAccountingEngine(
       } else {
         const cogsAmount = line.qty * item.unitCost;
         totalCogsToRelieve += cogsAmount;
+        for (const invoiceLine of matching)
+          cogsByLine.set(invoiceLine.id, invoiceLine.qty * item.unitCost);
         return {
           ...item,
           qtyOnHand: Math.max(0, item.qtyOnHand - line.qty),
@@ -751,6 +807,7 @@ export function createAccountingEngine(
       credit: number;
       memo?: string | undefined;
       projectId?: string | undefined;
+      dimensionValues?: DimensionValue[] | undefined;
     }[] = [];
 
     jeLines.push({
@@ -761,14 +818,23 @@ export function createAccountingEngine(
       projectId: newInvoice.projectId,
     });
 
-    const isService = newInvoice.kind === "Service";
-    const revenueAccount = isService ? resolveAccount(currentData.accounts, "40200", "4000") : resolveAccount(currentData.accounts, "40100", "4100");
-    jeLines.push({
-      accountCode: revenueAccount,
-      debit: 0,
-      credit: newInvoice.subtotal,
-      memo: `Sales revenue for ${invId}`,
-      projectId: newInvoice.projectId,
+    let revenueAllocated = 0;
+    newInvoice.items.forEach((item, index) => {
+      const amount =
+        index === newInvoice.items.length - 1
+          ? Math.round((newInvoice.subtotal - revenueAllocated) * 100) / 100
+          : Math.round(item.qty * item.unitPrice * 100) / 100;
+      revenueAllocated += amount;
+      jeLines.push({
+        accountCode: item.isProduct
+          ? resolveAccount(currentData.accounts, "40100", "4100")
+          : resolveAccount(currentData.accounts, "40200", "4000"),
+        debit: 0,
+        credit: amount,
+        memo: item.description,
+        projectId: newInvoice.projectId,
+        dimensionValues: effectiveDimensions(newInvoice.dimensionValues, item.id),
+      });
     });
 
     if (newInvoice.taxAmount > 0) {
@@ -782,12 +848,23 @@ export function createAccountingEngine(
 
     if (totalCogsToRelieve > 0) {
       const roundedCogs = Math.round(totalCogsToRelieve * 100) / 100;
-      jeLines.push({
-        accountCode: resolveAccount(currentData.accounts, "50100", "5000"),
-        debit: roundedCogs,
-        credit: 0,
-        memo: `COGS recognized for items on ${invId}`,
-        projectId: newInvoice.projectId,
+      const costItems = newInvoice.items.filter((i) => i.isProduct && cogsByLine.has(i.id));
+      let costAllocated = 0;
+      costItems.forEach((item, index) => {
+        const cost = cogsByLine.get(item.id)!;
+        const amount =
+          index === costItems.length - 1
+            ? Math.round((roundedCogs - costAllocated) * 100) / 100
+            : Math.round(cost * 100) / 100;
+        costAllocated += amount;
+        jeLines.push({
+          accountCode: resolveAccount(currentData.accounts, "50100", "5000"),
+          debit: amount,
+          credit: 0,
+          memo: `COGS — ${item.description}`,
+          projectId: newInvoice.projectId,
+          dimensionValues: effectiveDimensions(newInvoice.dimensionValues, item.id),
+        });
       });
       jeLines.push({
         accountCode: resolveAccount(currentData.accounts, "13000", "1300"),
@@ -837,7 +914,12 @@ export function createAccountingEngine(
         credit: 0,
         memo: `Cash receipt from ${inv.customerName} for ${inv.id}`,
       },
-      { accountCode: resolveAccount(currentData.accounts, "11000", "1100"), debit: 0, credit: inv.total, memo: `Clear AR for ${inv.id}` },
+      {
+        accountCode: resolveAccount(currentData.accounts, "11000", "1100"),
+        debit: 0,
+        credit: inv.total,
+        memo: `Clear AR for ${inv.id}`,
+      },
     ];
 
     const postResult = postJournalEntry({
@@ -894,6 +976,22 @@ export function createAccountingEngine(
 
   const createBill: AccountingContextType["createBill"] = (billData) => {
     if (!userPersona.canCreateJournals) return { success: false, error: "Unauthorized." };
+    validateDimensionValues(
+      currentData.dimensions,
+      billData.dimensionValues,
+      billData.items.map((i) => i.id),
+      "bills",
+      true,
+    );
+    for (const item of billData.items) {
+      const account = currentData.accounts.find((a) => a.code === item.accountCode);
+      if (account && isProfitLoss(account.type))
+        requireDimensions(
+          currentData.dimensions,
+          effectiveDimensions(billData.dimensionValues, item.id),
+          "bills",
+        );
+    }
 
     const billId = `BILL-${new Date().getFullYear().toString().substr(2)}${String(currentData.bills.length + 1).padStart(3, "0")}`;
     const usdAmount = Math.round(billData.foreignAmount * billData.fxRate * 100) / 100;
@@ -911,6 +1009,7 @@ export function createAccountingEngine(
       credit: number;
       memo?: string | undefined;
       projectId?: string | undefined;
+      dimensionValues?: DimensionValue[] | undefined;
     }[] = [];
 
     newBill.items.forEach((item) => {
@@ -920,6 +1019,11 @@ export function createAccountingEngine(
         credit: 0,
         memo: item.description,
         projectId: item.projectId || newBill.projectId,
+        dimensionValues: isProfitLoss(
+          currentData.accounts.find((a) => a.code === item.accountCode)?.type ?? "",
+        )
+          ? effectiveDimensions(newBill.dimensionValues, item.id)
+          : [],
       });
     });
 
@@ -1326,9 +1430,17 @@ export function createAccountingEngine(
   };
 
   const installUsGaapCoa = () => {
-    if (currentData.accounts.length) throw new Error("Install the template only in an empty chart to preserve existing account mappings.");
-    updateCompanyData(prev => ({ ...prev, accounts: structuredClone(US_GAAP_COA) }));
-    addAuditLog("INSTALL_COA", "Account", "US-GAAP", "Installed the five-digit company CoA template.");
+    if (currentData.accounts.length)
+      throw new Error(
+        "Install the template only in an empty chart to preserve existing account mappings.",
+      );
+    updateCompanyData((prev) => ({ ...prev, accounts: structuredClone(US_GAAP_COA) }));
+    addAuditLog(
+      "INSTALL_COA",
+      "Account",
+      "US-GAAP",
+      "Installed the five-digit company CoA template.",
+    );
   };
   const addAccount = (acct: Account) => {
     validateCoa([...currentData.accounts, acct]);
@@ -1347,7 +1459,7 @@ export function createAccountingEngine(
   };
 
   const updateAccount = (code: string, data: Omit<Account, "code">) => {
-    validateCoa(currentData.accounts.map(a => a.code === code ? { ...data, code } : a));
+    validateCoa(currentData.accounts.map((a) => (a.code === code ? { ...data, code } : a)));
     const existing = currentData.accounts.find((a) => a.code === code);
     if (!existing) throw new Error("Account not found for this company.");
     if (
@@ -1367,7 +1479,8 @@ export function createAccountingEngine(
   const deleteAccount = (code: string) => {
     if (!currentData.accounts.some((a) => a.code === code))
       throw new Error("Account not found for this company.");
-    const used = currentData.accounts.some(a => a.parentCode === code) ||
+    const used =
+      currentData.accounts.some((a) => a.parentCode === code) ||
       currentData.journals.some((j) => j.lines.some((l) => l.accountCode === code)) ||
       currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
       currentData.statements.some((s) => s.accountCode === code) ||
@@ -1727,9 +1840,14 @@ export function createAccountingEngine(
   const operatingIncome = grossProfit - totalOpEx;
   const fx = accountBalances[resolveAccount(currentData.accounts, "80300", "6300")];
   const totalFXVariance = (fx?.credit || 0) - (fx?.debit || 0);
-  const netIncome = Math.round((operatingIncome + sumType("Other Income") - sumType("Other Expense")) * 100) / 100;
-  const net = (preferred: string, legacy: string) => accountBalances[resolveAccount(currentData.accounts, preferred, legacy)]?.net || 0;
-  const cashOnHand = ["10100", "10200", "10300", "10400", "1000", "1050"].reduce((sum, code) => sum + (accountBalances[code]?.net || 0), 0);
+  const netIncome =
+    Math.round((operatingIncome + sumType("Other Income") - sumType("Other Expense")) * 100) / 100;
+  const net = (preferred: string, legacy: string) =>
+    accountBalances[resolveAccount(currentData.accounts, preferred, legacy)]?.net || 0;
+  const cashOnHand = ["10100", "10200", "10300", "10400", "1000", "1050"].reduce(
+    (sum, code) => sum + (accountBalances[code]?.net || 0),
+    0,
+  );
   const totalAR = net("11000", "1100");
   const totalAP = net("20100", "2000");
   const totalInventoryValuation = net("13000", "1300");
@@ -1766,6 +1884,26 @@ export function createAccountingEngine(
       setCurrentRole,
       userPersona,
       accounts: currentData.accounts,
+      dimensions: currentData.dimensions,
+      saveDimension: (input: Dimension) => {
+        if (!userPersona.canCreateJournals) throw new Error("Unauthorized.");
+        const dimension = dimensionSchema.parse(input);
+        const updated = [...currentData.dimensions.filter((d) => d.id !== dimension.id), dimension];
+        validateDimensionDefinitions(updated);
+        for (const doc of [...currentData.invoices, ...currentData.bills, ...currentData.journals])
+          validateDimensionValues(
+            updated,
+            doc.dimensionValues,
+            "items" in doc ? doc.items.map((i) => i.id) : doc.lines.map((l) => l.id),
+          );
+        updateCompanyData((prev) => ({ ...prev, dimensions: updated }));
+        addAuditLog(
+          "SAVE_DIMENSION",
+          "Dimension",
+          dimension.id,
+          `Saved management dimension ${dimension.name}.`,
+        );
+      },
       installUsGaapCoa,
       addAccount,
       updateAccount,

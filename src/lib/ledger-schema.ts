@@ -23,9 +23,16 @@ const schema = (spec: string, children: Record<string, string> = {}): LedgerSche
 });
 const scope = " scope? sharedId?:uuid";
 const scopeChildren = { companyIds: "value:uuid" };
+const dimensionValues = "dimensionId valueId lineId?";
 const contact =
   "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email currency paymentTermId taxId notes";
 export const ledgerSchemas: Record<string, LedgerSchema> = {
+  dimensions: schema(
+    "id code name status required:boolean applyInvoices:boolean applyBills:boolean",
+    {
+      options: "id code name status",
+    },
+  ),
   customers: schema(
     contact +
       " customerType? printOnChecksAs billingAddress.street billingAddress.city billingAddress.state billingAddress.zip billingAddress.country shippingAddress.street shippingAddress.city shippingAddress.state shippingAddress.zip shippingAddress.country shippingSameAsBilling:boolean paymentMethod deliveryMethod taxExempt:boolean exemptionReason defaultTaxCode parentCustomerId billWithParent:boolean",
@@ -40,7 +47,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   ),
   journals: schema(
     "id date:date memo sourceType sourceId? currency fxRate:numeric status overrideReason? createdBy createdAt",
-    { lines: "id accountCode debit:numeric credit:numeric memo? projectId?" },
+    { lines: "id accountCode debit:numeric credit:numeric memo? projectId?", dimensionValues },
   ),
   inventory: schema(
     "id sku name type qtyOnHand:numeric unitCost:numeric unitPrice:numeric valuationMethod",
@@ -53,6 +60,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     "id customerName customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date",
     {
       items: "id description sku? isProduct:boolean qty:numeric unitPrice:numeric taxable:boolean",
+      dimensionValues,
     },
   ),
   bills: schema(
@@ -60,6 +68,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     {
       items:
         "id description accountCode isInventory:boolean sku? qty?:numeric amount:numeric projectId?",
+      dimensionValues,
     },
   ),
   statements: schema(

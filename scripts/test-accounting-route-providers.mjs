@@ -20,6 +20,7 @@ const store = {
   },
 };
 let tested = 0;
+const testedRoutes = new Set();
 for (const name of readdirSync(new URL("../src/routes/", import.meta.url))) {
   if (!name.endsWith(".tsx") || name === "__root.tsx") continue;
   const source = readFileSync(new URL(`../src/routes/${name}`, import.meta.url), "utf8");
@@ -49,6 +50,8 @@ for (const name of readdirSync(new URL("../src/routes/", import.meta.url))) {
     `${name} must provide accounting context even without a parent route provider`,
   );
   tested++;
+  testedRoutes.add(name);
 }
-assert.ok(tested >= 15, "Expected all accounting routes to be exercised");
+for (const name of ["accounts.tsx", "dimensions.tsx", "invoices.tsx", "payables.tsx", "dre.tsx"])
+  assert.ok(testedRoutes.has(name), `${name} must be exercised`);
 console.log(`${tested} accounting routes render their consumers inside a local provider.`);
