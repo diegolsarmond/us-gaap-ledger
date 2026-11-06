@@ -55,3 +55,9 @@ export const runAccountingCommand = defineJsonOperation({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => (await import("./accounting.server")).execute(data));
+export const loadContactUsage = defineJsonOperation({ method: "GET" })
+  .validator(z.object({ companyId: z.string().uuid() }))
+  .handler(async ({ data }) => {
+    await (await import("./companies.server")).authorizeCompany(data.companyId);
+    return (await import("./accounting.server")).contactUsage(data.companyId);
+  });

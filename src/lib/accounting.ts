@@ -12,3 +12,6 @@ export const loadCashAccountLinks = jsonClient<
 export const runAccountingCommand = jsonClient<
   typeof import("./accounting.operations.server").runAccountingCommand
 >("accounting", "runAccountingCommand", "POST");
+export const loadContactUsage = jsonClient<
+  typeof import("./accounting.operations.server").loadContactUsage
+>("accounting", "loadContactUsage", "GET");

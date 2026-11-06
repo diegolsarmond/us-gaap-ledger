@@ -21,6 +21,7 @@ import {
 } from "./dimensions";
 import { customerSchema, type Customer, type CustomerInput } from "./customer-model";
 import { vendorSchema, type Vendor, type VendorInput } from "./vendor-model";
+import { customerLinks, vendorLinks } from "./contact-usage";
 import { parseStatementCsv } from "./statement-csv";
 
 export type UserRole = "platform_admin" | "accounting_admin" | "accounting_staff" | "client_portal";
@@ -353,6 +354,7 @@ export interface AccountingContextType {
   customers: Customer[];
   addCustomer: (data: CustomerInput) => void;
   updateCustomer: (id: string, data: CustomerInput) => void;
+  deleteCustomer: (id: string) => void;
   activeCompany: ClientCompany;
   companies: ClientCompany[];
   setActiveCompanyId: (id: string) => void;
@@ -416,6 +418,7 @@ export interface AccountingContextType {
   vendors: Vendor[];
   addVendor: (input: VendorInput) => string;
   updateVendor: (id: string, input: VendorInput) => void;
+  deleteVendor: (id: string) => void;
   bills: Bill[];
   createBill: (b: Omit<Bill, "id" | "status" | "usdAmount">) => {
     success: boolean;
@@ -1109,6 +1112,34 @@ export function createAccountingEngine(
   const addVendor = (input: VendorInput) => saveVendor(input);
   const updateVendor = (id: string, input: VendorInput) => {
     saveVendor(input, id);
+  };
+  const deleteVendor = (id: string) => {
+    if (!userPersona.canCreateJournals) throw new Error("Access denied.");
+    const vendor = currentData.vendors.find((v) => v.id === id);
+    if (!vendor) throw new Error("Vendor not found.");
+    const links = vendorLinks(currentData, vendor);
+    if (links.length)
+      throw new Error(`This vendor is linked to ${links.join(", ")} and cannot be deleted.`);
+    updateCompanyData((prev) => ({ ...prev, vendors: prev.vendors.filter((v) => v.id !== id) }));
+    addAuditLog("Delete Vendor", "Vendor", id, `Deleted unused vendor ${vendor.displayName}.`);
+  };
+  const deleteCustomer = (id: string) => {
+    if (!userPersona.canCreateJournals) throw new Error("Access denied.");
+    const customer = currentData.customers.find((c) => c.id === id);
+    if (!customer) throw new Error("Customer not found.");
+    const links = customerLinks(currentData, customer);
+    if (links.length)
+      throw new Error(`This customer is linked to ${links.join(", ")} and cannot be deleted.`);
+    updateCompanyData((prev) => ({
+      ...prev,
+      customers: prev.customers.filter((c) => c.id !== id),
+    }));
+    addAuditLog(
+      "Delete Customer",
+      "Customer",
+      id,
+      `Deleted unused customer ${customer.displayName}.`,
+    );
   };
 
   const createBill: AccountingContextType["createBill"] = (billData) => {
@@ -2089,6 +2120,8 @@ export function createAccountingEngine(
       vendors: currentData.vendors,
       addVendor,
       updateVendor,
+      deleteVendor,
+      deleteCustomer,
       bills: currentData.bills,
       createBill,
       payBill,

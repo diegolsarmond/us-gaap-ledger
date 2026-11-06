@@ -1,8 +1,29 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { loadAdministration, updateProfile, updateUser, resetUserPassword } from "@/lib/admin";
+import { KeyRound, Plus } from "lucide-react";
+import {
+  loadAdministration,
+  updateProfile,
+  updateUser,
+  resetUserPassword,
+  deleteUser,
+  deleteProfile,
+} from "@/lib/admin";
 import type { Profile, ManagedUser } from "@/lib/admin-model";
-import { PageTitle, Panel, Table, Th, Td, Badge } from "./ui-kit";
+import { PageTitle, Panel, Table, Th, Td, Badge, Kpi } from "./ui-kit";
+import {
+  ConfirmDelete,
+  DetailDialog,
+  EmptyRow,
+  IdentityCell,
+  ListToolbar,
+  PaginationBar,
+  RowActions,
+  fieldControl,
+  primaryButton,
+  secondaryButton,
+  usePagination,
+} from "./data-list";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +32,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";
-const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-brand/90 transition-colors cursor-pointer";
+const control = fieldControl;
+const button = primaryButton;
 
 const permissions = {
   manage_users: "Manage users",
@@ -35,6 +56,28 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
   const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [copied, setCopied] = useState(false);
+  const [viewing, setViewing] = useState<ManagedUser | Profile | null>(null);
+  const [removing, setRemoving] = useState<ManagedUser | Profile | null>(null);
+  const [removeError, setRemoveError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
+
+  async function confirmRemove() {
+    if (!removing || pending) return;
+    setPending(true);
+    setRemoveError("");
+    try {
+      if (users) await deleteUser({ data: { id: removing.id } });
+      else await deleteProfile({ data: { id: removing.id } });
+      await client.invalidateQueries({ queryKey: ["administration"] });
+      setNotice(`${removing.name} deleted and recorded in the audit log.`);
+      setRemoving(null);
+    } catch (e) {
+      setRemoveError(e instanceof Error ? e.message : "Unable to delete.");
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function resetPassword() {
     if (!resetTarget || pending) return;
@@ -115,16 +158,69 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
     }
   }
 
-  const rows =
-    (users ? query.data?.users : query.data?.profiles)?.filter((r) =>
-      `${r.name} ${"email" in r ? r.email : ""}`.toLowerCase().includes(search.toLowerCase()),
-    ) ?? [];
+  const data = query.data;
+  const profileName = (id: string | null) =>
+    data?.profiles.find((p) => p.id === id)?.name ?? "No profile";
+  const companyName = (id: string) => data?.companies.find((c) => c.id === id)?.name ?? id;
+  const usageOf = (id: string) =>
+    (users ? data?.userUsage : data?.profileUsage)?.[id] ?? ([] as string[]);
+  const grantedPermissions = (p: Profile) =>
+    Object.entries(permissions)
+      .filter(([key]) => p[key as keyof typeof permissions])
+      .map(([, label]) => label);
+  /** Why a row cannot be deleted, or null when no linked record would be affected. */
+  function deleteBlock(r: ManagedUser | Profile) {
+    if ("email" in r) {
+      if (r.id === data?.currentUserId) return "You cannot delete your own user.";
+    } else if (r.system_admin) return "The administrator profile is protected.";
+    const links = usageOf(r.id);
+    return links.length
+      ? `Cannot delete: linked to ${links.join(", ")}.${"email" in r ? " Deactivate instead." : ""}`
+      : null;
+  }
+
+  const term = search.trim().toLowerCase();
+  const userRows = (data?.users ?? []).filter(
+    (u) =>
+      `${u.name} ${u.email} ${profileName(u.profile_id)}`.toLowerCase().includes(term) &&
+      (!statusFilter || (statusFilter === "active") === u.active) &&
+      (!groupFilter || (u.profile_id ?? "none") === groupFilter),
+  );
+  const profileRows = (data?.profiles ?? []).filter(
+    (p) =>
+      `${p.name} ${grantedPermissions(p).join(" ")}`.toLowerCase().includes(term) &&
+      (!statusFilter || (statusFilter === "protected") === p.system_admin) &&
+      (!groupFilter ||
+        (groupFilter === "all" ? p.all_companies || p.system_admin : !p.all_companies && !p.system_admin)),
+  );
+  const rows: (ManagedUser | Profile)[] = users ? userRows : profileRows;
+  const paging = usePagination(rows, `${term}|${statusFilter}|${groupFilter}|${kind}`);
+  const usersPerProfile = (id: string) =>
+    data?.users.filter((u) => u.profile_id === id).length ?? 0;
+  const columns = users ? 5 : 6;
+
+  function openEdit(r: ManagedUser | Profile) {
+    setViewing(null);
+    setEditing(r);
+    setError("");
+    setNotice("");
+  }
+  function openDelete(r: ManagedUser | Profile) {
+    setViewing(null);
+    setRemoving(r);
+    setRemoveError("");
+    setNotice("");
+  }
 
   return (
     <div className="space-y-4">
       <PageTitle
-        title={users ? "Settings · Users" : "Settings · Access profiles"}
-        description="Manage system users and access profiles."
+        title={users ? "Users" : "Access profiles"}
+        description={
+          users
+            ? "System users, their access profile and status. Users with activity can only be deactivated."
+            : "Permission sets and company access assigned to users."
+        }
         actions={
           allowed ? (
             <button
@@ -135,6 +231,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                 setNotice("");
               }}
             >
+              <Plus className="size-4" />
               {users ? "New user" : "New profile"}
             </button>
           ) : undefined
@@ -162,102 +259,316 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
           {notice}
         </p>
       )}
-      {allowed && (
+      {allowed && data && (
         <>
-          <input
-            aria-label="Search list"
-            placeholder="Search by name or email…"
-            className={control}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {users ? (
+              <>
+                <Kpi label="Users" value={String(data.users.length)} />
+                <Kpi label="Active" value={String(data.users.filter((u) => u.active).length)} />
+                <Kpi label="Inactive" value={String(data.users.filter((u) => !u.active).length)} />
+                <Kpi label="Profiles in use" value={String(new Set(data.users.map((u) => u.profile_id)).size)} />
+              </>
+            ) : (
+              <>
+                <Kpi label="Profiles" value={String(data.profiles.length)} />
+                <Kpi label="Protected" value={String(data.profiles.filter((p) => p.system_admin).length)} />
+                <Kpi label="All companies" value={String(data.profiles.filter((p) => p.all_companies || p.system_admin).length)} />
+                <Kpi label="Unassigned" value={String(data.profiles.filter((p) => !usageOf(p.id).length && !p.system_admin).length)} />
+              </>
+            )}
+          </div>
+          <ListToolbar
+            search={search}
+            onSearch={setSearch}
+            placeholder={users ? "Search by name, email or profile…" : "Search by name or permission…"}
+            filters={
+              users
+                ? [
+                    {
+                      key: "status",
+                      label: "Status",
+                      value: statusFilter,
+                      onChange: setStatusFilter,
+                      options: [
+                        { value: "active", label: "Active" },
+                        { value: "inactive", label: "Inactive" },
+                      ],
+                    },
+                    {
+                      key: "profile",
+                      label: "Profile",
+                      value: groupFilter,
+                      onChange: setGroupFilter,
+                      options: [
+                        ...data.profiles.map((p) => ({ value: p.id, label: p.name })),
+                        { value: "none", label: "No profile" },
+                      ],
+                    },
+                  ]
+                : [
+                    {
+                      key: "type",
+                      label: "Type",
+                      value: statusFilter,
+                      onChange: setStatusFilter,
+                      options: [
+                        { value: "protected", label: "Protected" },
+                        { value: "custom", label: "Customizable" },
+                      ],
+                    },
+                    {
+                      key: "scope",
+                      label: "Company access",
+                      value: groupFilter,
+                      onChange: setGroupFilter,
+                      options: [
+                        { value: "all", label: "All companies" },
+                        { value: "selected", label: "Selected companies" },
+                      ],
+                    },
+                  ]
+            }
           />
-          <Panel title={`${users ? "Users" : "Access profiles"} (${rows.length})`}>
+          <Panel
+            title={`${users ? "Users" : "Access profiles"}`}
+            subtitle={`${rows.length} of ${(users ? data.users : data.profiles).length} records`}
+          >
             <Table>
-              <thead>
+              <thead className="bg-canvas/50">
                 <tr>
-                  <Th>Name</Th>
+                  <Th>{users ? "User" : "Profile"}</Th>
                   {users ? (
                     <>
-                      <Th>Email</Th>
                       <Th>Profile</Th>
                       <Th>Status</Th>
+                      <Th>Activity</Th>
                     </>
                   ) : (
                     <>
                       <Th>Permissions</Th>
-                      <Th>Users / maintenance</Th>
+                      <Th>Company access</Th>
+                      <Th align="right">Users</Th>
+                      <Th>Type</Th>
                     </>
                   )}
-                  <Th>Actions</Th>
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <Td>{r.name}</Td>
+              <tbody className="divide-y divide-line/70">
+                {paging.pageRows.map((r) => (
+                  <tr key={r.id} className="transition-colors hover:bg-brand/[0.03]">
                     {"email" in r ? (
                       <>
-                        <Td>{r.email}</Td>
                         <Td>
-                          {query.data?.profiles.find((p) => p.id === r.profile_id)?.name ??
-                            "No profile"}
+                          <IdentityCell
+                            title={r.name}
+                            subtitle={
+                              r.id === data.currentUserId ? `${r.email} · you` : r.email
+                            }
+                          />
                         </Td>
+                        <Td>{profileName(r.profile_id)}</Td>
                         <Td>
-                          <Badge tone={r.active ? "brand" : "neutral"}>
+                          <Badge tone={r.active ? "up" : "neutral"}>
                             {r.active ? "Active" : "Inactive"}
                           </Badge>
+                        </Td>
+                        <Td className="text-[12px] text-ink3">
+                          {usageOf(r.id).join(" · ") || "No linked records"}
                         </Td>
                       </>
                     ) : (
                       <>
                         <Td>
-                          {Object.entries(permissions)
-                            .filter(([key]) => r[key as keyof typeof permissions])
-                            .map(([, label]) => label)
-                            .join(" · ") || "Read-only"}
+                          <IdentityCell
+                            title={r.name}
+                            subtitle={`${grantedPermissions(r).length} of ${Object.keys(permissions).length} permissions`}
+                          />
                         </Td>
-                        <Td>{r.system_admin ? "Protected administrator" : "Customizable"}</Td>
+                        <Td>
+                          <div className="flex max-w-md flex-wrap gap-1">
+                            {grantedPermissions(r).map((label) => (
+                              <Badge key={label}>{label}</Badge>
+                            ))}
+                            {!grantedPermissions(r).length && (
+                              <span className="text-ink3">Read-only</span>
+                            )}
+                          </div>
+                        </Td>
+                        <Td>
+                          {r.system_admin || r.all_companies
+                            ? "All companies"
+                            : `${r.company_ids.length} selected`}
+                        </Td>
+                        <Td align="right">{usersPerProfile(r.id)}</Td>
+                        <Td>
+                          <Badge tone={r.system_admin ? "brand" : "neutral"}>
+                            {r.system_admin ? "Protected" : "Customizable"}
+                          </Badge>
+                        </Td>
                       </>
                     )}
-                    <Td>
-                      <button
-                        disabled={pending || ("system_admin" in r && r.system_admin)}
-                        className="text-brand underline disabled:opacity-40 cursor-pointer"
-                        onClick={() => {
-                          setEditing(r);
-                          setError("");
-                          setNotice("");
+                    <Td align="right">
+                      <RowActions
+                        onView={() => setViewing(r)}
+                        onEdit={() => openEdit(r)}
+                        edit={{
+                          blocked:
+                            pending
+                              ? "Please wait…"
+                              : "system_admin" in r && r.system_admin
+                                ? "The administrator profile is protected."
+                                : null,
                         }}
-                      >
-                        Edit
-                      </button>
-                      {"email" in r && (
-                        <button
-                          disabled={pending}
-                          className="ml-3 text-brand underline disabled:opacity-40 cursor-pointer"
-                          onClick={() => {
-                            setResetTarget(r);
-                            setGeneratedPassword("");
-                            setCopied(false);
-                            setEditing(null);
-                            setError("");
-                            setNotice("");
-                          }}
-                        >
-                          Reset password
-                        </button>
-                      )}
+                        onDelete={() => openDelete(r)}
+                        remove={{ blocked: pending ? "Please wait…" : deleteBlock(r) }}
+                        extra={
+                          "email" in r ? (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              title="Reset password"
+                              aria-label="Reset password"
+                              className="inline-flex size-8 items-center justify-center rounded-md text-ink3 transition-colors hover:bg-canvas hover:text-ink disabled:opacity-35 cursor-pointer"
+                              onClick={() => {
+                                setResetTarget(r);
+                                setGeneratedPassword("");
+                                setCopied(false);
+                                setEditing(null);
+                                setError("");
+                                setNotice("");
+                              }}
+                            >
+                              <KeyRound className="size-4" />
+                            </button>
+                          ) : undefined
+                        }
+                      />
                     </Td>
                   </tr>
                 ))}
                 {!rows.length && (
-                  <tr>
-                    <Td colSpan={5}>No records found.</Td>
-                  </tr>
+                  <EmptyRow colSpan={columns}>
+                    {(users ? data.users : data.profiles).length
+                      ? "No records match the current filters."
+                      : "No records registered yet."}
+                  </EmptyRow>
                 )}
               </tbody>
             </Table>
+            <PaginationBar {...paging} />
           </Panel>
+
+          <DetailDialog
+            open={Boolean(viewing)}
+            onClose={() => setViewing(null)}
+            title={viewing?.name ?? ""}
+            subtitle={
+              viewing && "email" in viewing
+                ? viewing.email
+                : viewing?.system_admin
+                  ? "Protected administrator profile"
+                  : "Customizable profile"
+            }
+            sections={
+              !viewing
+                ? []
+                : "email" in viewing
+                  ? [
+                      {
+                        title: "Account",
+                        fields: [
+                          { label: "Name", value: viewing.name },
+                          { label: "Email", value: viewing.email },
+                          { label: "Access profile", value: profileName(viewing.profile_id) },
+                          {
+                            label: "Status",
+                            value: (
+                              <Badge tone={viewing.active ? "up" : "neutral"}>
+                                {viewing.active ? "Active" : "Inactive"}
+                              </Badge>
+                            ),
+                          },
+                          {
+                            label: "Linked records",
+                            value: usageOf(viewing.id).join(" · ") || "None",
+                            wide: true,
+                          },
+                        ],
+                      },
+                    ]
+                  : [
+                      {
+                        title: "Permissions",
+                        fields: Object.entries(permissions).map(([key, label]) => ({
+                          label,
+                          value: viewing[key as keyof typeof permissions] ? (
+                            <Badge tone="up">Allowed</Badge>
+                          ) : (
+                            <Badge>Not allowed</Badge>
+                          ),
+                        })),
+                      },
+                      {
+                        title: "Company access",
+                        fields: [
+                          {
+                            label: "Scope",
+                            value:
+                              viewing.system_admin || viewing.all_companies
+                                ? "All companies, including future ones"
+                                : "Selected companies only",
+                            wide: true,
+                          },
+                          ...(viewing.system_admin || viewing.all_companies
+                            ? []
+                            : [
+                                {
+                                  label: "Companies",
+                                  value: viewing.company_ids.map(companyName).join(", ") || "None",
+                                  wide: true,
+                                },
+                              ]),
+                          { label: "Users assigned", value: String(usersPerProfile(viewing.id)) },
+                          {
+                            label: "Linked records",
+                            value: usageOf(viewing.id).join(" · ") || "None",
+                          },
+                        ],
+                      },
+                    ]
+            }
+            footer={
+              viewing && (
+                <>
+                  {!deleteBlock(viewing) && (
+                    <button
+                      type="button"
+                      className={`${secondaryButton} text-down`}
+                      onClick={() => openDelete(viewing)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                  {!("system_admin" in viewing && viewing.system_admin) && (
+                    <button type="button" className={button} onClick={() => openEdit(viewing)}>
+                      Edit
+                    </button>
+                  )}
+                </>
+              )
+            }
+          />
+
+          <ConfirmDelete
+            target={removing?.name ?? null}
+            entity={users ? "user" : "access profile"}
+            pending={pending}
+            error={removeError}
+            onCancel={() => setRemoving(null)}
+            onConfirm={() => void confirmRemove()}
+          />
 
           {/* Reset password Modal */}
           <Dialog
@@ -303,7 +614,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     <div className="flex justify-between items-center pt-2">
                       <button
                         type="button"
-                        className="rounded border border-line px-4 py-2 text-sm text-ink2 hover:bg-canvas transition-colors cursor-pointer"
+                        className={secondaryButton}
                         onClick={() => {
                           setResetTarget(null);
                           setGeneratedPassword("");
@@ -332,7 +643,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                       <button
                         type="button"
                         disabled={pending}
-                        className="rounded border border-line px-4 py-2 text-sm text-ink2 hover:bg-canvas transition-colors cursor-pointer"
+                        className={secondaryButton}
                         onClick={() => {
                           setResetTarget(null);
                           setGeneratedPassword("");
@@ -542,7 +853,7 @@ export function AdministrationList({ kind }: { kind: "users" | "profiles" }) {
                     <button
                       type="button"
                       disabled={pending}
-                      className="rounded border border-line px-4 py-2 text-sm text-ink2 hover:bg-canvas transition-colors cursor-pointer"
+                      className={secondaryButton}
                       onClick={() => {
                         setEditing(null);
                         setError("");

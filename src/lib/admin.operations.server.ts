@@ -25,3 +25,9 @@ export const getAuditEvents = defineJsonOperation({ method: "GET" })
   .handler(async ({ data }) =>
     (await import("./admin.server")).loadAudit(data.page, data.companyId, data.search, data.action),
   );
+export const deleteUser = defineJsonOperation({ method: "POST" })
+  .validator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data }) => (await import("./admin.server")).deleteUser(data.id));
+export const deleteProfile = defineJsonOperation({ method: "POST" })
+  .validator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data }) => (await import("./admin.server")).deleteProfile(data.id));

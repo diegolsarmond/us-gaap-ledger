@@ -9,7 +9,25 @@ import {
   type Customer,
   type CustomerInput,
 } from "@/lib/customer-model";
-import { PageTitle, Panel, Table, Th, Td } from "@/components/ui-kit";
+import { PageTitle, Panel, Table, Th, Td, Badge, Kpi } from "@/components/ui-kit";
+import { ArrowLeft, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { loadContactUsage } from "@/lib/accounting";
+import { customerLinks } from "@/lib/contact-usage";
+import {
+  ConfirmDelete,
+  DetailDialog,
+  EmptyRow,
+  IdentityCell,
+  ListToolbar,
+  PaginationBar,
+  RowActions,
+  blockedBy,
+  fieldControl,
+  primaryButton,
+  secondaryButton,
+  usePagination,
+} from "@/components/data-list";
 export const Route = createFileRoute("/customers")({
   component: () => (
     <AccountingProvider>
@@ -17,8 +35,8 @@ export const Route = createFileRoute("/customers")({
     </AccountingProvider>
   ),
 });
-const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
-const button = "rounded-md bg-brand px-4 py-2 text-sm text-white disabled:opacity-50";
+const control = fieldControl;
+const button = primaryButton;
 const blankAddress = { street: "", city: "", state: "", zip: "", country: "" };
 function initial(): CustomerInput {
   return {
@@ -39,6 +57,8 @@ function CustomersPage() {
     customers,
     addCustomer,
     updateCustomer,
+    deleteCustomer,
+    activeCompany,
     invoices,
     projects,
     paymentTerms,
@@ -53,6 +73,17 @@ function CustomersPage() {
   const [pending, setPending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sub, setSub] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [hierarchy, setHierarchy] = useState("");
+  const [taxFilter, setTaxFilter] = useState("");
+  const [viewing, setViewing] = useState<Customer | null>(null);
+  const [removing, setRemoving] = useState<Customer | null>(null);
+  const [removeError, setRemoveError] = useState("");
+  const [removePending, setRemovePending] = useState(false);
+  const usage = useQuery({
+    queryKey: ["contact-usage", activeCompany.id],
+    queryFn: () => loadContactUsage({ data: { companyId: activeCompany.id } }),
+  });
   const allowed = userPersona.canCreateJournals;
   function change<K extends keyof CustomerInput>(key: K, value: CustomerInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -198,27 +229,73 @@ function CustomersPage() {
       </fieldset>
     );
   }
-  const rows = customers.filter((c) =>
-    [
-      c.displayName,
-      c.companyName,
-      c.email,
-      c.taxId,
-      ...(c.customFields || []).flatMap((f) => [f.name, f.value]),
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const term = search.trim().toLowerCase();
+  const nameOf = (id: string) => customers.find((p) => p.id === id)?.displayName;
+  const linksOf = (c: Customer) =>
+    customerLinks({ customers, invoices, projects }, c, usage.data?.customers[c.id]);
+  const deleteBlock = (c: Customer) =>
+    !usage.isSuccess ? "Checking linked records…" : blockedBy(linksOf(c));
+  const rows = customers
+    .filter(
+      (c) =>
+        [
+          c.displayName,
+          c.companyName,
+          c.email,
+          c.phone,
+          c.taxId,
+          ...(c.customFields || []).flatMap((f) => [f.name, f.value]),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(term) &&
+        (!statusFilter || (c.registrationStatus || "Active") === statusFilter) &&
+        (!hierarchy || (hierarchy === "sub") === Boolean(c.parentCustomerId)) &&
+        (!taxFilter || (taxFilter === "exempt") === c.taxExempt),
+    )
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const paging = usePagination(rows, `${term}|${statusFilter}|${hierarchy}|${taxFilter}`);
+  const invoiceCount = (c: Customer) =>
+    invoices.filter(
+      (i) => i.customerId === c.id || (!i.customerId && i.customerName === c.displayName),
+    ).length;
+  async function confirmRemove() {
+    if (!removing || removePending) return;
+    setRemovePending(true);
+    setRemoveError("");
+    try {
+      await deleteCustomer(removing.id);
+      await usage.refetch();
+      setNotice(`${removing.displayName} deleted.`);
+      setRemoving(null);
+    } catch (e) {
+      setRemoveError(e instanceof Error ? e.message : "Unable to delete.");
+    } finally {
+      setRemovePending(false);
+    }
+  }
+  const formatAddress = (a: Customer["billingAddress"]) =>
+    [a.street, [a.city, a.state, a.zip].filter(Boolean).join(", "), a.country]
+      .filter(Boolean)
+      .join("\n");
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageTitle
-        title="Customers"
+        title={editing ? (editing === "new" ? "New customer" : "Edit customer") : "Customers"}
         description="One customer across all transaction currencies. Company, billing email and addresses are required."
         actions={
-          allowed && !editing ? (
-            <button className={button} onClick={() => open()}>
-              New customer
+          editing ? (
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={pending}
+              onClick={() => setEditing(null)}
+            >
+              <ArrowLeft className="size-4" /> Back to list
+            </button>
+          ) : allowed ? (
+            <button className={primaryButton} onClick={() => open()}>
+              <Plus className="size-4" /> New customer
             </button>
           ) : undefined
         }
@@ -435,59 +512,269 @@ function CustomersPage() {
         </form>
       ) : (
         <>
-          <input
-            className={control}
-            aria-label="Search customers"
-            placeholder="Search by name, company, email or tax ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi label="Customers" value={String(customers.length)} />
+            <Kpi
+              label="Active"
+              value={String(customers.filter((c) => c.registrationStatus !== "Draft").length)}
+            />
+            <Kpi
+              label="Drafts"
+              value={String(customers.filter((c) => c.registrationStatus === "Draft").length)}
+              hint="Invoicing blocked"
+            />
+            <Kpi
+              label="Sub-customers"
+              value={String(customers.filter((c) => c.parentCustomerId).length)}
+            />
+          </div>
+          <ListToolbar
+            search={search}
+            onSearch={setSearch}
+            placeholder="Search by name, company, email, phone, tax ID or custom field…"
+            filters={[
+              {
+                key: "status",
+                label: "Status",
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: [
+                  { value: "Active", label: "Active" },
+                  { value: "Draft", label: "Draft" },
+                ],
+              },
+              {
+                key: "hierarchy",
+                label: "Hierarchy",
+                value: hierarchy,
+                onChange: setHierarchy,
+                options: [
+                  { value: "top", label: "Top-level" },
+                  { value: "sub", label: "Sub-customers" },
+                ],
+              },
+              {
+                key: "tax",
+                label: "Sales tax",
+                value: taxFilter,
+                onChange: setTaxFilter,
+                options: [
+                  { value: "taxable", label: "Taxable" },
+                  { value: "exempt", label: "Exempt" },
+                ],
+              },
+            ]}
           />
-          <Panel title={"Customers (" + rows.length + ")"}>
+          <Panel title="Customers" subtitle={`${rows.length} of ${customers.length} records`}>
             <Table>
-              <thead>
+              <thead className="bg-canvas/50">
                 <tr>
                   <Th>Customer</Th>
                   <Th>Company</Th>
-                  <Th>Email / Phone</Th>
+                  <Th>Phone</Th>
                   <Th>Parent customer</Th>
-                  <Th>Actions</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Invoices</Th>
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id}>
+              <tbody className="divide-y divide-line/70">
+                {paging.pageRows.map((c) => (
+                  <tr key={c.id} className="transition-colors hover:bg-brand/[0.03]">
                     <Td>
-                      {c.displayName}{" "}
-                      {c.registrationStatus === "Draft" && (
-                        <span className="text-ink3">(Draft — billing blocked)</span>
-                      )}
+                      <IdentityCell title={c.displayName} subtitle={c.email || undefined} />
                     </Td>
                     <Td>{c.companyName || "—"}</Td>
-                    <Td>{c.email || c.phone || "—"}</Td>
+                    <Td>{c.phone || c.mobile || "—"}</Td>
+                    <Td>{nameOf(c.parentCustomerId) || "—"}</Td>
                     <Td>
-                      {customers.find((p) => p.id === c.parentCustomerId)?.displayName || "—"}
+                      <div className="flex flex-wrap gap-1">
+                        {c.registrationStatus === "Draft" ? (
+                          <Badge>Draft</Badge>
+                        ) : (
+                          <Badge tone="up">Active</Badge>
+                        )}
+                        {c.taxExempt && <Badge tone="brand">Tax exempt</Badge>}
+                      </div>
                     </Td>
-                    <Td>
-                      {allowed ? (
-                        <button className="text-brand underline" onClick={() => open(c)}>
-                          Edit
-                        </button>
-                      ) : (
-                        "Read-only"
-                      )}
+                    <Td align="right">{invoiceCount(c)}</Td>
+                    <Td align="right">
+                      <RowActions
+                        onView={() => setViewing(c)}
+                        onEdit={() => open(c)}
+                        edit={{ hidden: !allowed }}
+                        onDelete={() => {
+                          setRemoving(c);
+                          setRemoveError("");
+                          setNotice("");
+                        }}
+                        remove={{ hidden: !allowed, blocked: deleteBlock(c) }}
+                      />
                     </Td>
                   </tr>
                 ))}
                 {!rows.length && (
-                  <tr>
-                    <Td colSpan={5}>No customers found.</Td>
-                  </tr>
+                  <EmptyRow colSpan={7}>
+                    {customers.length
+                      ? "No customers match the current filters."
+                      : "No customers registered for this company."}
+                  </EmptyRow>
                 )}
               </tbody>
             </Table>
+            <PaginationBar {...paging} />
           </Panel>
         </>
       )}
+      <DetailDialog
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.displayName ?? ""}
+        subtitle={
+          viewing
+            ? [viewing.companyName, viewing.registrationStatus === "Draft" ? "Draft" : "Active"]
+                .filter(Boolean)
+                .join(" · ")
+            : ""
+        }
+        sections={
+          viewing
+            ? [
+                {
+                  title: "Contact",
+                  fields: [
+                    { label: "Company name", value: viewing.companyName },
+                    { label: "Display name", value: viewing.displayName },
+                    {
+                      label: "Contact person",
+                      value: [
+                        viewing.title,
+                        viewing.firstName,
+                        viewing.middleName,
+                        viewing.lastName,
+                        viewing.suffix,
+                      ]
+                        .filter(Boolean)
+                        .join(" "),
+                    },
+                    { label: "Customer type", value: viewing.customerType },
+                    { label: "Billing email", value: viewing.email },
+                    { label: "Phone", value: viewing.phone },
+                    { label: "Mobile", value: viewing.mobile },
+                    { label: "Fax", value: viewing.fax },
+                    { label: "Website", value: viewing.website },
+                    { label: "Print on checks as", value: viewing.printOnChecksAs },
+                  ],
+                },
+                {
+                  title: "Addresses",
+                  fields: [
+                    {
+                      label: "Billing address",
+                      value: (
+                        <span className="whitespace-pre-line">
+                          {formatAddress(viewing.billingAddress)}
+                        </span>
+                      ),
+                    },
+                    {
+                      label: "Shipping address",
+                      value: viewing.shippingSameAsBilling ? (
+                        "Same as billing"
+                      ) : (
+                        <span className="whitespace-pre-line">
+                          {formatAddress(viewing.shippingAddress)}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  title: "Payment and tax",
+                  fields: [
+                    {
+                      label: "Payment terms",
+                      value: paymentTerms.find((t) => t.id === viewing.paymentTermId)?.name,
+                    },
+                    { label: "Payment method", value: viewing.paymentMethod },
+                    { label: "Invoice delivery", value: viewing.deliveryMethod },
+                    { label: "Tax ID", value: viewing.taxId },
+                    { label: "Default tax code", value: viewing.defaultTaxCode },
+                    {
+                      label: "Sales tax",
+                      value: viewing.taxExempt
+                        ? `Exempt${viewing.exemptionReason ? " — " + viewing.exemptionReason : ""}`
+                        : "Taxable",
+                    },
+                    {
+                      label: "Parent customer",
+                      value: viewing.parentCustomerId
+                        ? `${nameOf(viewing.parentCustomerId) ?? "—"}${viewing.billWithParent ? " (billed with parent)" : ""}`
+                        : "",
+                    },
+                  ],
+                },
+                {
+                  title: "Other",
+                  fields: [
+                    ...(viewing.customFields || []).map((f) => ({ label: f.name, value: f.value })),
+                    {
+                      label: "Attachments",
+                      value: viewing.attachments.map((a) => a.name).join(", "),
+                    },
+                    {
+                      label: "Linked records",
+                      value: linksOf(viewing).join(" · ") || "None",
+                    },
+                    {
+                      label: "Internal notes",
+                      value: <span className="whitespace-pre-line">{viewing.notes}</span>,
+                      wide: true,
+                    },
+                  ],
+                },
+              ]
+            : []
+        }
+        footer={
+          viewing &&
+          allowed && (
+            <>
+              {!deleteBlock(viewing) && (
+                <button
+                  type="button"
+                  className={`${secondaryButton} text-down`}
+                  onClick={() => {
+                    setRemoving(viewing);
+                    setRemoveError("");
+                    setViewing(null);
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                type="button"
+                className={primaryButton}
+                onClick={() => {
+                  open(viewing);
+                  setViewing(null);
+                }}
+              >
+                Edit
+              </button>
+            </>
+          )
+        }
+      />
+      <ConfirmDelete
+        target={removing?.displayName ?? null}
+        entity="customer"
+        pending={removePending}
+        error={removeError}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => void confirmRemove()}
+      />
     </div>
   );
 }

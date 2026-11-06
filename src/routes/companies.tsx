@@ -4,7 +4,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import { saveCompany } from "@/lib/companies";
 import { companySchema, formatEin, type Company } from "@/lib/company-model";
-import { PageTitle, Panel } from "@/components/ui-kit";
+import { PageTitle, Panel, Table, Th, Td, Badge, Kpi } from "@/components/ui-kit";
+import { Plus } from "lucide-react";
+import {
+  DetailDialog,
+  EmptyRow,
+  IdentityCell,
+  ListToolbar,
+  PaginationBar,
+  RowActions,
+  fieldControl,
+  primaryButton,
+  secondaryButton,
+  usePagination,
+} from "@/components/data-list";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/companies")({ component: CompaniesPage });
-const control = "w-full rounded border border-line p-2 text-sm bg-white";
+const control = fieldControl;
 
 function CompanyFormModal({
   editing,
@@ -345,14 +358,14 @@ function CompanyFormModal({
                 type="button"
                 disabled={pending}
                 onClick={onClose}
-                className="rounded border border-line px-4 py-2 text-sm text-ink2 hover:bg-canvas transition-colors cursor-pointer"
+                className={secondaryButton}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="bg-brand text-white rounded px-4 py-2 text-sm font-medium hover:bg-brand/90 transition-colors disabled:opacity-50 cursor-pointer"
+                className={primaryButton}
               >
                 {pending ? "Saving…" : "Save company"}
               </button>
@@ -364,13 +377,22 @@ function CompanyFormModal({
   );
 }
 
+const COMPANY_DELETE_BLOCK =
+  "Companies keep their ledger history and audit trail, so they cannot be deleted. Mark the company as inactive instead.";
+const monthName = (month: number) =>
+  new Date(2000, (month || 12) - 1, 1).toLocaleString("en-US", { month: "long" });
+
 function CompaniesPage() {
-  const { companies, permissions, refresh, selectCompany } = useCompanies();
+  const { companies, permissions, refresh, selectCompany, activeCompany } = useCompanies();
   const client = useQueryClient();
   const [editing, setEditing] = useState<Company | "new" | null>(null),
+    [viewing, setViewing] = useState<Company | null>(null),
     [error, setError] = useState(""),
     [pending, setPending] = useState(false),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""),
+    [status, setStatus] = useState(""),
+    [country, setCountry] = useState(""),
+    [entity, setEntity] = useState("");
 
   async function handleSave(raw: Record<string, unknown>) {
     if (pending) return;
@@ -404,80 +426,221 @@ function CompaniesPage() {
     }
   }
 
+  function openEditor(target: Company | "new") {
+    setViewing(null);
+    setEditing(target);
+    setError("");
+  }
+
+  const term = search.trim().toLowerCase();
+  const rows = companies.filter(
+    (c) =>
+      [c.name, c.tradeName, c.ein, formatEin(c.ein), c.taxId, c.city, c.state, c.email]
+        .join(" ")
+        .toLowerCase()
+        .includes(term) &&
+      (!status || (status === "active") === c.active) &&
+      (!country || c.country === country) &&
+      (!entity || c.entity === entity),
+  );
+  const paging = usePagination(rows, `${term}|${status}|${country}|${entity}`);
+  const distinct = (values: string[]) =>
+    [...new Set(values.filter(Boolean))].sort().map((v) => ({ value: v, label: v }));
+
   return (
     <div className="space-y-4">
       <PageTitle
         title="Companies"
-        description="Company registration · accounting currency USD"
+        description="Company registration · accounting and reporting currency USD"
         actions={
           permissions.manage_companies ? (
-            <button
-              className="bg-brand text-white rounded px-3 py-2 text-sm font-medium hover:bg-brand/90 transition-colors cursor-pointer"
-              onClick={() => {
-                setEditing("new");
-                setError("");
-              }}
-            >
-              New company
+            <button className={primaryButton} onClick={() => openEditor("new")}>
+              <Plus className="size-4" /> New company
             </button>
           ) : undefined
         }
       />
 
-      <input
-        aria-label="Search companies"
-        className={control}
-        placeholder="Search by name or EIN"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Companies" value={String(companies.length)} />
+        <Kpi label="Active" value={String(companies.filter((c) => c.active).length)} />
+        <Kpi label="Inactive" value={String(companies.filter((c) => !c.active).length)} />
+        <Kpi label="Countries" value={String(new Set(companies.map((c) => c.country)).size)} />
+      </div>
+
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by name, trade name, EIN, tax ID or city…"
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: status,
+            onChange: setStatus,
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+          },
+          {
+            key: "country",
+            label: "Country",
+            value: country,
+            onChange: setCountry,
+            options: distinct(companies.map((c) => c.country)),
+          },
+          {
+            key: "entity",
+            label: "Entity type",
+            value: entity,
+            onChange: setEntity,
+            options: distinct(companies.map((c) => c.entity)),
+          },
+        ]}
       />
 
-      <Panel title="Registered companies">
-        <div className="divide-y divide-line">
-          {companies
-            .filter((c) => `${c.name} ${c.ein}`.toLowerCase().includes(search.toLowerCase()))
-            .map((c) => (
-              <div key={c.id} className="p-4 flex justify-between gap-3 items-center">
-                <div>
-                  <p className="font-medium text-ink">{c.name}</p>
-                  <p className="text-xs text-ink3">
-                    {c.entity} · {c.state} · {c.taxId || formatEin(c.ein)} · {c.country} ·{" "}
-                    {c.primaryCurrency} · {c.phone ? c.phone + " · " : ""}
-                    {c.active ? "Active" : "Inactive"}
-                  </p>
-                </div>
-                {permissions.manage_companies && (
-                  <button
-                    className="text-brand text-sm font-medium hover:underline cursor-pointer"
-                    onClick={() => {
-                      setEditing(c);
-                      setError("");
+      <Panel title="Registered companies" subtitle={`${rows.length} of ${companies.length} records`}>
+        <Table>
+          <thead className="bg-canvas/50">
+            <tr>
+              <Th>Company</Th>
+              <Th>Entity</Th>
+              <Th>Tax ID</Th>
+              <Th>Location</Th>
+              <Th>Currency</Th>
+              <Th>Status</Th>
+              <Th align="right">Actions</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line/70">
+            {paging.pageRows.map((c) => (
+              <tr key={c.id} className="transition-colors hover:bg-brand/[0.03]">
+                <Td>
+                  <IdentityCell
+                    title={c.name}
+                    subtitle={[c.tradeName, c.email].filter(Boolean).join(" · ") || undefined}
+                  />
+                </Td>
+                <Td>
+                  <p>{c.entity}</p>
+                  <p className="text-[11px] text-ink3">Formed in {c.state || "—"}</p>
+                </Td>
+                <Td className="font-mono text-[12px]">{c.taxId || formatEin(c.ein) || "—"}</Td>
+                <Td>{[c.city, c.addressState, c.country].filter(Boolean).join(", ") || "—"}</Td>
+                <Td>{c.primaryCurrency}</Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge tone={c.active ? "up" : "neutral"}>
+                      {c.active ? "Active" : "Inactive"}
+                    </Badge>
+                    {activeCompany?.id === c.id && <Badge tone="brand">Current</Badge>}
+                  </div>
+                </Td>
+                <Td align="right">
+                  <RowActions
+                    onView={() => setViewing(c)}
+                    onEdit={() => openEditor(c)}
+                    edit={{ hidden: !permissions.manage_companies }}
+                    onDelete={() => undefined}
+                    remove={{
+                      hidden: !permissions.manage_companies,
+                      blocked: COMPANY_DELETE_BLOCK,
                     }}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
+                  />
+                </Td>
+              </tr>
             ))}
-          {!companies.length && (
-            <div className="p-6 text-center text-sm text-ink3">
-              <p>No companies registered or authorized.</p>
-              {permissions.manage_companies && (
-                <button
-                  type="button"
-                  className="mt-3 bg-brand text-white rounded px-3 py-1.5 text-xs font-medium hover:bg-brand/90 cursor-pointer"
-                  onClick={() => {
-                    setEditing("new");
-                    setError("");
-                  }}
-                >
-                  Create your first company
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            {!rows.length && (
+              <EmptyRow colSpan={7}>
+                {companies.length ? (
+                  "No companies match the current filters."
+                ) : (
+                  <>
+                    <p>No companies registered or authorized.</p>
+                    {permissions.manage_companies && (
+                      <button
+                        type="button"
+                        className={`${primaryButton} mt-3`}
+                        onClick={() => openEditor("new")}
+                      >
+                        Create your first company
+                      </button>
+                    )}
+                  </>
+                )}
+              </EmptyRow>
+            )}
+          </tbody>
+        </Table>
+        <PaginationBar {...paging} />
       </Panel>
+
+      <DetailDialog
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.name ?? ""}
+        subtitle={viewing ? `${viewing.entity} · ${viewing.active ? "Active" : "Inactive"}` : ""}
+        sections={
+          viewing
+            ? [
+                {
+                  title: "Identification",
+                  fields: [
+                    { label: "Legal name", value: viewing.name },
+                    { label: "Trade name / DBA", value: viewing.tradeName },
+                    { label: "Legal entity type", value: viewing.entity },
+                    { label: "Federal tax classification", value: viewing.federalTaxClassification },
+                    { label: "State of formation", value: viewing.state },
+                    { label: "EIN", value: formatEin(viewing.ein) },
+                    { label: "RFC / local tax ID", value: viewing.taxId },
+                    { label: "Country", value: viewing.country },
+                  ],
+                },
+                {
+                  title: "Address and contact",
+                  fields: [
+                    { label: "Address", value: viewing.address, wide: true },
+                    { label: "City", value: viewing.city },
+                    { label: "Municipality", value: viewing.municipality },
+                    { label: "State", value: viewing.addressState },
+                    { label: "ZIP code", value: viewing.zip },
+                    { label: "Phone", value: viewing.phone },
+                    { label: "Email", value: viewing.email },
+                    { label: "Accountant", value: viewing.accountantName },
+                    { label: "Accountant email", value: viewing.accountantEmail },
+                  ],
+                },
+                {
+                  title: "Accounting",
+                  fields: [
+                    { label: "Primary currency", value: viewing.primaryCurrency },
+                    { label: "Reporting currency", value: "USD" },
+                    { label: "Accounting basis", value: viewing.basis },
+                    { label: "Fiscal year end", value: monthName(viewing.fiscalYearEndMonth) },
+                    { label: "Inventory cost method", value: viewing.costMethod },
+                    {
+                      label: "Active period",
+                      value: viewing.activePeriod
+                        ? `${viewing.activePeriod}${viewing.isPeriodClosed ? " (locked)" : ""}`
+                        : "",
+                    },
+                  ],
+                },
+              ]
+            : []
+        }
+        footer={
+          viewing &&
+          permissions.manage_companies && (
+            <button type="button" className={primaryButton} onClick={() => openEditor(viewing)}>
+              Edit
+            </button>
+          )
+        }
+      >
+        <p className="text-[11px] text-ink3">{COMPANY_DELETE_BLOCK}</p>
+      </DetailDialog>
 
       {editing && permissions.manage_companies && (
         <CompanyFormModal

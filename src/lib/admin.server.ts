@@ -39,6 +39,58 @@ export async function authorize(
     },
   };
 }
+const referenceLabels: Record<string, string> = {
+  app_users: "user",
+  journal_entries: "journal entry",
+  journal_events: "journal event",
+  cash_accounts: "cash account",
+  cash_transactions: "cash transaction",
+  cash_flow_reconciliations: "cash reconciliation",
+};
+/**
+ * Rows referencing each id of `table`, discovered from foreign keys in the catalog so new
+ * migrations are covered automatically. `owned` tables hold the record's own configuration
+ * and are removed with it, so they never block a deletion.
+ */
+async function referenceUsage(
+  connection: Pick<PoolClient, "query">,
+  table: "app_users" | "access_profiles",
+  owned: string[],
+  id?: string,
+) {
+  const keys = await connection.query(
+    `SELECT k.conrelid::regclass::text AS source,quote_ident(a.attname) AS column,cl.relname AS name
+     FROM pg_constraint k JOIN pg_class cl ON cl.oid=k.conrelid
+     JOIN pg_attribute a ON a.attrelid=k.conrelid AND a.attnum=k.conkey[1]
+     WHERE k.contype='f' AND k.confrelid=$1::regclass AND array_length(k.conkey,1)=1
+       AND k.confdeltype<>'c' AND NOT (cl.relname=ANY($2::text[]))`,
+    [table, owned],
+  );
+  const usage = new Map<string, Map<string, number>>();
+  for (const key of keys.rows as { source: string; column: string; name: string }[]) {
+    const counts = await connection.query(
+      `SELECT ${key.column}::text AS id,count(*)::int AS n FROM ${key.source}
+       WHERE ${key.column} IS NOT NULL AND ($1::text IS NULL OR ${key.column}::text=$1) GROUP BY 1`,
+      [id ?? null],
+    );
+    for (const row of counts.rows) {
+      const entry = usage.get(row.id) ?? new Map<string, number>();
+      const label = referenceLabels[key.name] ?? key.name.replace(/_/g, " ");
+      entry.set(label, (entry.get(label) ?? 0) + row.n);
+      usage.set(row.id, entry);
+    }
+  }
+  return Object.fromEntries(
+    [...usage].map(([rowId, entry]) => [
+      rowId,
+      [...entry].map(
+        ([label, n]) =>
+          `${n} ${n === 1 ? label : label.endsWith("y") ? label.slice(0, -1) + "ies" : label + "s"}`,
+      ),
+    ]),
+  ) as Record<string, string[]>;
+}
+const profileOwned = ["profile_companies", "accounting_profile_permissions"];
 export async function loadAdmin() {
   const { user, permissions } = await authorize();
   const profiles =
@@ -51,6 +103,10 @@ export async function loadAdmin() {
     ? await db().query("SELECT id,name,email,profile_id,active FROM app_users ORDER BY name")
     : { rows: [] };
   return {
+    userUsage: permissions.manage_users ? await referenceUsage(db(), "app_users", []) : {},
+    profileUsage: permissions.manage_profiles
+      ? await referenceUsage(db(), "access_profiles", profileOwned)
+      : {},
     companies: permissions.manage_profiles
       ? ((await db().query("SELECT id,name FROM companies ORDER BY name")).rows as {
           id: string;
@@ -223,4 +279,61 @@ export async function loadAudit(page: number, companyId?: string, search = "", a
     ],
   );
   return { events: result.rows.slice(0, 100) as AuditEvent[], hasMore: result.rows.length > 100 };
+}
+export async function deleteUser(id: string) {
+  const { user } = await authorize("manage_users");
+  if (id === user.id) throw new Error("You cannot delete your own user.");
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);
+    const links = (await referenceUsage(client, "app_users", [], id))[id];
+    if (links?.length)
+      throw new Error(`This user is linked to ${links.join(", ")}. Deactivate it instead.`);
+    const removed = await client.query("DELETE FROM app_users WHERE id=$1 RETURNING id", [id]);
+    if (!removed.rowCount) throw new Error("User not found.");
+    const admins = await client.query(
+      "SELECT u.id FROM app_users u JOIN access_profiles p ON p.id=u.profile_id WHERE u.active AND p.system_admin",
+    );
+    if (!admins.rowCount) throw new Error("Keep at least one active administrator.");
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    if ((e as { code?: string }).code === "23503")
+      throw new Error("This user has linked records. Deactivate it instead.");
+    throw e;
+  } finally {
+    client.release();
+  }
+  return { ok: true };
+}
+export async function deleteProfile(id: string) {
+  const { user } = await authorize("manage_profiles");
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [user.id]);
+    const profile = await client.query(
+      "SELECT system_admin FROM access_profiles WHERE id=$1 FOR UPDATE",
+      [id],
+    );
+    if (!profile.rowCount) throw new Error("Profile not found.");
+    if (profile.rows[0].system_admin) throw new Error("The administrator profile is protected.");
+    const links = (await referenceUsage(client, "access_profiles", profileOwned, id))[id];
+    if (links?.length) throw new Error(`This profile is linked to ${links.join(", ")}.`);
+    for (const table of profileOwned)
+      await client.query(`DELETE FROM ${table} WHERE profile_id=$1`, [id]);
+    await client.query("DELETE FROM access_profiles WHERE id=$1", [id]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    if ((e as { code?: string }).code === "23503")
+      throw new Error("This profile has linked records and cannot be deleted.");
+    throw e;
+  } finally {
+    client.release();
+  }
+  return { ok: true };
 }

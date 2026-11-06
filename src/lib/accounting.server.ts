@@ -15,6 +15,7 @@ import type { PoolClient } from "pg";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
 import { normalizedFx, money } from "./transaction-fx";
 import { revalueAtClose } from "./fx-close.server";
+import type { ContactUsage } from "./contact-usage";
 
 export function persona(
   user: { name: string },
@@ -68,6 +69,36 @@ export async function cashAccountLinks(
     [companyId],
   );
   return result.rows;
+}
+
+/** Counts records outside the ledger state that reference customers or vendors. Callers authorize. */
+export async function contactUsage(
+  companyId: string,
+  connection: Pick<PoolClient, "query"> = db(),
+  id?: string,
+): Promise<ContactUsage> {
+  const [lines, files] = await Promise.all([
+    connection.query(
+      `SELECT 'customers' AS domain,customer_id AS id,count(*)::int AS n FROM journal_entry_lines
+        WHERE company_id=$1 AND customer_id IS NOT NULL AND ($2::text IS NULL OR customer_id=$2) GROUP BY customer_id
+       UNION ALL
+       SELECT 'vendors',vendor_id,count(*)::int FROM journal_entry_lines
+        WHERE company_id=$1 AND vendor_id IS NOT NULL AND ($2::text IS NULL OR vendor_id=$2) GROUP BY vendor_id`,
+      [companyId, id ?? null],
+    ),
+    connection.query(
+      "SELECT vendor_id AS id,count(*)::int AS n FROM vendor_attachments WHERE company_id=$1 AND ($2::text IS NULL OR vendor_id=$2) GROUP BY vendor_id",
+      [companyId, id ?? null],
+    ),
+  ]);
+  const usage: ContactUsage = { customers: {}, vendors: {} };
+  for (const row of lines.rows) {
+    if (row.domain === "customers") usage.customers[row.id] = { journalLines: row.n };
+    else usage.vendors[row.id] = { journalLines: row.n, attachments: 0 };
+  }
+  for (const row of files.rows)
+    usage.vendors[row.id] = { journalLines: usage.vendors[row.id]?.journalLines ?? 0, attachments: row.n };
+  return usage;
 }
 
 export function validateState(state: CompanyState) {
@@ -304,6 +335,15 @@ export async function execute(
         persona(auth.user, auth.permissions),
         closingDate,
       );
+    if (command === "deleteCustomer" || command === "deleteVendor") {
+      const usage = (await contactUsage(input.companyId, client, String(args[0])))[
+        command === "deleteCustomer" ? "customers" : "vendors"
+      ][String(args[0])] as { journalLines: number; attachments?: number } | undefined;
+      if (usage?.journalLines || usage?.attachments)
+        throw new Error(
+          "This record has journal lines or stored attachments and cannot be deleted.",
+        );
+    }
     if (command === "deleteAccount" || command === "updateAccount") {
       const code = String(args[0]);
       const linked = await client.query(

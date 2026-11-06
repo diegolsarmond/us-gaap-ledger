@@ -227,6 +227,8 @@ export const commandArgs = {
   updateCustomer: z.tuple([key, customerSchema]),
   addVendor: z.tuple([vendorSchema]),
   updateVendor: z.tuple([key, vendorSchema]),
+  deleteCustomer: z.tuple([key]),
+  deleteVendor: z.tuple([key]),
   installUsGaapCoa: z.tuple([]),
   addAccount: z.tuple([account]),
   updateAccount: z.tuple([key, account.omit({ code: true })]),

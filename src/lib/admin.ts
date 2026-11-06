@@ -21,3 +21,13 @@ export const getAuditEvents = jsonClient<typeof import("./admin.operations.serve
   "getAuditEvents",
   "GET",
 );
+export const deleteUser = jsonClient<typeof import("./admin.operations.server").deleteUser>(
+  "admin",
+  "deleteUser",
+  "POST",
+);
+export const deleteProfile = jsonClient<typeof import("./admin.operations.server").deleteProfile>(
+  "admin",
+  "deleteProfile",
+  "POST",
+);
