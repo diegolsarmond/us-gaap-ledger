@@ -1,4 +1,5 @@
 import { VendorBankAccounts } from "@/components/vendor-bank-accounts";
+import { formatDate } from "@/lib/format";
 import { ContactActivity } from "@/components/contact-activity";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -57,6 +58,28 @@ function blankVendor(): VendorInput {
     displayName: "",
     companyName: "",
   };
+}
+function SourceBalance({
+  vendor,
+}: {
+  vendor: Pick<VendorInput, "sourceCurrency" | "sourceOpenBalance" | "sourceBalanceDate">;
+}) {
+  if (vendor.sourceOpenBalance == null) return <span className="text-ink3">Not informed</span>;
+  return (
+    <div className="space-y-1">
+      <p className="whitespace-nowrap font-mono">
+        {vendor.sourceCurrency || "Currency not informed"}{" "}
+        {vendor.sourceOpenBalance.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </p>
+      <p className="text-[11px] text-ink3">
+        As of: {vendor.sourceBalanceDate ? formatDate(vendor.sourceBalanceDate) : "Not informed"}
+      </p>
+      <p className="text-[11px] text-ink3">Imported source value · Not posted to ledger</p>
+    </div>
+  );
 }
 function VendorsPage() {
   const {
@@ -488,8 +511,18 @@ function VendorsPage() {
                       .map((a) => ({ value: a.code, label: a.code + " · " + a.name })),
                   )}
                   {field("sourceOpenBalance", "Opening balance", "number")}
+                  <label className="space-y-1 text-sm" htmlFor="sourceCurrency">
+                    Source currency
+                    <input
+                      id="sourceCurrency"
+                      className={inputClass}
+                      value={draft.sourceCurrency || "Not informed"}
+                      readOnly
+                    />
+                  </label>
                   {field("sourceBalanceDate", "As of (Opening balance date)", "date")}
                 </div>
+                <SourceBalance vendor={draft} />
                 <p className="text-xs text-ink3">
                   Opening balance is a historical source value. Saving it does not create a bill or
                   journal entry. An unknown source date may remain blank.
@@ -705,6 +738,8 @@ function VendorsPage() {
                   <Th>Vendor</Th>
                   <Th>Company</Th>
                   <Th>Phone</Th>
+                  <Th>Source currency</Th>
+                  <Th align="right">Imported opening balance</Th>
                   <Th>Bank currencies</Th>
                   <Th>1099</Th>
                   {customColumn && <Th>{customColumn}</Th>}
@@ -720,6 +755,10 @@ function VendorsPage() {
                     </Td>
                     <Td>{v.companyName || "—"}</Td>
                     <Td>{v.phone || v.mobile || "—"}</Td>
+                    <Td>{v.sourceCurrency ? <Badge>{v.sourceCurrency}</Badge> : "—"}</Td>
+                    <Td align="right">
+                      <SourceBalance vendor={v} />
+                    </Td>
                     <Td>
                       <div className="flex flex-wrap gap-1">
                         {currenciesOf(v).map((c) => (
@@ -753,7 +792,7 @@ function VendorsPage() {
                   </tr>
                 ))}
                 {!visible.length && (
-                  <EmptyRow colSpan={customColumn ? 8 : 7}>
+                  <EmptyRow colSpan={customColumn ? 10 : 9}>
                     {vendors.length
                       ? "No vendors match the current filters."
                       : "No vendors registered for this company."}
@@ -825,6 +864,12 @@ function VendorsPage() {
                 {
                   title: "Payments and accounting",
                   fields: [
+                    { label: "Source currency", value: viewing.sourceCurrency || "Not informed" },
+                    {
+                      label: "Imported opening balance",
+                      value: <SourceBalance vendor={viewing} />,
+                      wide: true,
+                    },
                     { label: "Business ID / SSN", value: viewing.taxId },
                     { label: "Track payments for 1099", value: viewing.track1099 ? "Yes" : "No" },
                     {

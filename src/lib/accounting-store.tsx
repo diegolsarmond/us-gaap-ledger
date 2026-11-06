@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useRef, useState, type Context as ReactContext, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import {
@@ -15,7 +15,12 @@ type AsyncContext = {
   ? (...args: A) => Promise<R>
   : AccountingContextType[K];
 };
-const Context = createContext<AsyncContext | null>(null);
+// Keep a single context instance across HMR re-executions of this module. Route chunks cached
+// by TanStack's code splitter can otherwise hold a stale Provider while consumers read a new one.
+const contextStore = globalThis as typeof globalThis & {
+  __accountingContext?: ReactContext<AsyncContext | null>;
+};
+const Context = (contextStore.__accountingContext ??= createContext<AsyncContext | null>(null));
 export function AccountingProvider({ children }: { children: ReactNode }) {
   const { activeCompany, user, permissions } = useCompanies();
   if (!activeCompany)
