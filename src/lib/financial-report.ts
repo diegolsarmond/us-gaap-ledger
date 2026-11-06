@@ -1,7 +1,12 @@
 import type { Account, JournalEntry } from "./accounting-engine";
 import { accountAmount } from "./coa";
 import { effectiveDimensions } from "./dimensions";
-export type ReportFilters = { from?: string; to?: string; dimensions?: Record<string, string> };
+export type ReportFilters = {
+  from?: string;
+  to?: string;
+  costCenterId?: string;
+  dimensions?: Record<string, string>;
+};
 export function reportRows(
   accounts: Account[],
   journals: JournalEntry[],
@@ -17,6 +22,8 @@ export function reportRows(
       continue;
     for (const line of journal.lines) {
       if (projectId && line.projectId !== projectId) continue;
+      if (filters.costCenterId && (line.costCenterId ?? "__unassigned") !== filters.costCenterId)
+        continue;
       const selections = effectiveDimensions(journal.dimensionValues, line.id);
       if (
         Object.entries(filters.dimensions ?? {}).some(

@@ -18,7 +18,8 @@ export const Route = createFileRoute("/dre")({
   ),
 });
 function IncomeStatementPage() {
-  const { activeCompany, accounts, journals, projects, dimensions } = useAccounting();
+  const { activeCompany, accounts, journals, projects, dimensions, costCenters } = useAccounting();
+  const [costCenterId, setCostCenterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [groupBy, setGroupBy] = useState("");
   const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({});
@@ -27,6 +28,7 @@ function IncomeStatementPage() {
   const rows = reportRows(accounts, journals, undefined, projectId, {
     from,
     to,
+    costCenterId,
     dimensions: dimensionFilters,
   });
   const group = dimensions.find((d) => d.id === groupBy);
@@ -39,6 +41,7 @@ function IncomeStatementPage() {
         rows: reportRows(accounts, journals, undefined, projectId, {
           from,
           to,
+          costCenterId,
           dimensions: { ...dimensionFilters, [group.id]: o.id },
         }),
       }))
@@ -130,6 +133,23 @@ function IncomeStatementPage() {
             </option>
           ))}
         </select>
+        <label>
+          Cost center
+          <select
+            className="ml-2 rounded border border-line p-2"
+            value={costCenterId}
+            onChange={(e) => setCostCenterId(e.target.value)}
+          >
+            <option value="">All cost centers</option>
+            <option value="__unassigned">Unassigned</option>
+            {costCenters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} · {c.name}
+                {c.status === "Inactive" ? " (inactive)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           onClick={() =>
             exportToCsv(

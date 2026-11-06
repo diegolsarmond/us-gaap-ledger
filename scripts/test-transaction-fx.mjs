@@ -564,3 +564,28 @@ console.log("PASS: operational CRUD, stock valuation preservation and linked-his
     "PASS: month-to-date sales tax converts foreign amounts and separates taxable/exempt lines.",
   );
 }
+
+{
+  const { reportRows } = await import("../src/lib/financial-report.ts");
+  const reporting = mappedEngine.getState();
+  const report = reportRows(reporting.accounts, reporting.journals, undefined, undefined, {
+    costCenterId: "ops",
+  });
+  const original = reporting.invoices.find((i) => i.id === mappedInvoice.invoiceId);
+  assert.equal(
+    report.find((a) => a.code === "11999").amount,
+    normalizedFx(original).functionalAmount,
+  );
+  const unassigned = reportRows(reporting.accounts, reporting.journals, undefined, undefined, {
+    costCenterId: "__unassigned",
+  });
+  assert.equal(unassigned.find((a) => a.code === "11999").amount, 0);
+  const empty = reportRows(reporting.accounts, reporting.journals, undefined, undefined, {
+    costCenterId: "ops",
+    from: "2099-01-01",
+  });
+  assert.ok(empty.every((a) => a.amount === 0));
+  console.log(
+    "PASS: financial reports intersect cost centers and dates, preserving unassigned history.",
+  );
+}
