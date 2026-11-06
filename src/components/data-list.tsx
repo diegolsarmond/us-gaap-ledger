@@ -339,7 +339,7 @@ export function DetailDialog({
   open: boolean;
   onClose: () => void;
   title: string;
-  subtitle?: string;
+  subtitle?: string | undefined;
   sections: DetailSection[];
   footer?: ReactNode;
   children?: ReactNode;

@@ -3,6 +3,24 @@ import { ContactActivity } from "@/components/contact-activity";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Plus } from "lucide-react";
+import { loadContactUsage } from "@/lib/accounting";
+import { vendorLinks } from "@/lib/contact-usage";
+import { PageTitle, Panel, Table, Th, Td, Badge, Kpi } from "@/components/ui-kit";
+import {
+  ConfirmDelete,
+  DetailDialog,
+  EmptyRow,
+  IdentityCell,
+  ListToolbar,
+  PaginationBar,
+  RowActions,
+  blockedBy,
+  fieldControl,
+  primaryButton,
+  secondaryButton,
+  usePagination,
+} from "@/components/data-list";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import {
   vendorSchema,
@@ -24,7 +42,7 @@ export const Route = createFileRoute("/vendors")({
     </AccountingProvider>
   ),
 });
-const inputClass = "w-full rounded-md border border-line bg-white p-2 text-sm";
+const inputClass = fieldControl;
 const countryCodes =
   "AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA GS SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW".split(
     " ",
@@ -48,6 +66,7 @@ function VendorsPage() {
     projects,
     addVendor,
     updateVendor,
+    deleteVendor,
     accounts,
     currencies,
     paymentTerms,
@@ -61,6 +80,17 @@ function VendorsPage() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
   const [pending, setPending] = useState(false);
+  const [filter1099, setFilter1099] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("");
+  const [notice, setNotice] = useState("");
+  const [viewing, setViewing] = useState<Vendor | null>(null);
+  const [removing, setRemoving] = useState<Vendor | null>(null);
+  const [removeError, setRemoveError] = useState("");
+  const [removePending, setRemovePending] = useState(false);
+  const usage = useQuery({
+    queryKey: ["contact-usage", activeCompany.id],
+    queryFn: () => loadContactUsage({ data: { companyId: activeCompany.id } }),
+  });
   const writable = userPersona.canCreateJournals;
   const customNames = [
     ...new Set(vendors.flatMap((v) => (v.customFields || []).map((f) => f.name))),
@@ -79,6 +109,7 @@ function VendorsPage() {
     setEditingId(vendor?.id);
     setError("");
     setSaved("");
+    setNotice("");
   }
   function change<K extends keyof VendorInput>(key: K, value: VendorInput[K]) {
     setDraft((previous) => previous && { ...previous, [key]: value });
@@ -183,18 +214,35 @@ function VendorsPage() {
     );
   }
   const customValue = (vendor: Vendor) => vendor.customFields?.find((f) => f.name === customColumn);
+  const term = search.trim().toLowerCase();
+  const currenciesOf = (v: Vendor) => [
+    ...new Set((v.bankAccounts || []).map((b) => b.currency)),
+  ];
+  const linksOf = (v: Vendor) => vendorLinks({ bills }, v, usage.data?.vendors[v.id]);
+  const deleteBlock = (v: Vendor) =>
+    !usage.isSuccess ? "Checking linked records…" : blockedBy(linksOf(v));
+  const billCount = (v: Vendor) =>
+    bills.filter((b) => b.vendorId === v.id || (!b.vendorId && b.vendorName === v.displayName))
+      .length;
   const visible = vendors
-    .filter((v) =>
-      [
-        v.displayName,
-        v.companyName,
-        v.email,
-        v.taxId,
-        ...(v.customFields || []).flatMap((f) => [f.name, f.value]),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+    .filter(
+      (v) =>
+        [
+          v.displayName,
+          v.companyName,
+          v.email,
+          v.phone,
+          v.taxId,
+          ...(v.customFields || []).flatMap((f) => [f.name, f.value]),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(term) &&
+        (!filter1099 || (filter1099 === "yes") === v.track1099) &&
+        (!currencyFilter ||
+          (currencyFilter === "none"
+            ? !currenciesOf(v).length
+            : currenciesOf(v).includes(currencyFilter))),
     )
     .sort((a, b) => {
       if (sortBy === "custom" && customColumn) {
@@ -206,31 +254,55 @@ function VendorsPage() {
       }
       return a.displayName.localeCompare(b.displayName);
     });
+  const paging = usePagination(
+    visible,
+    `${term}|${filter1099}|${currencyFilter}|${sortBy}|${customColumn}`,
+  );
+  const bankCurrencies = [...new Set(vendors.flatMap(currenciesOf))].sort();
+  async function confirmRemove() {
+    if (!removing || removePending) return;
+    setRemovePending(true);
+    setRemoveError("");
+    try {
+      await deleteVendor(removing.id);
+      await usage.refetch();
+      setNotice(`${removing.displayName} deleted.`);
+      setRemoving(null);
+    } catch (e) {
+      setRemoveError(e instanceof Error ? e.message : "Unable to delete.");
+    } finally {
+      setRemovePending(false);
+    }
+  }
   return (
-    <div className="space-y-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Vendors</h1>
-          <p className="text-sm text-ink3">
-            {activeCompany.name} · Company name and vendor display name are required.
-          </p>
-        </div>
-        {writable && (
-          <button className="rounded bg-brand px-4 py-2 text-white" onClick={() => open()}>
-            New vendor
-          </button>
-        )}
-      </div>
+    <div className="space-y-4">
+      <PageTitle
+        title={draft ? (editingId ? "Edit vendor" : "New vendor") : "Vendors"}
+        description={`${activeCompany.name} · Company name and vendor display name are required.`}
+        actions={
+          draft ? (
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={pending}
+              onClick={() => setDraft(null)}
+            >
+              <ArrowLeft className="size-4" /> Back to list
+            </button>
+          ) : writable ? (
+            <button className={primaryButton} onClick={() => open()}>
+              <Plus className="size-4" /> New vendor
+            </button>
+          ) : undefined
+        }
+      />
+      {notice && !draft && (
+        <p role="status" className="text-up">
+          {notice}
+        </p>
+      )}
       {draft ? (
         <>
-          <button
-            type="button"
-            className="text-brand underline"
-            disabled={pending}
-            onClick={() => setDraft(null)}
-          >
-            Back to list
-          </button>
           <form onSubmit={save} className="space-y-4">
             <fieldset disabled={!writable || pending} className="space-y-4">
               <ContactActivity
@@ -549,7 +621,7 @@ function VendorsPage() {
               </section>
               {writable && (
                 <button
-                  className="rounded bg-brand px-4 py-2 text-white disabled:opacity-50"
+                  className={primaryButton}
                   type="submit"
                 >
                   {pending ? "Saving…" : "Save vendor"}
@@ -566,93 +638,270 @@ function VendorsPage() {
         </>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="text-sm">
-              Search vendors
-              <input
-                className={inputClass}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, company, email, tax ID or custom fields"
-              />
-            </label>
-            <label className="text-sm">
-              Custom field column
-              <select
-                className={inputClass}
-                value={customColumn}
-                onChange={(e) => setCustomColumn(e.target.value)}
-              >
-                <option value="">None</option>
-                {customNames.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Sort by
-              <select
-                className={inputClass}
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="name">Display name</option>
-                <option value="custom" disabled={!customColumn}>
-                  Selected custom field
-                </option>
-              </select>
-            </label>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi label="Vendors" value={String(vendors.length)} />
+            <Kpi label="Tracked for 1099" value={String(vendors.filter((v) => v.track1099).length)} />
+            <Kpi
+              label="With bank accounts"
+              value={String(vendors.filter((v) => currenciesOf(v).length).length)}
+            />
+            <Kpi label="Bank currencies" value={String(bankCurrencies.length)} />
           </div>
-          <div className="overflow-x-auto rounded-lg border border-line bg-white">
-            <table className="w-full text-left text-sm">
-              <thead>
+          <ListToolbar
+            search={search}
+            onSearch={setSearch}
+            placeholder="Search by name, company, email, phone, tax ID or custom field…"
+            filters={[
+              {
+                key: "1099",
+                label: "1099",
+                value: filter1099,
+                onChange: setFilter1099,
+                options: [
+                  { value: "yes", label: "Tracked" },
+                  { value: "no", label: "Not tracked" },
+                ],
+              },
+              {
+                key: "currency",
+                label: "Bank currency",
+                value: currencyFilter,
+                onChange: setCurrencyFilter,
+                options: [
+                  ...bankCurrencies.map((c) => ({ value: c, label: c })),
+                  { value: "none", label: "No bank account" },
+                ],
+              },
+              {
+                key: "column",
+                label: "Custom column",
+                allLabel: "None",
+                value: customColumn,
+                onChange: (value) => {
+                  setCustomColumn(value);
+                  if (!value) setSortBy("name");
+                },
+                options: customNames.map((name) => ({ value: name, label: name })),
+              },
+            ]}
+            extra={
+              <label className="block min-w-[9rem] text-[11px] font-medium text-ink3">
+                Sort by
+                <select
+                  className={`${fieldControl} mt-1`}
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="name">Display name</option>
+                  <option value="custom" disabled={!customColumn}>
+                    Selected custom field
+                  </option>
+                </select>
+              </label>
+            }
+          />
+          <Panel title="Vendors" subtitle={`${visible.length} of ${vendors.length} records`}>
+            <Table>
+              <thead className="bg-canvas/50">
                 <tr>
-                  {[
-                    "Display name",
-                    "Company",
-                    "Contact",
-                    "Bank currencies",
-                    ...(customColumn ? [customColumn] : []),
-                    "Action",
-                  ].map((h) => (
-                    <th className="p-3" key={h}>
-                      {h}
-                    </th>
-                  ))}
+                  <Th>Vendor</Th>
+                  <Th>Company</Th>
+                  <Th>Phone</Th>
+                  <Th>Bank currencies</Th>
+                  <Th>1099</Th>
+                  {customColumn && <Th>{customColumn}</Th>}
+                  <Th align="right">Bills</Th>
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
-              <tbody>
-                {visible.map((v) => (
-                  <tr key={v.id} className="border-t border-line">
-                    <td className="p-3">{v.displayName}</td>
-                    <td className="p-3">{v.companyName || "—"}</td>
-                    <td className="p-3">{v.email || v.phone || "—"}</td>
-                    <td className="p-3">
-                      {(v.bankAccounts || [])
-                        .map((b) => b.currency)
-                        .filter((c, i, a) => a.indexOf(c) === i)
-                        .join(", ") || "—"}
-                    </td>
-                    {customColumn && <td className="p-3">{customValue(v)?.value || "—"}</td>}
-                    <td className="p-3">
-                      <button className="text-brand underline" onClick={() => open(v)}>
-                        {writable ? "Edit" : "View details"}
-                      </button>
-                    </td>
+              <tbody className="divide-y divide-line/70">
+                {paging.pageRows.map((v) => (
+                  <tr key={v.id} className="transition-colors hover:bg-brand/[0.03]">
+                    <Td>
+                      <IdentityCell title={v.displayName} subtitle={v.email || undefined} />
+                    </Td>
+                    <Td>{v.companyName || "—"}</Td>
+                    <Td>{v.phone || v.mobile || "—"}</Td>
+                    <Td>
+                      <div className="flex flex-wrap gap-1">
+                        {currenciesOf(v).map((c) => (
+                          <Badge key={c}>{c}</Badge>
+                        ))}
+                        {!currenciesOf(v).length && <span className="text-ink3">—</span>}
+                      </div>
+                    </Td>
+                    <Td>
+                      {v.track1099 ? <Badge tone="brand">Tracked</Badge> : <span className="text-ink3">—</span>}
+                    </Td>
+                    {customColumn && <Td>{customValue(v)?.value || "—"}</Td>}
+                    <Td align="right">{billCount(v)}</Td>
+                    <Td align="right">
+                      <RowActions
+                        onView={() => setViewing(v)}
+                        onEdit={() => open(v)}
+                        edit={{ hidden: !writable }}
+                        onDelete={() => {
+                          setRemoving(v);
+                          setRemoveError("");
+                          setNotice("");
+                        }}
+                        remove={{ hidden: !writable, blocked: deleteBlock(v) }}
+                      />
+                    </Td>
                   </tr>
                 ))}
+                {!visible.length && (
+                  <EmptyRow colSpan={customColumn ? 8 : 7}>
+                    {vendors.length
+                      ? "No vendors match the current filters."
+                      : "No vendors registered for this company."}
+                  </EmptyRow>
+                )}
               </tbody>
-            </table>
-            {!visible.length && (
-              <p className="p-4 text-sm text-ink3">
-                {vendors.length
-                  ? "No matching vendors."
-                  : "No vendors registered for this company."}
-              </p>
-            )}
-          </div>
+            </Table>
+            <PaginationBar {...paging} />
+          </Panel>
         </>
       )}
+      <DetailDialog
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.displayName ?? ""}
+        subtitle={viewing?.companyName}
+        sections={
+          viewing
+            ? [
+                {
+                  title: "Contact",
+                  fields: [
+                    { label: "Company name", value: viewing.companyName },
+                    { label: "Display name", value: viewing.displayName },
+                    {
+                      label: "Contact person",
+                      value: [
+                        viewing.title,
+                        viewing.firstName,
+                        viewing.middleName,
+                        viewing.lastName,
+                        viewing.suffix,
+                      ]
+                        .filter(Boolean)
+                        .join(" "),
+                    },
+                    { label: "Email", value: viewing.email },
+                    { label: "Cc / Bcc", value: [viewing.cc, viewing.bcc].filter(Boolean).join(" · ") },
+                    { label: "Phone", value: viewing.phone },
+                    { label: "Mobile", value: viewing.mobile },
+                    { label: "Fax", value: viewing.fax },
+                    { label: "Website", value: viewing.website },
+                    { label: "Print on checks as", value: viewing.printOnCheckAs },
+                    {
+                      label: "Address",
+                      wide: true,
+                      value: (
+                        <span className="whitespace-pre-line">
+                          {[
+                            viewing.streetAddress,
+                            viewing.streetAddress2,
+                            ...(viewing.addressLines || []).map((r) => r.line),
+                            [viewing.city, viewing.stateProvince, viewing.zipCode]
+                              .filter(Boolean)
+                              .join(", "),
+                            countryOptions.find((c) => c.value === viewing.country)?.label ||
+                              viewing.country,
+                          ]
+                            .filter(Boolean)
+                            .join("\n")}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  title: "Payments and accounting",
+                  fields: [
+                    { label: "Business ID / SSN", value: viewing.taxId },
+                    { label: "Track payments for 1099", value: viewing.track1099 ? "Yes" : "No" },
+                    {
+                      label: "Terms",
+                      value: paymentTerms.find((t) => t.id === viewing.paymentTermId)?.name,
+                    },
+                    { label: "Account no.", value: viewing.accountNumber },
+                    {
+                      label: "Default expense category",
+                      value: viewing.defaultExpenseAccountCode
+                        ? `${viewing.defaultExpenseAccountCode} · ${accounts.find((a) => a.code === viewing.defaultExpenseAccountCode)?.name ?? ""}`
+                        : "",
+                    },
+                    {
+                      label: "Cost / billing rate",
+                      value: [viewing.costRate, viewing.billingRate]
+                        .map((r) => (r == null ? "—" : r.toFixed(2)))
+                        .join(" / "),
+                    },
+                    {
+                      label: "Bank accounts",
+                      wide: true,
+                      value: (viewing.bankAccounts || [])
+                        .map((b) => [b.label, b.currency, b.bankName].filter(Boolean).join(" · "))
+                        .join(", "),
+                    },
+                  ],
+                },
+                {
+                  title: "Other",
+                  fields: [
+                    ...(viewing.customFields || []).map((f) => ({ label: f.name, value: f.value })),
+                    { label: "Linked records", value: linksOf(viewing).join(" · ") || "None" },
+                    {
+                      label: "Notes",
+                      wide: true,
+                      value: <span className="whitespace-pre-line">{viewing.notes}</span>,
+                    },
+                  ],
+                },
+              ]
+            : []
+        }
+        footer={
+          viewing &&
+          writable && (
+            <>
+              {!deleteBlock(viewing) && (
+                <button
+                  type="button"
+                  className={`${secondaryButton} text-down`}
+                  onClick={() => {
+                    setRemoving(viewing);
+                    setRemoveError("");
+                    setViewing(null);
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                type="button"
+                className={primaryButton}
+                onClick={() => {
+                  open(viewing);
+                  setViewing(null);
+                }}
+              >
+                Edit
+              </button>
+            </>
+          )
+        }
+      />
+      <ConfirmDelete
+        target={removing?.displayName ?? null}
+        entity="vendor"
+        pending={removePending}
+        error={removeError}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => void confirmRemove()}
+      />
     </div>
   );
 }
