@@ -8,7 +8,15 @@ export const companySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(2).max(200),
   tradeName: z.string().trim().max(200).default(""),
-  entity: z.enum(["LLC", "Corporation", "Partnership", "Sole Proprietorship", "Nonprofit"]),
+  entity: z.enum([
+    "LLC",
+    "Corporation",
+    "Partnership",
+    "Sole Proprietorship",
+    "Nonprofit",
+    "S. DE R.L. DE C.V.",
+    "Unspecified",
+  ]),
   federalTaxClassification: z
     .enum([
       "Unspecified",
@@ -19,7 +27,13 @@ export const companySchema = z.object({
       "Tax Exempt",
     ])
     .default("Unspecified"),
-  state: z.string().refine((s) => US_STATES.includes(s), "Invalid state"),
+  country: z.enum(["US", "MX"]).default("US"),
+  primaryCurrency: z.enum(["USD", "MXN"]).default("USD"),
+  taxId: z.string().trim().max(40).default(""),
+  accountantName: z.string().trim().max(200).default(""),
+  accountantEmail: z.union([z.literal(""), z.string().email().max(254)]).default(""),
+  municipality: z.string().trim().max(120).default(""),
+  state: z.string().trim().min(1).max(120),
   ein: z
     .string()
     .trim()
@@ -28,10 +42,7 @@ export const companySchema = z.object({
     .default(""),
   address: z.string().trim().max(300).default(""),
   city: z.string().trim().max(120).default(""),
-  addressState: z
-    .string()
-    .refine((s) => !s || US_STATES.includes(s))
-    .default(""),
+  addressState: z.string().trim().max(120).default(""),
   zip: z
     .string()
     .regex(/^(?:\d{5}(?:-\d{4})?)?$/)

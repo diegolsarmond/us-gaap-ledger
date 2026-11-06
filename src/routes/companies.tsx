@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
 import { saveCompany } from "@/lib/companies";
-import { companySchema, US_STATES, formatEin, formatUsPhone, type Company } from "@/lib/company-model";
+import { companySchema, formatEin, type Company } from "@/lib/company-model";
 import { PageTitle, Panel } from "@/components/ui-kit";
 import {
   Dialog,
@@ -29,10 +29,9 @@ function CompanyFormModal({
   pending: boolean;
   serverError: string;
 }) {
-  const value = (key: keyof Company) =>
-    editing !== "new" ? String(editing[key] ?? "") : "";
+  const value = (key: keyof Company) => (editing !== "new" ? String(editing[key] ?? "") : "");
 
-  const [phone, setPhone] = useState(() => (editing !== "new" ? formatUsPhone(editing.phone || "") : ""));
+  const [phone, setPhone] = useState(() => (editing !== "new" ? editing.phone || "" : ""));
   const [email, setEmail] = useState(() => (editing !== "new" ? editing.email || "" : ""));
   const [emailError, setEmailError] = useState("");
   const [phoneError, setPhoneError] = useState("");
@@ -58,9 +57,9 @@ function CompanyFormModal({
       setPhoneError("");
       return true;
     }
-    const valid = digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+    const valid = digits.length >= 10 && digits.length <= 15;
     if (!valid) {
-      setPhoneError("US phone requires 10 digits: (XXX) XXX-XXXX");
+      setPhoneError("Phone requires 10 to 15 digits");
       return false;
     }
     setPhoneError("");
@@ -68,7 +67,7 @@ function CompanyFormModal({
   }
 
   function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const formatted = formatUsPhone(e.target.value);
+    const formatted = e.target.value;
     setPhone(formatted);
     if (phoneError) validatePhone(formatted);
   }
@@ -99,13 +98,16 @@ function CompanyFormModal({
           <DialogTitle>{editing === "new" ? "New company" : "Edit company"}</DialogTitle>
           <DialogDescription>
             {editing === "new"
-              ? "Register a new United States company. Base currency USD."
+              ? "Register a company. Accounting and reporting currency: USD."
               : `Edit company profile and settings for ${editing.name}.`}
           </DialogDescription>
         </DialogHeader>
 
         {serverError && (
-          <p role="alert" className="text-down text-sm bg-down/10 border border-down/20 rounded p-3">
+          <p
+            role="alert"
+            className="text-down text-sm bg-down/10 border border-down/20 rounded p-3"
+          >
             {serverError}
           </p>
         )}
@@ -137,6 +139,42 @@ function CompanyFormModal({
               />
             </label>
 
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>Country (US / MX)</span>
+              <input name="country" defaultValue={value("country") || "US"} className={control} />
+            </label>
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>Primary currency (USD / MXN)</span>
+              <input
+                name="primaryCurrency"
+                defaultValue={value("primaryCurrency") || "USD"}
+                className={control}
+              />
+            </label>
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>RFC / local tax ID</span>
+              <input name="taxId" defaultValue={value("taxId")} className={control} />
+            </label>
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>Municipality</span>
+              <input name="municipality" defaultValue={value("municipality")} className={control} />
+            </label>
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>Accountant</span>
+              <input
+                name="accountantName"
+                defaultValue={value("accountantName")}
+                className={control}
+              />
+            </label>
+            <label className="text-sm flex flex-col gap-1 text-ink">
+              <span>Accountant email</span>
+              <input
+                name="accountantEmail"
+                defaultValue={value("accountantEmail")}
+                className={control}
+              />
+            </label>
             <label className="text-sm flex flex-col gap-1 text-ink">
               <span>EIN (optional)</span>
               <input
@@ -172,18 +210,12 @@ function CompanyFormModal({
 
             <label className="text-sm flex flex-col gap-1 text-ink">
               <span>Address state</span>
-              <select
+              <input
                 name="addressState"
+                maxLength={120}
                 defaultValue={value("addressState")}
                 className={control}
-              >
-                <option value="">Select state</option>
-                {US_STATES.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
 
             <label className="text-sm flex flex-col gap-1 text-ink">
@@ -198,14 +230,14 @@ function CompanyFormModal({
             </label>
 
             <label className="text-sm flex flex-col gap-1 text-ink">
-              <span>Phone (US format)</span>
+              <span>Phone</span>
               <input
                 name="phone"
                 type="tel"
                 value={phone}
                 onChange={handlePhoneChange}
                 onBlur={() => validatePhone(phone)}
-                maxLength={18}
+                maxLength={40}
                 className={`${control} ${phoneError ? "border-down ring-1 ring-down" : ""}`}
                 placeholder="(555) 000-0000"
               />
@@ -259,19 +291,13 @@ function CompanyFormModal({
               <span>
                 State of formation <span className="text-down">*</span>
               </span>
-              <select
+              <input
                 name="state"
                 required
+                maxLength={120}
                 defaultValue={value("state")}
                 className={control}
-              >
-                <option value="">Select state</option>
-                {US_STATES.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
 
             <label className="text-sm flex flex-col gap-1 text-ink">
@@ -363,7 +389,12 @@ function CompaniesPage() {
       if (editing === "new" && data.active) selectCompany(result.id);
       setEditing(null);
     } catch (e) {
-      if (e && typeof e === "object" && "issues" in e && Array.isArray((e as { issues: { message: string }[] }).issues)) {
+      if (
+        e &&
+        typeof e === "object" &&
+        "issues" in e &&
+        Array.isArray((e as { issues: { message: string }[] }).issues)
+      ) {
         setError((e as { issues: { message: string }[] }).issues.map((i) => i.message).join(" · "));
       } else {
         setError(e instanceof Error ? e.message : "Unable to save.");
@@ -377,7 +408,7 @@ function CompaniesPage() {
     <div className="space-y-4">
       <PageTitle
         title="Companies"
-        description="United States companies · base currency USD"
+        description="Company registration · accounting currency USD"
         actions={
           permissions.manage_companies ? (
             <button
@@ -410,7 +441,9 @@ function CompaniesPage() {
                 <div>
                   <p className="font-medium text-ink">{c.name}</p>
                   <p className="text-xs text-ink3">
-                    {c.entity} · {c.state} · {formatEin(c.ein)} · {c.phone ? formatUsPhone(c.phone) + " · " : ""}{c.active ? "Active" : "Inactive"}
+                    {c.entity} · {c.state} · {c.taxId || formatEin(c.ein)} · {c.country} ·{" "}
+                    {c.primaryCurrency} · {c.phone ? c.phone + " · " : ""}
+                    {c.active ? "Active" : "Inactive"}
                   </p>
                 </div>
                 {permissions.manage_companies && (

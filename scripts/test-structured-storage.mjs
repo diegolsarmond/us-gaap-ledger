@@ -131,6 +131,7 @@ try {
     await client.query("DROP TABLE cash_flow_reconciliations");
   await migration("018_structured_ledger.sql");
   await migration("018_structured_ledger.sql");
+  await migration("021_seed_accounts.sql"); // Retired seed must also skip before migration 023.
   await migration("019_structured_audit.sql");
   await migration("019_structured_audit.sql");
   await migration("020_journal_entries.sql");
@@ -140,6 +141,7 @@ try {
   await migration("023_account_detail_type.sql");
   await migration("025_management_dimensions.sql");
   await migration("025_management_dimensions.sql");
+  await migration("026_international_company_registration.sql");
   const dimension = {
     id: "transport",
     code: "LOGISTICS",
@@ -154,17 +156,33 @@ try {
   await replaceLedger(client, company, "dimensions", [dimension]);
   await client.query("COMMIT");
   assert.deepEqual(await readLedger(client, company, "dimensions"), [dimension]);
+  await assert.rejects(
+    () => migration("024_updated_coa_template.sql"),
+    /Clear Choice Filter LLC .* not found/,
+  );
+  await client.query("ROLLBACK");
   await client.query(
-    "INSERT INTO companies(id,name,entity,state) VALUES('90918cc9-bcda-4f10-99ee-20e47f07cb8f','COA template test','LLC','FL')",
+    "INSERT INTO companies(id,name,entity,state) VALUES('d11094b7-d2c1-451e-9e09-fdb489f2b96c','Clear Choice Filter LLC','LLC','FL')",
   );
   await migration("024_updated_coa_template.sql");
   await client.query(
-    "UPDATE ledger_accounts SET name='Custom checking name' WHERE company_id='90918cc9-bcda-4f10-99ee-20e47f07cb8f' AND id='10200'",
+    "UPDATE ledger_accounts SET name='Custom checking name' WHERE company_id='d11094b7-d2c1-451e-9e09-fdb489f2b96c' AND id='10200'",
+  );
+  const beforeLegacySeed = await readLedger(
+    client,
+    "d11094b7-d2c1-451e-9e09-fdb489f2b96c",
+    "accounts",
+  );
+  await migration("021_seed_accounts.sql");
+  assert.deepEqual(
+    await readLedger(client, "d11094b7-d2c1-451e-9e09-fdb489f2b96c", "accounts"),
+    beforeLegacySeed,
+    "legacy seed must preserve the updated COA",
   );
   await migration("024_updated_coa_template.sql");
   const seeded = (
     await client.query(
-      "SELECT * FROM ledger_accounts WHERE company_id='90918cc9-bcda-4f10-99ee-20e47f07cb8f'",
+      "SELECT * FROM ledger_accounts WHERE company_id='d11094b7-d2c1-451e-9e09-fdb489f2b96c'",
     )
   ).rows;
   assert.equal(seeded.length, 104);

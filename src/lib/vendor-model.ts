@@ -1,49 +1,124 @@
 import { z } from "zod";
 
 const optionalText = z.string().trim().max(300).default("");
-export const vendorSchema = z.object({
-  displayName: z.string().trim().min(1, "Enter a display name.").max(120),
-  title: optionalText,
-  firstName: optionalText,
-  middleName: optionalText,
-  lastName: optionalText,
-  suffix: optionalText,
-  companyName: optionalText,
-  sourceOpenBalance: z.number().finite().nullable().optional(),
-  sourceBalanceDate: z.string().date().nullable().optional(),
-  printOnCheckAs: optionalText,
-  email: z.union([z.literal(""), z.string().trim().email().max(254)]).default(""),
-  phone: optionalText,
-  mobile: optionalText,
-  fax: optionalText,
-  website: z
-    .union([
-      z.literal(""),
-      z
-        .string()
-        .trim()
-        .url()
-        .max(500)
-        .refine((v) => /^https?:\/\//i.test(v), "Use http:// or https://."),
-    ])
-    .default(""),
-  streetAddress: optionalText,
-  city: optionalText,
-  stateProvince: optionalText,
-  zipCode: optionalText,
-  country: optionalText,
-  paymentTermId: optionalText,
-  currency: z.union([z.literal(""), z.string().regex(/^[A-Z]{3}$/)]).default(""),
-  defaultExpenseAccountCode: optionalText,
-  accountNumber: optionalText,
-  taxId: optionalText,
-  track1099: z.boolean().default(false),
-  bankName: optionalText,
-  routingNumber: optionalText,
-  bankAccountNumber: optionalText,
-  bankAccountType: z.enum(["", "Checking", "Savings"]).default(""),
-  notes: z.string().trim().max(10000).default(""),
-});
+const emailList = z
+  .string()
+  .trim()
+  .max(2000)
+  .default("")
+  .refine(
+    (value) =>
+      !value ||
+      value.split(/[;,]/).every((email) => z.string().email().safeParse(email.trim()).success),
+    "Enter valid email addresses separated by commas or semicolons.",
+  );
+const optionalRate = z.number().finite().min(0).nullable().default(null);
+export const vendorCustomFieldSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    type: z.enum(["Text", "Number", "Date", "Checkbox"]),
+    value: z.string().max(2000),
+  })
+  .superRefine((field, ctx) => {
+    if (!field.value) return;
+    const valid =
+      field.type === "Text" ||
+      (field.type === "Number" &&
+        /^-?\d+(\.\d+)?$/.test(field.value) &&
+        Number.isFinite(Number(field.value))) ||
+      (field.type === "Date" && z.string().date().safeParse(field.value).success) ||
+      (field.type === "Checkbox" && ["true", "false"].includes(field.value));
+    if (!valid)
+      ctx.addIssue({
+        code: "custom",
+        path: ["value"],
+        message: "Value does not match the custom field type.",
+      });
+  });
+export const vendorSchema = z
+  .object({
+    displayName: z.string().trim().min(1, "Enter a display name.").max(120),
+    title: optionalText,
+    firstName: optionalText,
+    middleName: optionalText,
+    lastName: optionalText,
+    suffix: optionalText,
+    companyName: z.string().trim().min(1, "Enter the company name.").max(300),
+    sourceOpenBalance: z.number().finite().nullable().optional(),
+    sourceBalanceDate: z.string().date().nullable().optional(),
+    printOnCheckAs: optionalText,
+    email: z.union([z.literal(""), z.string().trim().email().max(254)]).default(""),
+    cc: emailList,
+    bcc: emailList,
+    phone: optionalText,
+    mobile: optionalText,
+    fax: optionalText,
+    otherContact: optionalText,
+    website: z
+      .union([
+        z.literal(""),
+        z
+          .string()
+          .trim()
+          .url()
+          .max(500)
+          .refine((v) => /^https?:\/\//i.test(v), "Use http:// or https://."),
+      ])
+      .default(""),
+    streetAddress: optionalText,
+    streetAddress2: optionalText,
+    addressLines: z
+      .array(z.object({ line: z.string().trim().min(1).max(300) }))
+      .max(10)
+      .default([]),
+    city: optionalText,
+    stateProvince: optionalText,
+    zipCode: optionalText,
+    country: optionalText,
+    paymentTermId: optionalText,
+    currency: z.union([z.literal(""), z.string().regex(/^[A-Z]{3}$/)]).default(""),
+    defaultExpenseAccountCode: optionalText,
+    accountNumber: optionalText,
+    taxId: optionalText,
+    track1099: z.boolean().default(false),
+    costRate: optionalRate,
+    billingRate: optionalRate,
+    bankName: optionalText,
+    routingNumber: z
+      .string()
+      .trim()
+      .regex(/^(?:\d{9})?$/, "Routing number must contain exactly 9 digits.")
+      .default(""),
+    bankAccountNumber: z
+      .string()
+      .trim()
+      .regex(/^(?:\d{5,17})?$/, "Bank account number must contain 5 to 17 digits.")
+      .default(""),
+    bankAccountType: z.enum(["", "Checking", "Savings"]).default(""),
+    notes: z.string().trim().max(10000).default(""),
+    customFields: z.array(vendorCustomFieldSchema).max(50).default([]),
+  })
+  .superRefine((vendor, ctx) => {
+    if (!!vendor.routingNumber !== !!vendor.bankAccountNumber)
+      ctx.addIssue({
+        code: "custom",
+        path: [vendor.routingNumber ? "bankAccountNumber" : "routingNumber"],
+        message: "Enter both the routing number and bank account number for ACH payments.",
+      });
+    if (vendor.sourceBalanceDate && vendor.sourceOpenBalance == null)
+      ctx.addIssue({
+        code: "custom",
+        path: ["sourceOpenBalance"],
+        message: "Enter an opening balance for this date.",
+      });
+    const names = vendor.customFields.map((f) => f.name.toLowerCase());
+    if (new Set(names).size !== names.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["customFields"],
+        message: "Custom field names must be unique.",
+      });
+  });
 export type VendorInput = z.infer<typeof vendorSchema>;
 export type Vendor = VendorInput & { id: string };
 export const MAX_VENDOR_ATTACHMENT_BYTES = 20 * 1024 * 1024;

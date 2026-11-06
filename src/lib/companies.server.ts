@@ -23,6 +23,12 @@ type CompanyInput = z.infer<typeof companySchema>;
 // Registration fields and their typed columns in companies (017_company_columns.sql).
 const COLUMNS = [
   ["name", "name"],
+  ["country", "country"],
+  ["primaryCurrency", "primary_currency"],
+  ["taxId", "tax_id"],
+  ["accountantName", "accountant_name"],
+  ["accountantEmail", "accountant_email"],
+  ["municipality", "municipality"],
   ["tradeName", "trade_name"],
   ["entity", "entity"],
   ["federalTaxClassification", "federal_tax_classification"],

@@ -1,6 +1,11 @@
--- Company-specific update matching the company in 021_seed_accounts.sql.
+-- Company-specific COA for Clear Choice Filter LLC; never seed other clients.
 -- Existing names, classifications, descriptions, positions and journal links are preserved.
 BEGIN;
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM companies WHERE id='d11094b7-d2c1-451e-9e09-fdb489f2b96c'::uuid) THEN
+  RAISE EXCEPTION 'Clear Choice Filter LLC (d11094b7-d2c1-451e-9e09-fdb489f2b96c) not found. Register the company before importing its COA.';
+ END IF;
+END $$;
 WITH template(code,name,type,balance_type,description,subgroup,maturity,is_contra,track1099,parent_account_code,detail_type) AS (VALUES
 ('10100','Cash on Hand / Petty Cash','Asset','Debit','Cash on Hand / Petty Cash','Current Assets','Current',false,false,NULL,'Cash on Hand / Petty Cash'),
 ('10200','Operating Checking Account','Asset','Debit','Operating Checking Account (Banco Conta Corrente)','Current Assets','Current',false,false,NULL,'Checking / Operating Checking Account'),
@@ -106,7 +111,7 @@ WITH template(code,name,type,balance_type,description,subgroup,maturity,is_contr
 ('80300','Foreign Exchange Gain / Loss','Other Income','Credit','Foreign Exchange Gain / Loss (Variação Cambial / Ganho ou Perda de Câmbio)','Other Income & Expenses','Not Applicable',false,false,NULL,'Foreign Exchange (FX) Gain / Loss'),
 ('90100','Interest Expense','Other Expense','Debit','Interest Expense (Despesas com Juros de Empréstimos e Financiamentos)','Other Income & Expenses','Not Applicable',false,false,NULL,'Interest Expense on Financing & Loans'),
 ('90200','Income Tax Expense','Other Expense','Debit','Income Tax Expense (Imposto de Renda / Corporate Income Tax)','Other Income & Expenses','Not Applicable',false,false,NULL,'Corporate Income Tax Expense')
-), company AS (SELECT id FROM companies WHERE id='90918cc9-bcda-4f10-99ee-20e47f07cb8f'::uuid)
+), company AS (SELECT id FROM companies WHERE id='d11094b7-d2c1-451e-9e09-fdb489f2b96c'::uuid)
 INSERT INTO ledger_accounts(company_id,id,position,code,name,type,balance_type,description,subgroup,maturity,is_contra,track1099,parent_account_code,detail_type)
 SELECT company.id,t.code,coalesce((SELECT max(position)+1 FROM ledger_accounts WHERE company_id=company.id),0)+row_number() OVER (ORDER BY t.code)::integer-1,t.code,t.name,t.type,t.balance_type,t.description,t.subgroup,t.maturity,t.is_contra,t.track1099,t.parent_account_code,t.detail_type
 FROM template t CROSS JOIN company

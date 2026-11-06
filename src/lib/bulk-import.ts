@@ -79,9 +79,15 @@ export function importColumns(domain: ImportDomain): ImportColumn[] {
     while (
       schema instanceof z.ZodOptional ||
       schema instanceof z.ZodDefault ||
-      schema instanceof z.ZodNullable
+      schema instanceof z.ZodNullable ||
+      schema instanceof z.ZodEffects
     )
-      schema = schema instanceof z.ZodDefault ? schema.removeDefault() : schema.unwrap();
+      schema =
+        schema instanceof z.ZodDefault
+          ? schema.removeDefault()
+          : schema instanceof z.ZodEffects
+            ? schema.innerType()
+            : schema.unwrap();
     if (schema instanceof z.ZodArray) return;
     if (schema instanceof z.ZodObject) {
       for (const [key, value] of Object.entries(schema.shape))

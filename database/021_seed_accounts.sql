@@ -1,8 +1,21 @@
 DO $$
 DECLARE
-  v_company_id uuid := '90918cc9-bcda-4f10-99ee-20e47f07cb8f';
+  v_company_id uuid := 'd11094b7-d2c1-451e-9e09-fdb489f2b96c'; -- Clear Choice Filter LLC
   v_has_data_col boolean;
 BEGIN
+  -- The legacy 91-account seed must not overwrite the updated 104-account COA.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'ledger_accounts'::regclass
+      AND attname = 'data' AND NOT attisdropped
+  ) OR EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'ledger_accounts'::regclass
+      AND attname = 'detail_type' AND NOT attisdropped
+  ) THEN
+    RAISE NOTICE 'Legacy COA seed skipped. Use 024_updated_coa_template.sql for Clear Choice Filter LLC (%).', v_company_id;
+    RETURN;
+  END IF;
   SELECT EXISTS (
     SELECT 1 FROM pg_attribute 
     WHERE attrelid = 'ledger_accounts'::regclass 

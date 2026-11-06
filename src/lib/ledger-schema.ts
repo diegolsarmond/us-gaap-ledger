@@ -40,7 +40,8 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   ),
   vendors: schema(
     contact +
-      " printOnCheckAs streetAddress city stateProvince zipCode country defaultExpenseAccountCode accountNumber track1099:boolean bankName routingNumber bankAccountNumber bankAccountType",
+      " printOnCheckAs cc bcc otherContact streetAddress streetAddress2 city stateProvince zipCode country defaultExpenseAccountCode accountNumber track1099:boolean costRate?:numeric billingRate?:numeric bankName routingNumber bankAccountNumber bankAccountType",
+    { addressLines: "line", customFields: "name type value" },
   ),
   accounts: schema(
     "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode?",
