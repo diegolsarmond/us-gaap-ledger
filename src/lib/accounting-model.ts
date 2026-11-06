@@ -23,6 +23,7 @@ export const account = z.object({
   balanceType: z.enum(["Debit", "Credit"]),
   description: text,
   subgroup: z.string().trim().max(120).optional(),
+  detailType: z.string().trim().max(200).optional(),
   maturity: z.enum(["Current", "Noncurrent", "Not Applicable", "Unclassified"]).optional(),
   isContra: z.boolean().optional(),
   track1099: z.boolean().optional(),

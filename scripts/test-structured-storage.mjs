@@ -69,7 +69,7 @@ try {
                 : "Example";
       if (field.path === "id" || field.path === "code")
         value = domain === "currencies" && field.path === "code" ? "USD" : "record-1";
-      if (field.path === "parentCode") continue;
+      if (field.path === "parentCode" || field.path === "detailType") continue;
       if (field.path === "maturity") value = "Unclassified";
       if (field.path === "type" && domain === "accounts") value = "Asset";
       const keys = field.path.split(".");
@@ -127,6 +127,25 @@ try {
   await migration("020_journal_entries.sql");
   await migration("021_journal_entries_upgrade.sql");
   await migration("022_journal_incomplete_drafts.sql");
+  await migration("023_account_detail_type.sql");
+  await migration("023_account_detail_type.sql");
+  await client.query(
+    "INSERT INTO companies(id,name,entity,state) VALUES('90918cc9-bcda-4f10-99ee-20e47f07cb8f','COA template test','LLC','FL')",
+  );
+  await migration("024_updated_coa_template.sql");
+  await client.query(
+    "UPDATE ledger_accounts SET name='Custom checking name' WHERE company_id='90918cc9-bcda-4f10-99ee-20e47f07cb8f' AND id='10200'",
+  );
+  await migration("024_updated_coa_template.sql");
+  const seeded = (
+    await client.query(
+      "SELECT * FROM ledger_accounts WHERE company_id='90918cc9-bcda-4f10-99ee-20e47f07cb8f'",
+    )
+  ).rows;
+  assert.equal(seeded.length, 104);
+  assert.equal(seeded.find((a) => a.id === "10200").name, "Custom checking name");
+  assert.equal(seeded.find((a) => a.id === "10210").parent_account_code, "10200");
+  assert.equal(seeded.filter((a) => a.track1099).length, 5);
   assert.deepEqual(
     (await client.query("SELECT before_data,after_data FROM system_audit_log WHERE id=$1", [event]))
       .rows[0],
@@ -139,6 +158,7 @@ try {
   for (const [domain, expected] of Object.entries(records)) {
     const rows = await readLedger(client, company, domain);
     assert.deepEqual(rows, [expected], `backfill ${domain}`);
+    if (domain === "accounts") rows[0].detailType = "Checking / Operating Checking Account";
     await client.query("BEGIN");
     await replaceLedger(client, company, domain, rows);
     await client.query("COMMIT");

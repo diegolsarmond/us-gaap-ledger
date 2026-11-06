@@ -36,7 +36,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
       " printOnCheckAs streetAddress city stateProvince zipCode country defaultExpenseAccountCode accountNumber track1099:boolean bankName routingNumber bankAccountNumber bankAccountType",
   ),
   accounts: schema(
-    "code name type balanceType description subgroup? maturity? isContra?:boolean track1099?:boolean parentCode?",
+    "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode?",
   ),
   journals: schema(
     "id date:date memo sourceType sourceId? currency fxRate:numeric status overrideReason? createdBy createdAt",

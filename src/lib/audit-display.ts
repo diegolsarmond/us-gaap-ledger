@@ -21,6 +21,7 @@ const labels: Record<string, string> = {
   balanceType: "Balance type",
   description: "Description",
   subgroup: "Subgroup",
+  detailType: "QBO Detail Type / Managerial Category",
   maturity: "Maturity classification",
   isContra: "Contra account",
   track1099: "Track for Form 1099",

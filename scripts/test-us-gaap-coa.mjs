@@ -14,8 +14,8 @@ const { US_GAAP_COA, validateCoa, totalByType, resolveAccount } = await import("
 const { reportRows } = await import("../src/lib/financial-report.ts");
 const { createAccountingEngine, createInitialCompanyData } =
   await import("../src/lib/accounting-engine.ts");
-assert.equal(US_GAAP_COA.length, 81);
-assert.equal(new Set(US_GAAP_COA.map((a) => a.code)).size, 81);
+assert.equal(US_GAAP_COA.length, 104);
+assert.equal(new Set(US_GAAP_COA.map((a) => a.code)).size, 104);
 validateCoa(US_GAAP_COA);
 const find = (code) => US_GAAP_COA.find((a) => a.code === code);
 for (const code of ["12000", "15200", "15400", "15600", "15800"])
@@ -24,6 +24,35 @@ assert.equal(find("30200").balanceType, "Debit");
 assert.equal(find("48000").balanceType, "Debit");
 assert.equal(find("60200").type, "Operating Expense");
 assert.equal(find("50300").track1099, true);
+assert.deepEqual(
+  US_GAAP_COA.filter((a) => a.track1099)
+    .map((a) => a.code)
+    .sort(),
+  ["50300", "61100", "63100", "63200", "63300"],
+);
+assert.equal(US_GAAP_COA.filter((a) => a.parentCode).length, 21);
+for (const [code, parent] of [
+  ["10210", "10200"],
+  ["10230", "10200"],
+  ["21010", "21000"],
+  ["21150", "21000"],
+  ["27110", "27100"],
+  ["27310", "27300"],
+  ["27410", "27400"],
+])
+  assert.equal(find(code).parentCode, parent);
+assert.ok(US_GAAP_COA.every((a) => a.detailType && a.detailType.length <= 200));
+assert.equal(find("50400").detailType, "Inbound Freight & Freight-In (Air / Ocean / Samples)");
+const { account: accountSchema } = await import("../src/lib/accounting-model.ts");
+assert.equal(accountSchema.parse(find("50400")).detailType, find("50400").detailType);
+assert.equal(
+  accountSchema.safeParse({ ...find("50400"), detailType: "x".repeat(201) }).success,
+  false,
+);
+const { ledgerSchemas } = await import("../src/lib/ledger-schema.ts");
+assert.ok(
+  ledgerSchemas.accounts.fields.some((f) => f.path === "detailType" && f.column === "detail_type"),
+);
 assert.throws(() => validateCoa([{ ...find("10200"), parentCode: "missing" }]), /Parent/);
 assert.throws(
   () =>
@@ -100,5 +129,5 @@ assert.throws(
   /normal balance/,
 );
 console.log(
-  "PASS: 81-account template, contra balances, hierarchy, classification, dated and project reports, complete P&L, legacy mapping and history protection.",
+  "PASS: 104-account template, detail types, 1099 flags, contra balances, hierarchy, classification, dated and project reports, complete P&L, legacy mapping and history protection.",
 );

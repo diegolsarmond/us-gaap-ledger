@@ -32,6 +32,7 @@ export interface Account {
   balanceType: "Debit" | "Credit";
   description: string;
   subgroup?: string | undefined;
+  detailType?: string | undefined;
   maturity?: "Current" | "Noncurrent" | "Not Applicable" | "Unclassified" | undefined;
   isContra?: boolean | undefined;
   track1099?: boolean | undefined;

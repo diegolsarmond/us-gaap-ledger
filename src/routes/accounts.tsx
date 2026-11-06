@@ -64,7 +64,7 @@ function AccountsPage() {
   const [newDescription, setNewDescription] = useState("");
 
   const [details, setDetails] = useState<
-    Pick<Account, "subgroup" | "maturity" | "isContra" | "track1099" | "parentCode">
+    Pick<Account, "subgroup" | "detailType" | "maturity" | "isContra" | "track1099" | "parentCode">
   >({});
   async function installTemplate() {
     setError("");
@@ -79,6 +79,7 @@ function AccountsPage() {
       existing
         ? {
             subgroup: existing.subgroup,
+            detailType: existing.detailType,
             maturity: existing.maturity,
             isContra: existing.isContra,
             track1099: existing.track1099,
@@ -170,6 +171,7 @@ function AccountsPage() {
     const headers = [
       "Account Code",
       "Account Name",
+      "QBO Detail Type / Managerial Category",
       "Category / Type",
       "Normal Balance",
       "Subgroup",
@@ -183,6 +185,7 @@ function AccountsPage() {
     const rows = accounts.map((a) => [
       a.code,
       a.name,
+      a.detailType || "",
       a.type,
       a.balanceType,
       a.subgroup || "",
@@ -213,7 +216,8 @@ function AccountsPage() {
       a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase());
+      (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.detailType || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "ALL" || a.type === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -257,7 +261,7 @@ function AccountsPage() {
                   onClick={() => void installTemplate()}
                   className="rounded-md border border-brand px-3 py-1.5 text-brand text-[12px]"
                 >
-                  Install US GAAP CoA · 81 accounts
+                  Install US GAAP CoA · 104 accounts
                 </button>
               )}
               {userPersona.canCreateJournals && (
@@ -345,7 +349,10 @@ function AccountsPage() {
                           <Td className="font-mono text-[11.5px] font-semibold text-brand">
                             {a.code}
                           </Td>
-                          <Td className="font-medium text-ink text-[12px]">{a.name}</Td>
+                          <Td className="font-medium text-ink text-[12px]">
+                            {a.name}
+                            <div className="text-[11px] font-normal text-ink3">{a.detailType}</div>
+                          </Td>
                           <Td>
                             <Badge
                               tone={
@@ -556,6 +563,16 @@ function AccountsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="text-sm">
+                  QBO Detail Type / Managerial Category
+                  <input
+                    aria-label="QBO Detail Type / Managerial Category"
+                    value={details.detailType || ""}
+                    maxLength={200}
+                    onChange={(e) => setDetails((d) => ({ ...d, detailType: e.target.value }))}
+                    className="mt-1 w-full rounded border border-line p-2"
+                  />
+                </label>
                 <label className="text-sm">
                   Reporting subgroup
                   <input
