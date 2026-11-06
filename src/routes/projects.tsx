@@ -59,11 +59,11 @@ function ProjectsPage() {
     const budgetVariance = p.budget - actualCosts;
     const cashImpact =
       projectInvoices.reduce(
-        (s, i) => s + (i.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+        (s, i) => s + (i.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
         0,
       ) -
       projectBills.reduce(
-        (s, b) => s + (b.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+        (s, b) => s + (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
         0,
       );
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAccounting } from "@/lib/accounting-store";
-import { normalizedFx, outstanding, settlement } from "@/lib/transaction-fx";
+import { earlyPaymentDiscount, normalizedFx, outstanding, settlement } from "@/lib/transaction-fx";
 import { useTransactionQuote } from "@/lib/use-transaction-quote";
 export function TradeSettlement({
   kind,
@@ -32,7 +32,8 @@ export function TradeSettlement({
   let preview = "";
   try {
     const result = settlement(doc, kind, Number(amount), Number(quote.rate), date);
-    preview = `Functional payment: USD ${result.functionalAmount.toFixed(2)} · Realized FX gain / (loss): USD ${result.realizedGain.toFixed(2)}`;
+    const discount = earlyPaymentDiscount(doc, date, Number(amount));
+    preview = `Early discount: ${fx.transactionCurrency} ${discount.toFixed(2)} · Cash payment: ${fx.transactionCurrency} ${(Number(amount) - discount).toFixed(2)} · Functional settlement: USD ${result.functionalAmount.toFixed(2)} · Realized FX gain / (loss): USD ${result.realizedGain.toFixed(2)}`;
   } catch {
     /* Show field validation when submitted. */
   }
@@ -91,7 +92,7 @@ export function TradeSettlement({
               />
             </label>
             <label className="block text-sm">
-              Amount ({fx.transactionCurrency})
+              Amount to settle before discount ({fx.transactionCurrency})
               <input
                 className="block w-full rounded border border-line p-2"
                 type="number"

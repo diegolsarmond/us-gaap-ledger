@@ -76,6 +76,8 @@ export const inventory = z.object({
   costLots: z.array(z.object({ id: key, qty: num, unitCost: num, date })).max(10000),
 });
 export const invoice = z.object({
+  earlyDiscountPercentage: num.max(100).optional(),
+  discountDays: num.int().optional(),
   costCenterId: key.optional(),
   ...fxFields,
   customerId: key.optional(),
@@ -111,6 +113,8 @@ export const invoice = z.object({
   paymentDate: date.optional(),
 });
 export const bill = z.object({
+  earlyDiscountPercentage: num.max(100).optional(),
+  discountDays: num.int().optional(),
   costCenterId: key.optional(),
   transactionCurrency: z
     .string()

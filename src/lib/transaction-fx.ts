@@ -13,6 +13,8 @@ export const fxFields = {
   exchangeRateDate: z.string().date().optional(),
 };
 export const paymentSchema = z.object({
+  discountAmount: z.number().finite().nonnegative().optional(),
+  cashFunctionalAmount: z.number().finite().nonnegative().optional(),
   id: z.string(),
   date: z.string().date(),
   ...fxFields,
@@ -25,6 +27,8 @@ export const paymentSchema = z.object({
 });
 export type Payment = z.infer<typeof paymentSchema>;
 export interface TransactionFx {
+  earlyDiscountPercentage?: number;
+  discountDays?: number;
   transactionCurrency?: string;
   transactionAmount?: number;
   functionalCurrency?: "USD";
@@ -118,6 +122,12 @@ export function settlement(
     ),
     remaining: money(open.native - amount),
   };
+}
+export function earlyPaymentDiscount(doc: TransactionFx & {date: string; total?: number; subtotal?: number}, date: string, amount: number) {
+ const end = new Date(doc.date + "T00:00:00Z"); end.setUTCDate(end.getUTCDate() + (doc.discountDays ?? 0));
+ if (date < doc.date || date > end.toISOString().slice(0,10) || !(doc.earlyDiscountPercentage! > 0)) return 0;
+ const taxableRatio = doc.total && doc.subtotal != null ? doc.subtotal / doc.total : 1;
+ return money(amount * taxableRatio * doc.earlyDiscountPercentage! / 100);
 }
 export function nextDay(date: string) {
   const d = new Date(date + "T12:00:00Z");

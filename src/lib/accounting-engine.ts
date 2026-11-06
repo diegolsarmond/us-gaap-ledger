@@ -1,4 +1,5 @@
 import {
+  earlyPaymentDiscount,
   normalizedFx,
   outstanding,
   settlement,
@@ -776,8 +777,11 @@ export function createAccountingEngine(
     const issueFx = normalizedFx(invData);
     if (invData.customerId && !currentData.customers.some((c) => c.id === invData.customerId))
       throw new Error("Select a customer belonging to this company.");
+    const invoiceTerm = currentData.paymentTerms.find((t) => t.id === customer.paymentTermId && t.status === "Active") ?? currentData.paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active");
     const newInvoice: Invoice = {
       ...invData,
+      earlyDiscountPercentage: invoiceTerm?.earlyDiscountPercentage,
+      discountDays: invoiceTerm?.discountDays,
       customerName: customer.displayName,
       ...issueFx,
       payments: [],
@@ -1027,6 +1031,9 @@ export function createAccountingEngine(
       kind === "AP" ? "20100" : "11000",
       kind === "AP" ? "2000" : "1100",
     );
+    const discountAmount = earlyPaymentDiscount(doc, paymentDate, amount);
+    const discountFunctional = money(discountAmount * appliedRate);
+    const cashFunctionalAmount = money(result.functionalAmount - discountFunctional);
     const cash = resolveAccount(nextData.accounts, "10200", "1000");
     const lines = [
       {
@@ -1037,11 +1044,16 @@ export function createAccountingEngine(
       },
       {
         accountCode: cash,
-        debit: kind === "AR" ? result.functionalAmount : 0,
-        credit: kind === "AP" ? result.functionalAmount : 0,
+        debit: kind === "AR" ? cashFunctionalAmount : 0,
+        credit: kind === "AP" ? cashFunctionalAmount : 0,
         memo: "Settlement " + fx.transactionCurrency + " " + amount,
       },
     ];
+    if (discountFunctional) lines.push({
+      accountCode: resolveAccount(nextData.accounts, kind === "AR" ? "40900" : "80400", kind === "AR" ? "40200" : "80200"),
+      debit: kind === "AR" ? discountFunctional : 0, credit: kind === "AP" ? discountFunctional : 0,
+      memo: "Contractual early-payment discount " + id,
+    });
     if (result.realizedGain)
       lines.push({
         accountCode: resolveAccount(nextData.accounts, "80300", "6300"),
@@ -1066,6 +1078,8 @@ export function createAccountingEngine(
       transactionAmount: money(amount),
       exchangeRateValue: appliedRate,
       functionalAmount: result.functionalAmount,
+      discountAmount,
+      cashFunctionalAmount,
       bookAmount: result.bookAmount,
       realizedGain: result.realizedGain,
       bankAccountId,
@@ -1198,8 +1212,12 @@ export function createAccountingEngine(
       return { ...item, amount };
     });
 
+    const billVendor = currentData.vendors.find((v) => v.id === billData.vendorId);
+    const billTerm = currentData.paymentTerms.find((t) => t.id === billVendor?.paymentTermId && t.status === "Active") ?? currentData.paymentTerms.find((t) => t.isDefaultVendor && t.status === "Active");
     const newBill: Bill = {
       ...billData,
+      earlyDiscountPercentage: billTerm?.earlyDiscountPercentage,
+      discountDays: billTerm?.discountDays,
       items: functionalItems,
       vendorName: vendor.displayName,
       ...issueFx,

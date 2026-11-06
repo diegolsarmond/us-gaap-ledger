@@ -79,7 +79,7 @@ function PayablesPage() {
     .filter((b) => b.status !== "Paid")
     .reduce((s, b) => s + outstanding(b).functional, 0);
   const totalPaidAp = bills.reduce(
-    (s, b) => s + (b.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+    (s, b) => s + (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
     0,
   );
 

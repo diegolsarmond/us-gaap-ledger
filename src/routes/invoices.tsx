@@ -85,7 +85,7 @@ function InvoicesPage() {
       s +
       (i.payments || [])
         .filter((p) => p.date.startsWith(new Date().toISOString().slice(0, 7)))
-        .reduce((t, p) => t + p.functionalAmount, 0),
+        .reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
     0,
   );
 

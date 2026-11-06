@@ -27,7 +27,7 @@ const dimensionValues = "dimensionId valueId lineId?";
 const transaction =
   " transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric exchangeRateSource exchangeRateDate?:date";
 const payments =
-  "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric bankAccountId?:uuid journalId exchangeRateSource exchangeRateDate?:date";
+  "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric discountAmount?:numeric cashFunctionalAmount?:numeric bankAccountId?:uuid journalId exchangeRateSource exchangeRateDate?:date";
 const contact =
   "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email sourceCurrency paymentTermId taxId notes";
 export const ledgerSchemas: Record<string, LedgerSchema> = {
@@ -67,7 +67,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     "id code name clientName customerId? budget:numeric contractValue:numeric status startDate:date endDate:date notes",
   ),
   invoices: schema(
-    "costCenterId? id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" +
+    "earlyDiscountPercentage?:numeric discountDays?:integer costCenterId? id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" +
       transaction,
     {
       items: "id description sku? isProduct:boolean qty:numeric unitPrice:numeric taxable:boolean",
@@ -76,7 +76,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     },
   ),
   bills: schema(
-    "costCenterId? id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" +
+    "earlyDiscountPercentage?:numeric discountDays?:integer costCenterId? id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" +
       transaction,
     {
       items:
