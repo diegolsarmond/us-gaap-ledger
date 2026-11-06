@@ -27,7 +27,7 @@ const dimensionValues = "dimensionId valueId lineId?";
 const transaction =
   " transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric exchangeRateSource exchangeRateDate?:date";
 const payments =
-  "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric bankAccountId? journalId exchangeRateSource exchangeRateDate?:date";
+  "id date:date transactionCurrency transactionAmount:numeric functionalCurrency exchangeRateValue:numeric functionalAmount:numeric bookAmount:numeric realizedGain:numeric bankAccountId?:uuid journalId exchangeRateSource exchangeRateDate?:date";
 const contact =
   "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email sourceCurrency paymentTermId taxId notes";
 export const ledgerSchemas: Record<string, LedgerSchema> = {

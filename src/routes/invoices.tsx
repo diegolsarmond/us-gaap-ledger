@@ -1,6 +1,7 @@
 import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
-import { TransactionRateFields, useTransactionQuote } from "@/components/transaction-rate-fields";
+import { TransactionRateFields } from "@/components/transaction-rate-fields";
+import { useTransactionQuote } from "@/lib/use-transaction-quote";
 import { normalizedFx, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -73,8 +74,8 @@ function InvoicesPage() {
     .filter((i) => i.status !== "Paid")
     .reduce((s, i) => s + outstanding(i).functional, 0);
   const totalOverdue = invoices
-    .filter((i) => i.status === "Overdue")
-    .reduce((s, i) => s + i.total, 0);
+    .filter((i) => i.status !== "Paid" && i.dueDate < new Date().toISOString().slice(0, 10))
+    .reduce((s, i) => s + outstanding(i).functional, 0);
   const totalPaid = invoices.reduce(
     (s, i) =>
       s +
@@ -208,7 +209,11 @@ function InvoicesPage() {
       "Subtotal",
       "Tax Rate %",
       "Tax Amount",
-      "Total",
+      "Original total",
+      "Transaction currency",
+      "Functional currency",
+      "Issue exchange rate",
+      "Functional amount",
       "Status",
     ];
     const rows = invoices.map((i) => [
@@ -221,6 +226,10 @@ function InvoicesPage() {
       i.taxRate,
       i.taxAmount,
       i.total,
+      normalizedFx(i).transactionCurrency,
+      "USD",
+      normalizedFx(i).exchangeRateValue,
+      normalizedFx(i).functionalAmount,
       i.status,
     ]);
     exportToCsv(`${activeCompany.id}_invoices`, headers, rows);
@@ -450,7 +459,8 @@ function InvoicesPage() {
               <div>
                 <h1 className="text-[16px] font-semibold text-ink">Issue New Customer Invoice</h1>
                 <p className="text-[12px] text-ink3">
-                  Accounts receivable entry with automated General Ledger and inventory relief integration
+                  Accounts receivable entry with automated General Ledger and inventory relief
+                  integration
                 </p>
               </div>
             </div>
@@ -487,11 +497,13 @@ function InvoicesPage() {
                         }}
                       >
                         <option value="">Select a customer</option>
-                        {customers.filter((c) => c.registrationStatus !== "Draft").map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.displayName}
-                          </option>
-                        ))}
+                        {customers
+                          .filter((c) => c.registrationStatus !== "Draft")
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.displayName}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div>
@@ -610,9 +622,7 @@ function InvoicesPage() {
                     >
                       <div className="col-span-12 sm:col-span-5">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          {kind === "Product"
-                            ? "Inventory Catalog Item"
-                            : "Service Description"}
+                          {kind === "Product" ? "Inventory Catalog Item" : "Service Description"}
                         </label>
                         {kind === "Product" ? (
                           <select
@@ -711,9 +721,7 @@ function InvoicesPage() {
 
                     {!taxExempt && (
                       <div className="flex items-center justify-between gap-3 pt-2">
-                        <span className="text-[12px] text-ink2">
-                          State / Local Tax Rate (%):
-                        </span>
+                        <span className="text-[12px] text-ink2">State / Local Tax Rate (%):</span>
                         <div className="flex items-center gap-1">
                           <input
                             type="number"

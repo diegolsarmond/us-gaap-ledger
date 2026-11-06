@@ -1,3 +1,4 @@
+import { outstanding } from "@/lib/transaction-fx";
 import { createFileRoute, Link as RouterLink } from "@tanstack/react-router";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
@@ -189,11 +190,19 @@ function Dashboard() {
           revenue={totalRevenue}
           payables={bills.reduce((s, b) => s + b.usdAmount, 0)}
           cashInflows={journals.reduce(
-            (s, j) => s + j.lines.filter((l) => l.accountCode.startsWith("10") && l.debit > 0).reduce((acc, l) => acc + l.debit, 0),
+            (s, j) =>
+              s +
+              j.lines
+                .filter((l) => l.accountCode.startsWith("10") && l.debit > 0)
+                .reduce((acc, l) => acc + l.debit, 0),
             0,
           )}
           cashOutflows={journals.reduce(
-            (s, j) => s + j.lines.filter((l) => l.accountCode.startsWith("10") && l.credit > 0).reduce((acc, l) => acc + l.credit, 0),
+            (s, j) =>
+              s +
+              j.lines
+                .filter((l) => l.accountCode.startsWith("10") && l.credit > 0)
+                .reduce((acc, l) => acc + l.credit, 0),
             0,
           )}
         />
@@ -357,7 +366,7 @@ function Dashboard() {
                   <Td className="text-ink2 text-[12px]">{i.customerName}</Td>
                   <Td className="text-ink3 text-[11.5px]">{formatDate(i.dueDate)}</Td>
                   <Td align="right" className="font-medium font-mono">
-                    {usd(i.total)}
+                    {usd(outstanding(i, new Date().toISOString().slice(0, 10)).functional)}
                   </Td>
                   <Td align="right">
                     <Badge

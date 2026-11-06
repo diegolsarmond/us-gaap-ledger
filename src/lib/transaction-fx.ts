@@ -47,11 +47,12 @@ export function normalizedFx(
   const currency = doc.transactionCurrency || doc.currency || "USD";
   const amount = doc.transactionAmount ?? doc.foreignAmount ?? doc.total ?? 0;
   const rate = doc.exchangeRateValue ?? doc.fxRate ?? 1;
-  if(doc.date && doc.exchangeRateDate && doc.exchangeRateDate > doc.date) throw new Error("The exchange quote cannot be dated after the transaction.");
+  if (doc.date && doc.exchangeRateDate && doc.exchangeRateDate > doc.date)
+    throw new Error("The exchange quote cannot be dated after the transaction.");
   if (!Number.isFinite(rate) || rate <= 0 || (currency === "USD" && rate !== 1))
     throw new Error("Enter a positive exchange rate; USD must use 1.");
   if (!Number.isFinite(amount) || amount < 0) throw new Error("Invalid transaction amount.");
-  const converted = money(amount * rate);
+  const converted = money(money(amount) * rate);
   if (doc.functionalAmount != null && Math.abs(doc.functionalAmount - converted) > 0.005)
     throw new Error("Functional amount does not match transaction amount × exchange rate.");
   return {
@@ -100,7 +101,7 @@ export function settlement(
     open = outstanding(doc);
   if (date < doc.date || (doc.payments || []).some((p) => p.date > date))
     throw new Error("Payment dates must be chronological and on or after issue date.");
-  if (!Number.isFinite(amount) || amount <= 0 || money(amount) > open.native)
+  if (!Number.isFinite(amount) || money(amount) <= 0 || money(amount) > open.native)
     throw new Error("Payment exceeds the outstanding transaction amount.");
   if (!Number.isFinite(rate) || rate <= 0 || (fx.transactionCurrency === "USD" && rate !== 1))
     throw new Error("Enter a valid settlement rate.");
@@ -108,7 +109,7 @@ export function settlement(
     money(amount) === open.native
       ? open.functional
       : Math.min(open.functional, money(amount * fx.exchangeRateValue));
-  const functionalAmount = money(amount * rate);
+  const functionalAmount = money(money(amount) * rate);
   return {
     bookAmount,
     functionalAmount,

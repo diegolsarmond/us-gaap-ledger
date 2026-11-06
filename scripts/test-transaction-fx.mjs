@@ -106,7 +106,7 @@ state.customers = [
 ];
 function run(command, ...args) {
   const engine = createAccountingEngine(state, company, user);
-  while(args.length<commandArgs[command].items.length)args.push(undefined);
+  while (args.length < commandArgs[command].items.length) args.push(undefined);
   const parsed = commandArgs[command].parse(args);
   const result = engine.value[command](...parsed);
   assert.notEqual(result?.success, false, result?.error);
@@ -225,12 +225,24 @@ assert(
   !customerSchema.safeParse({ displayName: "No billing info", companyName: "Customer" }).success,
 );
 assert(!("currency" in vendorSchema.parse({ displayName: "Vendor", companyName: "Vendor" })));
-const draft=customerSchema.parse({displayName:"Incomplete",registrationStatus:"Draft"});
-state.customers.push({...draft,id:"draft-customer"});
-const attempted=createAccountingEngine(state,company,user).value.createInvoice({customerId:"draft-customer",customerName:"Incomplete",date:"2026-02-02",dueDate:"2026-02-02",kind:"Service",items:[],subtotal:1,taxRate:0,taxAmount:0,total:1,taxExempt:true});
-assert.equal(attempted.success,false);
-assert.match(attempted.error,/draft/i);
-export {state};
+const draft = customerSchema.parse({ displayName: "Incomplete", registrationStatus: "Draft" });
+state.customers.push({ ...draft, id: "draft-customer" });
+const attempted = createAccountingEngine(state, company, user).value.createInvoice({
+  customerId: "draft-customer",
+  customerName: "Incomplete",
+  date: "2026-02-02",
+  dueDate: "2026-02-02",
+  kind: "Service",
+  items: [],
+  subtotal: 1,
+  taxRate: 0,
+  taxAmount: 0,
+  total: 1,
+  taxExempt: true,
+});
+assert.equal(attempted.success, false);
+assert.match(attempted.error, /draft/i);
+export { state };
 console.log(
   "PASS: single contact across currencies, required customer fields, foreign invoice posting, AP/AR partial settlement and both FX signs, bank ownership, historical aging, month-end revaluation, next-day reversal, idempotence, balanced unique journals and empty-engine regression.",
 );

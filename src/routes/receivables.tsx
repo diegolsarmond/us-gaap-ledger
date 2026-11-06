@@ -1,3 +1,5 @@
+import { TradeAging } from "@/components/trade-aging";
+import { normalizedFx, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { Badge, Kpi, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
@@ -38,19 +40,22 @@ function ReceivablesPage() {
     return { ...inv, diffDays, bucket };
   });
 
-  const totalAR = openInvoices.reduce((s, i) => s + i.total, 0);
+  const totalAR = openInvoices.reduce(
+    (s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional,
+    0,
+  );
   const currentTotal = categorized
     .filter((i) => i.bucket === "Current")
-    .reduce((s, i) => s + i.total, 0);
+    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
   const b1_30 = categorized
     .filter((i) => i.bucket === "1-30 Days")
-    .reduce((s, i) => s + i.total, 0);
+    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
   const b31_60 = categorized
     .filter((i) => i.bucket === "31-60 Days")
-    .reduce((s, i) => s + i.total, 0);
+    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
   const b61_plus = categorized
     .filter((i) => i.bucket === "61-90 Days" || i.bucket === "90+ Days")
-    .reduce((s, i) => s + i.total, 0);
+    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
 
   const handleExportCsv = () => {
     const headers = [
@@ -60,7 +65,9 @@ function ReceivablesPage() {
       "Due Date",
       "Days Past Due",
       "Aging Bucket",
-      "Amount (USD)",
+      "Original currency",
+      "Original balance",
+      "Historical amount (USD)",
       "Status",
     ];
     const rows = categorized.map((i) => [
@@ -70,7 +77,9 @@ function ReceivablesPage() {
       i.dueDate,
       i.diffDays > 0 ? i.diffDays : 0,
       i.bucket,
-      i.total,
+      normalizedFx(i).transactionCurrency,
+      outstanding(i).native,
+      outstanding(i).functional,
       i.status,
     ]);
     exportToCsv(`${activeCompany.id}_ar_aging`, headers, rows);
@@ -78,11 +87,12 @@ function ReceivablesPage() {
 
   return (
     <div className="space-y-4">
+      <TradeAging kind="AR" />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Accounts Receivable Aging Position"
-          description={`Customer credit aging analysis for ${activeCompany.name} as of December 22, 2026`}
+          description={`Customer credit aging analysis for ${activeCompany.name} as of ${new Date().toISOString().slice(0, 10)}`}
         />
         <button
           type="button"
@@ -170,7 +180,8 @@ function ReceivablesPage() {
                   {inv.diffDays > 0 ? `${inv.diffDays}d` : "Current"}
                 </Td>
                 <Td align="right" className="font-mono font-medium text-[12.5px]">
-                  {usd(inv.total)}
+                  {normalizedFx(inv).transactionCurrency} {outstanding(inv).native.toFixed(2)} /{" "}
+                  {usd(outstanding(inv).functional)}
                 </Td>
               </tr>
             ))}

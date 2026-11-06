@@ -107,19 +107,23 @@ for (const [kind, sheets] of Object.entries(source)) {
       try {
         if (kind === "Customer") {
           const candidate = {
-              ...common,
-              customerType: text(r["Customer type"]),
-              billingAddress: {
-                street: text(r["Street Address"]),
-                city: text(r.City),
-                state: text(r.State),
-                country: text(r.Country),
-                zip: text(r.Zip),
-              },
-              sourceOpenBalance: balance(r["Open balance"]),
-            };
+            ...common,
+            customerType: text(r["Customer type"]),
+            billingAddress: {
+              street: text(r["Street Address"]),
+              city: text(r.City),
+              state: text(r.State),
+              country: text(r.Country),
+              zip: text(r.Zip),
+            },
+            sourceOpenBalance: balance(r["Open balance"]),
+          };
           const ready = customerSchema.safeParse(candidate);
-          input.customers.push(ready.success ? ready.data : customerSchema.parse({...candidate,registrationStatus:"Draft"}));
+          input.customers.push(
+            ready.success
+              ? ready.data
+              : customerSchema.parse({ ...candidate, registrationStatus: "Draft" }),
+          );
         } else {
           const currency = currencies[text(r.Currency)];
           assert(currency, `Unmapped currency: ${r.Currency}`);
@@ -271,7 +275,10 @@ try {
       source: input[domain].length,
       inserted,
       skipped,
-      drafts: domain === "customers" ? input.customers.filter((c)=>c.registrationStatus === "Draft").length : 0,
+      drafts:
+        domain === "customers"
+          ? input.customers.filter((c) => c.registrationStatus === "Draft").length
+          : 0,
       balanceCentsByCurrency: balances,
     };
   }

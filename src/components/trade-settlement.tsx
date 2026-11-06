@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAccounting } from "@/lib/accounting-store";
 import { normalizedFx, outstanding, settlement } from "@/lib/transaction-fx";
-import { useTransactionQuote } from "./transaction-rate-fields";
+import { useTransactionQuote } from "@/lib/use-transaction-quote";
 export function TradeSettlement({
   kind,
   documentId,
@@ -43,8 +43,18 @@ export function TradeSettlement({
     try {
       const result =
         kind === "AP"
-          ? await payBill(documentId, date, Number(quote.rate), Number(amount), bankId || undefined,{source:quote.source,date:quote.rateDate})
-          : await recordInvoicePayment(documentId, date, Number(quote.rate), Number(amount),{source:quote.source,date:quote.rateDate});
+          ? await payBill(
+              documentId,
+              date,
+              Number(quote.rate),
+              Number(amount),
+              bankId || undefined,
+              { source: quote.source, date: quote.rateDate },
+            )
+          : await recordInvoicePayment(documentId, date, Number(quote.rate), Number(amount), {
+              source: quote.source,
+              date: quote.rateDate,
+            });
       if (!result.success) throw new Error(result.error);
       onClose();
     } catch (e) {

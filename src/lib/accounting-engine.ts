@@ -410,7 +410,7 @@ export interface AccountingContextType {
     paymentDate: string,
     settlementFxRate?: number,
     amount?: number,
-    quote?: {source:string;date:string},
+    quote?: { source: string; date: string },
   ) => { success: boolean; error?: string | undefined };
 
   vendors: Vendor[];
@@ -428,7 +428,7 @@ export interface AccountingContextType {
     settlementFxRate?: number | undefined,
     amount?: number,
     bankAccountId?: string,
-    quote?: {source:string;date:string},
+    quote?: { source: string; date: string },
   ) => { success: boolean; error?: string | undefined };
   revalueOpenItems: (
     asOf: string,
@@ -748,14 +748,19 @@ export function createAccountingEngine(
       return { success: false, error: "Unauthorized." };
     }
     const invId = `INV-${new Date().getFullYear().toString().substr(2)}${String(currentData.invoices.length + 1).padStart(3, "0")}`;
-    const customer=currentData.customers.find((c) => c.id===invData.customerId);
-    if (!customer || customer.registrationStatus === "Draft") return {success:false,error:"Select an active customer. Complete draft customer billing details before invoicing."};
+    const customer = currentData.customers.find((c) => c.id === invData.customerId);
+    if (!customer || customer.registrationStatus === "Draft")
+      return {
+        success: false,
+        error:
+          "Select an active customer. Complete draft customer billing details before invoicing.",
+      };
     const issueFx = normalizedFx(invData);
     if (invData.customerId && !currentData.customers.some((c) => c.id === invData.customerId))
       throw new Error("Select a customer belonging to this company.");
     const newInvoice: Invoice = {
       ...invData,
-      customerName:customer.displayName,
+      customerName: customer.displayName,
       ...issueFx,
       payments: [],
       exchangeRateSource: invData.exchangeRateSource || "Manual",
@@ -950,7 +955,7 @@ export function createAccountingEngine(
     rate?: number,
     requestedAmount?: number,
     bankAccountId?: string,
-    quote?: {source:string;date:string},
+    quote?: { source: string; date: string },
   ) => {
     const doc =
       kind === "AP"
@@ -960,11 +965,25 @@ export function createAccountingEngine(
     const fx = normalizedFx(doc),
       open = outstanding(doc);
     if (!open.native) return { success: false, error: "Document is already paid." };
+    if (
+      nextData.journals.some(
+        (j) =>
+          j.sourceType === "FXRevaluation" &&
+          j.sourceId?.startsWith(kind + ":" + id + ":") &&
+          j.date >= paymentDate,
+      )
+    )
+      return {
+        success: false,
+        error:
+          "This document has been revalued. Record settlement after its latest revaluation date.",
+      };
     if (fx.transactionCurrency !== "USD" && rate == null)
       return { success: false, error: "Enter the payment date exchange rate." };
     const appliedRate = rate ?? 1,
       amount = requestedAmount ?? open.native;
-    if(quote?.date && quote.date>paymentDate)return {success:false,error:"The quote date cannot be after the payment date."};
+    if (quote?.date && quote.date > paymentDate)
+      return { success: false, error: "The quote date cannot be after the payment date." };
     if (bankAccountId && kind === "AP") {
       const bank = nextData.vendors
         .find((v) => v.id === (doc as Bill).vendorId)
@@ -1059,8 +1078,13 @@ export function createAccountingEngine(
     );
     return { success: true };
   };
-  const recordInvoicePayment = (id: string, date: string, rate?: number, amount?: number,quote?:{source:string;date:string}) =>
-    settleDocument("AR", id, date, rate, amount,undefined,quote);
+  const recordInvoicePayment = (
+    id: string,
+    date: string,
+    rate?: number,
+    amount?: number,
+    quote?: { source: string; date: string },
+  ) => settleDocument("AR", id, date, rate, amount, undefined, quote);
 
   const saveVendor = (input: VendorInput, id?: string) => {
     if (!userPersona.canCreateJournals) throw new Error("Acesso negado.");
@@ -1106,15 +1130,28 @@ export function createAccountingEngine(
         );
     }
 
-    const vendor=currentData.vendors.find((v)=>v.id===billData.vendorId);
-    if (!vendor) return {success:false,error:"Select a registered vendor."};
+    const vendor = currentData.vendors.find((v) => v.id === billData.vendorId);
+    if (!vendor) return { success: false, error: "Select a registered vendor." };
     const billId = `BILL-${new Date().getFullYear().toString().substr(2)}${String(currentData.bills.length + 1).padStart(3, "0")}`;
     const issueFx = normalizedFx(billData);
     const usdAmount = issueFx.functionalAmount;
+    if (
+      Math.abs(money(billData.items.reduce((sum, item) => sum + item.amount, 0)) - usdAmount) >
+      0.005
+    )
+      return { success: false, error: "Bill line amounts must equal its functional amount." };
+    let allocated = 0;
+    const functionalItems = billData.items.map((item, index) => {
+      const amount =
+        index === billData.items.length - 1 ? money(usdAmount - allocated) : money(item.amount);
+      allocated = money(allocated + amount);
+      return { ...item, amount };
+    });
 
     const newBill: Bill = {
       ...billData,
-      vendorName:vendor.displayName,
+      items: functionalItems,
+      vendorName: vendor.displayName,
       ...issueFx,
       currency: issueFx.transactionCurrency,
       fxRate: issueFx.exchangeRateValue,
@@ -1209,9 +1246,17 @@ export function createAccountingEngine(
     return { success: true, billId };
   };
 
-  const payBill = (id: string, date: string, rate?: number, amount?: number, bankId?: string,quote?:{source:string;date:string}) =>
-    settleDocument("AP", id, date, rate, amount, bankId,quote);
+  const payBill = (
+    id: string,
+    date: string,
+    rate?: number,
+    amount?: number,
+    bankId?: string,
+    quote?: { source: string; date: string },
+  ) => settleDocument("AP", id, date, rate, amount, bankId, quote);
   const revalueOpenItems: AccountingContextType["revalueOpenItems"] = (asOf, rates) => {
+    if (asOf > new Date().toISOString().slice(0, 10))
+      return { success: false, error: "A closing revaluation cannot be dated in the future." };
     if (!userPersona.canClosePeriod)
       return { success: false, error: "Closing permission is required." };
     if (!nextDay(asOf).endsWith("-01"))

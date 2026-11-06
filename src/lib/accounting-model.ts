@@ -238,7 +238,13 @@ export const commandArgs = {
   adjustStock: z.tuple([key, z.number().finite(), num, text]),
   setCostMethod: z.tuple([z.enum(["FIFO", "WeightedAverage"])]),
   createInvoice: z.tuple([invoice.omit({ id: true, status: true })]),
-  recordInvoicePayment: z.tuple([key, date, num.positive().optional(), num.positive().optional(),z.object({source:text.min(1),date}).optional()]),
+  recordInvoicePayment: z.tuple([
+    key,
+    date,
+    num.positive().optional(),
+    num.positive().optional(),
+    z.object({ source: text.min(1), date }).optional(),
+  ]),
   createBill: z.tuple([bill.omit({ id: true, status: true, usdAmount: true })]),
   payBill: z.tuple([
     key,
@@ -246,7 +252,7 @@ export const commandArgs = {
     num.positive().optional(),
     num.positive().optional(),
     key.optional(),
-    z.object({source:text.min(1),date}).optional(),
+    z.object({ source: text.min(1), date }).optional(),
   ]),
   revalueOpenItems: z.tuple([
     date,

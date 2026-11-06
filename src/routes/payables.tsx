@@ -1,7 +1,8 @@
 import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
-import { TransactionRateFields, useTransactionQuote } from "@/components/transaction-rate-fields";
-import { normalizedFx, outstanding } from "@/lib/transaction-fx";
+import { TransactionRateFields } from "@/components/transaction-rate-fields";
+import { useTransactionQuote } from "@/lib/use-transaction-quote";
+import { money, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
@@ -69,12 +70,15 @@ function PayablesPage() {
   // Computations
   const numForeign = Number(foreignAmount) || 0;
   const effectiveRate = currency === "USD" ? 1.0 : Number(fxRateInput);
-  const calculatedUsd = currency === "USD" ? numForeign : numForeign * effectiveRate;
+  const calculatedUsd = money(numForeign * effectiveRate);
 
   const totalOpenAp = bills
     .filter((b) => b.status !== "Paid")
     .reduce((s, b) => s + outstanding(b).functional, 0);
-  const totalPaidAp = bills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
+  const totalPaidAp = bills.reduce(
+    (s, b) => s + (b.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+    0,
+  );
 
   const handleCurrencyChange = (curr: string) => setCurrency(curr);
 
@@ -323,8 +327,8 @@ function PayablesPage() {
                             <span
                               className={`block text-[10px] font-sans ${
                                 b.realizedFxDiff >= 0
-                                    ? "text-up font-semibold"
-                                    : "text-down font-semibold"
+                                  ? "text-up font-semibold"
+                                  : "text-down font-semibold"
                               }`}
                             >
                               FX: {acct(b.realizedFxDiff)}
@@ -353,10 +357,9 @@ function PayablesPage() {
             </div>
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
-                US GAAP ASC 830 (Foreign Currency Matters): Foreign currency payables are
-                recorded at the spot exchange rate on the transaction date. Upon settlement, any
-                exchange rate difference generates Realized Foreign Exchange Gain/Loss (Account
-                6300).
+                US GAAP ASC 830 (Foreign Currency Matters): Foreign currency payables are recorded
+                at the spot exchange rate on the transaction date. Upon settlement, any exchange
+                rate difference generates Realized Foreign Exchange Gain/Loss (Account 6300).
               </Note>
             </div>
           </Panel>
@@ -376,9 +379,7 @@ function PayablesPage() {
                 Back to Accounts Payable
               </button>
               <div>
-                <h1 className="text-[16px] font-semibold text-ink">
-                  Record Vendor Bill
-                </h1>
+                <h1 className="text-[16px] font-semibold text-ink">Record Vendor Bill</h1>
                 <p className="text-[12px] text-ink3">
                   Vendor obligation entry and General Ledger expense accrual (AP)
                 </p>
@@ -387,17 +388,17 @@ function PayablesPage() {
           </div>
 
           <Panel
-            title="Dados da Fatura do Fornecedor (Vendor Bill)"
-            subtitle="Preencha os dados do documento fiscal recebido e classifique a despesa ou custo"
+            title="Vendor Bill Details"
+            subtitle="Enter invoice document details and classify the associated expense or asset"
           >
             <form onSubmit={handleCreateBill} className="p-6 space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Nome de exibição do fornecedor (Vendor Display Name) *
+                    Vendor Display Name *
                   </label>
                   <select
-                    aria-label="Fornecedor cadastrado"
+                    aria-label="Registered vendor"
                     className="mb-2 w-full rounded-md border border-line p-2 text-sm"
                     required
                     value={vendorId}
@@ -417,7 +418,7 @@ function PayablesPage() {
                       setDueDate(due.toISOString().slice(0, 10));
                     }}
                   >
-                    <option value="">Selecionar fornecedor cadastrado</option>
+                    <option value="">Select registered vendor</option>
                     {vendors.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.displayName}
@@ -440,7 +441,7 @@ function PayablesPage() {
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Número do Documento / Ref (Bill / Invoice #) *
+                    Bill / Invoice # (Reference Number) *
                   </label>
                   <input
                     type="text"
@@ -464,7 +465,7 @@ function PayablesPage() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Valor Original ({currency}) *
+                    Original Amount ({currency}) *
                   </label>
                   <input
                     type="number"
@@ -478,7 +479,7 @@ function PayablesPage() {
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Equivalente em USD
+                    USD Equivalent
                   </label>
                   <div className="w-full rounded-md bg-ink/[0.04] px-3 py-2 text-right font-mono font-semibold text-[13px] border border-line text-brand">
                     {usd(calculatedUsd)}
@@ -489,7 +490,7 @@ function PayablesPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Data da Fatura *
+                    Bill Date *
                   </label>
                   <input
                     type="date"
@@ -502,7 +503,7 @@ function PayablesPage() {
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Data de Vencimento *
+                    Due Date *
                   </label>
                   <input
                     type="date"
@@ -515,14 +516,14 @@ function PayablesPage() {
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                    Alocação de Projeto
+                    Project Allocation
                   </label>
                   <select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
                     className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                   >
-                    <option value="">Despesa Geral (G&A)</option>
+                    <option value="">General Expense (G&A)</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.code} — {p.name}
@@ -541,7 +542,7 @@ function PayablesPage() {
               />
               <div className="rounded-lg bg-surface p-4 border border-line space-y-3">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink3">
-                  Classificação Contábil da Despesa / Ativo
+                  Expense / Asset Account Classification
                 </label>
                 <select
                   value={accountCode}
@@ -553,8 +554,8 @@ function PayablesPage() {
                   }}
                   className="w-full rounded-md bg-canvas px-3 py-2 text-[13px] border border-line outline-none focus:border-brand focus:ring-1 focus:ring-brand font-mono"
                 >
-                  <option value="">Selecione uma conta cadastrada</option>
-                  <optgroup label="Despesas Operacionais (OpEx)">
+                  <option value="">Select a general ledger account</option>
+                  <optgroup label="Operating Expenses (OpEx)">
                     {accounts
                       .filter((a) => a.type === "Operating Expense" || a.type === "Other Expense")
                       .map((a) => (
@@ -563,7 +564,7 @@ function PayablesPage() {
                         </option>
                       ))}
                   </optgroup>
-                  <optgroup label="Estoque & Custos (Assets / COGS)">
+                  <optgroup label="Inventory & Costs (Assets / COGS)">
                     {accounts
                       .filter((a) => a.type === "COGS" || ["1300", "13000"].includes(a.code))
                       .map((a) => (
@@ -578,7 +579,7 @@ function PayablesPage() {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-line/60">
                     <div>
                       <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Vincular ao SKU de Estoque
+                        Link to Inventory SKU
                       </label>
                       <select
                         value={skuPurchased}
@@ -596,7 +597,7 @@ function PayablesPage() {
                     </div>
                     <div>
                       <label className="block text-[10.5px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                        Quantidade Adquirida
+                        Quantity Purchased
                       </label>
                       <input
                         type="number"
@@ -617,13 +618,13 @@ function PayablesPage() {
                   onClick={() => setView("list")}
                   className="rounded-md border border-line bg-surface px-4 py-2 text-[12.5px] font-medium text-ink2 hover:bg-muted transition-colors cursor-pointer"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="rounded-md bg-brand px-6 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 transition-colors cursor-pointer shadow-2xs"
                 >
-                  Salvar e Postar no Razão (AP)
+                  Save & Post to Ledger (AP)
                 </button>
               </div>
             </form>

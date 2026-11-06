@@ -131,7 +131,10 @@ function CustomersPage() {
         <input
           className={control}
           type={type}
-          required={key === "displayName" || (form.registrationStatus === "Active" && (key === "companyName" || key === "email"))}
+          required={
+            key === "displayName" ||
+            (form.registrationStatus === "Active" && (key === "companyName" || key === "email"))
+          }
           maxLength={key === "displayName" ? 120 : key === "email" ? 254 : 2000}
           value={String(form[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
@@ -182,7 +185,10 @@ function CustomersPage() {
               <input
                 className={control}
                 maxLength={2000}
-                required={form.registrationStatus === "Active" && (field === "street" || field === "city" || field === "country")}
+                required={
+                  form.registrationStatus === "Active" &&
+                  (field === "street" || field === "city" || field === "country")
+                }
                 value={form[key][field]}
                 onChange={(e) => change(key, { ...form[key], [field]: e.target.value })}
               />
@@ -239,7 +245,17 @@ function CustomersPage() {
                   (!i.customerId && i.customerName === form.displayName),
               )}
             />
-            <label className="block text-sm">Registration status<select className={control} value={form.registrationStatus || "Active"} onChange={(e) => change("registrationStatus",e.target.value as "Draft"|"Active")}><option value="Active">Active — complete billing details required</option><option value="Draft">Draft — invoicing blocked</option></select></label>
+            <label className="block text-sm">
+              Registration status
+              <select
+                className={control}
+                value={form.registrationStatus || "Active"}
+                onChange={(e) => change("registrationStatus", e.target.value as "Draft" | "Active")}
+              >
+                <option value="Active">Active — complete billing details required</option>
+                <option value="Draft">Draft — invoicing blocked</option>
+              </select>
+            </label>
             <Panel title="Basic information and contact">
               <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {input("companyName", "Customer Company Name *")}
@@ -440,7 +456,12 @@ function CustomersPage() {
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.id}>
-                    <Td>{c.displayName} {c.registrationStatus === "Draft" && <span className="text-ink3">(Draft — billing blocked)</span>}</Td>
+                    <Td>
+                      {c.displayName}{" "}
+                      {c.registrationStatus === "Draft" && (
+                        <span className="text-ink3">(Draft — billing blocked)</span>
+                      )}
+                    </Td>
                     <Td>{c.companyName || "—"}</Td>
                     <Td>{c.email || c.phone || "—"}</Td>
                     <Td>

@@ -58,10 +58,14 @@ function ProjectsPage() {
     const budgetUtilizationPct = p.budget > 0 ? (actualCosts / p.budget) * 100 : 0;
     const budgetVariance = p.budget - actualCosts;
     const cashImpact =
-      projectInvoices
-        .filter((i) => i.status === "Paid")
-        .reduce((s, i) => s + (i.payments || []).reduce((t, p) => t + p.functionalAmount, 0), 0) -
-      projectBills.filter((b) => b.status === "Paid").reduce((s, b) => s + b.usdAmount, 0);
+      projectInvoices.reduce(
+        (s, i) => s + (i.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+        0,
+      ) -
+      projectBills.reduce(
+        (s, b) => s + (b.payments || []).reduce((t, p) => t + p.functionalAmount, 0),
+        0,
+      );
 
     return {
       ...p,

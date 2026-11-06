@@ -187,6 +187,14 @@ export function validateState(state: CompanyState) {
       throw new Error("Bill currency fields are inconsistent.");
     if (b.vendorId && !state.vendors.some((v) => v.id === b.vendorId))
       throw new Error("Vendor does not belong to this company.");
+    for (const payment of b.payments || [])
+      if (
+        payment.bankAccountId &&
+        !state.vendors
+          .find((v) => v.id === b.vendorId)
+          ?.bankAccounts?.some((a) => a.id === payment.bankAccountId)
+      )
+        throw new Error("A bank account used by a payment must remain linked to its vendor.");
     ref("bills", b.id, undefined, b.projectId);
     if (Math.abs(b.items.reduce((s, l) => s + l.amount, 0) - b.usdAmount) > 0.011)
       throw new Error("Total da conta a pagar inválido.");
@@ -275,10 +283,20 @@ export async function execute(
       closingDate = state.fiscalPeriods.find(
         (p) => p.id === args[0] && p.status === "Open",
       )?.endDate;
-    if (command === "togglePeriodLock" && !auth.company.isPeriodClosed)
+    if (command === "togglePeriodLock" && !auth.company.isPeriodClosed) {
       closingDate = state.fiscalPeriods.find(
         (p) => p.periodCode === auth.company.activePeriod,
       )?.endDate;
+      if (
+        !closingDate &&
+        [...state.bills, ...state.invoices].some(
+          (d) => normalizedFx(d).transactionCurrency !== "USD" && d.status !== "Paid",
+        )
+      )
+        throw new Error(
+          "Close the specific fiscal period before applying a company-wide lock to foreign open items.",
+        );
+    }
     if (closingDate)
       state = await revalueAtClose(
         state,

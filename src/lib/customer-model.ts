@@ -21,7 +21,9 @@ export const customerSchema = z
     mobile: text,
     fax: text,
     website: text,
-    email: z.union([z.string().trim().email("Enter a valid billing email.").max(254),z.literal("")]).default(""),
+    email: z
+      .union([z.string().trim().email("Enter a valid billing email.").max(254), z.literal("")])
+      .default(""),
     billingAddress: address.default({}),
     shippingAddress: address.default({}),
     shippingSameAsBilling: z.boolean().default(true),
@@ -63,9 +65,22 @@ export const customerSchema = z
       .default([]),
   })
   .superRefine((customer, ctx) => {
+    const names = customer.customFields.map((f) => f.name.toLowerCase());
+    if (new Set(names).size !== names.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["customFields"],
+        message: "Custom field names must be unique.",
+      });
     if (customer.registrationStatus === "Draft") return;
-    if (!customer.companyName) ctx.addIssue({code:"custom",path:["companyName"],message:"Enter the customer company name."});
-    if (!customer.email) ctx.addIssue({code:"custom",path:["email"],message:"Enter a billing email."});
+    if (!customer.companyName)
+      ctx.addIssue({
+        code: "custom",
+        path: ["companyName"],
+        message: "Enter the customer company name.",
+      });
+    if (!customer.email)
+      ctx.addIssue({ code: "custom", path: ["email"], message: "Enter a billing email." });
     for (const key of customer.shippingSameAsBilling
       ? (["billingAddress"] as const)
       : (["billingAddress", "shippingAddress"] as const)) {
@@ -77,13 +92,6 @@ export const customerSchema = z
             message: "Enter the required address field.",
           });
     }
-    const names = customer.customFields.map((f) => f.name.toLowerCase());
-    if (new Set(names).size !== names.length)
-      ctx.addIssue({
-        code: "custom",
-        path: ["customFields"],
-        message: "Custom field names must be unique.",
-      });
   });
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type Customer = CustomerInput & { id: string };
