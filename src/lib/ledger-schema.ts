@@ -57,7 +57,10 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   ),
   journals: schema(
     "id date:date memo sourceType sourceId? currency fxRate:numeric status overrideReason? createdBy createdAt",
-    { lines: "id accountCode debit:numeric credit:numeric memo? projectId? costCenterId?", dimensionValues },
+    {
+      lines: "id accountCode debit:numeric credit:numeric memo? projectId? costCenterId?",
+      dimensionValues,
+    },
   ),
   inventory: schema(
     "id sku name type qtyOnHand:numeric unitCost:numeric unitPrice:numeric valuationMethod",

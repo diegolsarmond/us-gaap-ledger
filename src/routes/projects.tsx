@@ -23,7 +23,7 @@ export const Route = createFileRoute("/projects")({
 
 function ProjectsPage() {
   const modal = useModal();
-  const { activeCompany, projects, customers, invoices, bills, createProject, userPersona } =
+  const { activeCompany, projects, customers, invoices, bills, createProject, updateProject, deleteProject, userPersona } =
     useAccounting();
 
   // Screen View Mode
@@ -32,6 +32,7 @@ function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // New Project Form State
+  const [editingId, setEditingId] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
@@ -59,11 +60,21 @@ function ProjectsPage() {
     const budgetVariance = p.budget - actualCosts;
     const cashImpact =
       projectInvoices.reduce(
-        (s, i) => s + (i.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+        (s, i) =>
+          s +
+          (i.payments || []).reduce(
+            (t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount),
+            0,
+          ),
         0,
       ) -
       projectBills.reduce(
-        (s, b) => s + (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+        (s, b) =>
+          s +
+          (b.payments || []).reduce(
+            (t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount),
+            0,
+          ),
         0,
       );
 
@@ -100,7 +111,8 @@ function ProjectsPage() {
         return;
       }
 
-      await createProject({
+      const save = editingId ? (data: Parameters<typeof createProject>[0]) => updateProject(editingId,data) : createProject;
+      await save({
         code: code.toUpperCase().trim(),
         name: name.trim(),
         clientName: clientName.trim() || "Cliente Direto",
@@ -114,6 +126,7 @@ function ProjectsPage() {
       });
 
       const createdCode = code.toUpperCase().trim();
+      setEditingId("");
       setCode("");
       setName("");
       setNotes("");
@@ -192,7 +205,7 @@ function ProjectsPage() {
               {userPersona.canCreateJournals && (
                 <button
                   type="button"
-                  onClick={() => setView("create")}
+                  onClick={() => {setEditingId(""); setView("create");}}
                   className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-brand/90 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Plus className="size-4" />
@@ -297,6 +310,10 @@ function ProjectsPage() {
                             {p.code}
                           </p>
                           <p className="text-[12px] truncate max-w-[220px]">{p.name}</p>
+                          {userPersona.canCreateJournals && <div className="flex gap-2 text-xs">
+                            <button onClick={() => {setEditingId(p.id);setCode(p.code);setName(p.name);setClientName(p.clientName);setCustomerId(p.customerId ?? "");setBudget(String(p.budget));setContractValue(String(p.contractValue));setStatus(p.status);setStartDate(p.startDate);setEndDate(p.endDate);setNotes(p.notes ?? "");setView("create");}}>Edit</button>
+                            <button onClick={async () => {try {if(await modal.showConfirm({title:"Delete unused project?",message:p.name})) await deleteProject(p.id);} catch { /* Provider displays errors. */ }}}>Delete</button>
+                          </div>}
                         </Td>
                         <Td className="text-ink2 text-[12px] font-medium">{p.clientName}</Td>
                         <Td align="right" className="font-mono text-[12px]">

@@ -79,7 +79,9 @@ function PayablesPage() {
     .filter((b) => b.status !== "Paid")
     .reduce((s, b) => s + outstanding(b).functional, 0);
   const totalPaidAp = bills.reduce(
-    (s, b) => s + (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+    (s, b) =>
+      s +
+      (b.payments || []).reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
     0,
   );
 
@@ -574,10 +576,21 @@ function PayablesPage() {
                 </select>
               </label>
               {/* Expense Account Classification */}
-              <label className="block text-sm">Cost center
-                <select className="w-full rounded border border-line p-2" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+              <label className="block text-sm">
+                Cost center
+                <select
+                  className="w-full rounded border border-line p-2"
+                  value={costCenterId}
+                  onChange={(e) => setCostCenterId(e.target.value)}
+                >
                   <option value="">Unassigned</option>
-                  {costCenters.filter((c) => c.status === "Active").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {costCenters
+                    .filter((c) => c.status === "Active")
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                 </select>
               </label>
               <DimensionFields

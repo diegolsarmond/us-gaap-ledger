@@ -222,7 +222,9 @@ export function CashManagementReport({
             />
             <Kpi
               label="Cash runway · months"
-              value={runway === null ? (burn === 0 ? "No net burn" : "Unavailable") : runway.toFixed(1)}
+              value={
+                runway === null ? (burn === 0 ? "No net burn" : "Unavailable") : runway.toFixed(1)
+              }
               hint={`Actual cash at ${elapsedEnd} ÷ monthly net burn. Historical-rate estimate.`}
             />
           </section>
@@ -249,14 +251,14 @@ export function CashManagementReport({
               </label>
               {!!direct.unclassifiedCount && (
                 <p role="alert" className="text-amber-800">
-                  {direct.unclassifiedCount} unclassified transaction(s). Review before using activity
-                  totals or management indicators.
+                  {direct.unclassifiedCount} unclassified transaction(s). Review before using
+                  activity totals or management indicators.
                 </p>
               )}
               <p className="text-xs text-ink3">
-                Interest paid and received and returns on investments are operating; dividends paid are
-                financing. Capitalized interest is investing. Equity-method returns of investment
-                require accounting review and are investing.
+                Interest paid and received and returns on investments are operating; dividends paid
+                are financing. Capitalized interest is investing. Equity-method returns of
+                investment require accounting review and are investing.
               </p>
             </div>
             {method === "direct" ? (
@@ -270,11 +272,16 @@ export function CashManagementReport({
                   </tr>
                 </thead>
                 <tbody>
-                  {(["operating", "investing", "financing", "transfer", "unclassified"] as const).map(
-                    (activity) => (
-                      <ActivityRows key={activity} activity={activity} direct={direct} money={money} />
-                    ),
-                  )}
+                  {(
+                    ["operating", "investing", "financing", "transfer", "unclassified"] as const
+                  ).map((activity) => (
+                    <ActivityRows
+                      key={activity}
+                      activity={activity}
+                      direct={direct}
+                      money={money}
+                    />
+                  ))}
                 </tbody>
               </Table>
             ) : (
@@ -327,7 +334,12 @@ export function CashManagementReport({
                   </thead>
                   <tbody>
                     {["investing", "financing", "transfer", "unclassified"].map((activity) => (
-                      <ActivityRows key={activity} activity={activity} direct={actual} money={money} />
+                      <ActivityRows
+                        key={activity}
+                        activity={activity}
+                        direct={actual}
+                        money={money}
+                      />
                     ))}
                   </tbody>
                 </Table>
@@ -351,9 +363,9 @@ export function CashManagementReport({
               </p>
               <p className="text-xs text-ink3 sm:col-span-2">
                 Beginning cash + recorded account openings + net cash change = ending cash. Account
-                openings are setup balances, not operating, investing or financing flows. Scope includes
-                only selected cash accounts and currency; restricted cash and FX reconciliation need
-                accounting review where applicable.
+                openings are setup balances, not operating, investing or financing flows. Scope
+                includes only selected cash accounts and currency; restricted cash and FX
+                reconciliation need accounting review where applicable.
               </p>
             </div>
           </Panel>
@@ -406,9 +418,9 @@ export function CashManagementReport({
         >
           <p className="px-4 py-3 text-xs text-ink3">
             Actuals without an original plan appear as unplanned. Existing planned entries establish
-            their baseline when migration 010 runs. Future and current weeks are not final variances.
-            Cancelled plans remain in the baseline. Edit a transaction to record an explanation; do
-            not create a second entry when settling a forecast.
+            their baseline when migration 010 runs. Future and current weeks are not final
+            variances. Cancelled plans remain in the baseline. Edit a transaction to record an
+            explanation; do not create a second entry when settling a forecast.
           </p>
           <Table>
             <thead>
@@ -522,7 +534,10 @@ export function CashManagementReport({
             </p>
             <p>
               <strong>Manual reconciliation: </strong>
-              {saved && operatingDifference === 0 && cashDifference === 0 && !actual.unclassifiedCount
+              {saved &&
+              operatingDifference === 0 &&
+              cashDifference === 0 &&
+              !actual.unclassifiedCount
                 ? "both checks agree with the figures entered above. This does not prove agreement with the ledger."
                 : "pending or requires review."}
             </p>

@@ -3,7 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccounting } from "@/lib/accounting-store";
 import { fetchTransactionRate, type ExchangeQuote } from "@/lib/transaction-rates";
 import { normalizedFx, outstanding, money } from "@/lib/transaction-fx";
-export function TradeAging({ kind, asOf: controlledDate, onAsOfChange }: { kind: "AP" | "AR"; asOf?: string; onAsOfChange?: (date: string) => void }) {
+export function TradeAging({
+  kind,
+  asOf: controlledDate,
+  onAsOfChange,
+}: {
+  kind: "AP" | "AR";
+  asOf?: string;
+  onAsOfChange?: (date: string) => void;
+}) {
   const { bills, invoices, revalueOpenItems, userPersona } = useAccounting();
   const [localDate, setLocalDate] = useState(new Date().toISOString().slice(0, 10));
   const asOf = controlledDate ?? localDate;

@@ -66,9 +66,7 @@ interface MenuGroup {
 const functionalGroups: MenuGroup[] = [
   {
     label: "Overview",
-    items: [
-      { label: "Dashboard", route: "/dashboard", icon: LayoutDashboard },
-    ],
+    items: [{ label: "Dashboard", route: "/dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Operations",
@@ -122,7 +120,12 @@ const settingsGroups: MenuGroup[] = [
     items: [
       { label: "Companies", route: "/companies", icon: Building },
       { label: "Users", route: "/users", icon: UserCog, permission: "manage_users" },
-      { label: "Access profiles", route: "/access", icon: ShieldCheck, permission: "manage_profiles" },
+      {
+        label: "Access profiles",
+        route: "/access",
+        icon: ShieldCheck,
+        permission: "manage_profiles",
+      },
       { label: "Action logs", route: "/audit-log", icon: History, permission: "view_audit" },
       { label: "Bulk Import", route: "/imports", icon: UploadCloud },
     ],
@@ -131,7 +134,11 @@ const settingsGroups: MenuGroup[] = [
     label: "System Parameters",
     description: "Tax rules, periods, currencies & dimensions",
     items: [
-      { label: "Modules Overview & Posting Accounts", route: "/parameters", icon: SlidersHorizontal },
+      {
+        label: "Modules Overview & Posting Accounts",
+        route: "/parameters",
+        icon: SlidersHorizontal,
+      },
       { label: "Fiscal Periods", route: "/parameters/fiscal-periods", icon: CalendarRange },
       { label: "Currencies & FX Rates", route: "/parameters/currencies", icon: Coins },
       { label: "Tax Jurisdictions", route: "/parameters/tax-jurisdictions", icon: MapPin },
@@ -147,7 +154,8 @@ const settingsGroups: MenuGroup[] = [
 function isSettingsRoute(pathname: string): boolean {
   return settingsGroups.some((group) =>
     group.items.some(
-      (item) => pathname === item.route || (item.route !== "/" && pathname.startsWith(item.route + "/")),
+      (item) =>
+        pathname === item.route || (item.route !== "/" && pathname.startsWith(item.route + "/")),
     ),
   );
 }
@@ -155,7 +163,10 @@ function isSettingsRoute(pathname: string): boolean {
 function getRouteMeta(pathname: string) {
   for (const group of functionalGroups) {
     for (const item of group.items) {
-      if (pathname === item.route || (item.route !== "/" && pathname.startsWith(item.route + "/"))) {
+      if (
+        pathname === item.route ||
+        (item.route !== "/" && pathname.startsWith(item.route + "/"))
+      ) {
         return {
           section: "Features",
           group: group.label,
@@ -166,7 +177,10 @@ function getRouteMeta(pathname: string) {
   }
   for (const group of settingsGroups) {
     for (const item of group.items) {
-      if (pathname === item.route || (item.route !== "/" && pathname.startsWith(item.route + "/"))) {
+      if (
+        pathname === item.route ||
+        (item.route !== "/" && pathname.startsWith(item.route + "/"))
+      ) {
         return {
           section: "Global Settings",
           group: group.label,
@@ -345,9 +359,7 @@ export function CashShell({
                         />
                         <span className="truncate">{item.label}</span>
                       </div>
-                      {isActive && (
-                        <span className="size-1.5 rounded-full bg-brand shrink-0" />
-                      )}
+                      {isActive && <span className="size-1.5 rounded-full bg-brand shrink-0" />}
                     </Link>
                   );
                 })}

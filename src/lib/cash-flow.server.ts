@@ -221,9 +221,18 @@ export async function saveAccount(
     await client.query("SELECT pg_advisory_xact_lock(803003)");
     await authorizeCompany(id, "write_cash", client);
     await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
-    const configuredCurrency = await client.query("SELECT 1 FROM ledger_currencies WHERE company_id=$1 AND code=$2 AND status='Active'", [id, data.currency]);
-    const historicalCurrency = data.id ? await client.query("SELECT 1 FROM cash_accounts WHERE company_id=$1 AND id=$2 AND currency=$3", [id, data.id, data.currency]) : null;
-    if (!configuredCurrency.rowCount && !historicalCurrency?.rowCount) throw new Error("Select an active company currency in System Parameters.");
+    const configuredCurrency = await client.query(
+      "SELECT 1 FROM ledger_currencies WHERE company_id=$1 AND code=$2 AND status='Active'",
+      [id, data.currency],
+    );
+    const historicalCurrency = data.id
+      ? await client.query(
+          "SELECT 1 FROM cash_accounts WHERE company_id=$1 AND id=$2 AND currency=$3",
+          [id, data.id, data.currency],
+        )
+      : null;
+    if (!configuredCurrency.rowCount && !historicalCurrency?.rowCount)
+      throw new Error("Select an active company currency in System Parameters.");
     if (!data.id && !data.gl_account_code)
       throw new Error("Link this cash account to an Asset account in Chart of Accounts.");
     if (data.gl_account_code) {

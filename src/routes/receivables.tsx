@@ -42,10 +42,7 @@ function ReceivablesPage() {
     return { ...inv, diffDays, bucket };
   });
 
-  const totalAR = openInvoices.reduce(
-    (s, i) => s + outstanding(i, asOf).functional,
-    0,
-  );
+  const totalAR = openInvoices.reduce((s, i) => s + outstanding(i, asOf).functional, 0);
   const currentTotal = categorized
     .filter((i) => i.bucket === "Current")
     .reduce((s, i) => s + outstanding(i, asOf).functional, 0);
@@ -182,8 +179,8 @@ function ReceivablesPage() {
                   {inv.diffDays > 0 ? `${inv.diffDays}d` : "Current"}
                 </Td>
                 <Td align="right" className="font-mono font-medium text-[12.5px]">
-                  {normalizedFx(inv).transactionCurrency} {outstanding(inv, asOf).native.toFixed(2)} /{" "}
-                  {usd(outstanding(inv, asOf).functional)}
+                  {normalizedFx(inv).transactionCurrency} {outstanding(inv, asOf).native.toFixed(2)}{" "}
+                  / {usd(outstanding(inv, asOf).functional)}
                 </Td>
               </tr>
             ))}

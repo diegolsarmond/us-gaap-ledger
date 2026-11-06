@@ -63,7 +63,7 @@ export interface Account {
 }
 
 export interface JournalLine {
-  costCenterId?: string;
+  costCenterId?: string | undefined;
   id: string;
   accountCode: string;
   debit: number;
@@ -122,7 +122,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice extends TransactionFx {
-  costCenterId?: string;
+  costCenterId?: string | undefined;
   customerId?: string | undefined;
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
@@ -154,7 +154,7 @@ export interface BillItem {
 }
 
 export interface Bill extends TransactionFx {
-  costCenterId?: string;
+  costCenterId?: string | undefined;
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
   vendorId?: string | undefined;
@@ -380,7 +380,7 @@ export interface AccountingContextType {
     date: string;
     memo: string;
     sourceType: JournalEntry["sourceType"];
-    costCenterId?: string;
+    costCenterId?: string | undefined;
     sourceId?: string | undefined;
     currency?: string | undefined;
     fxRate?: number | undefined;
@@ -404,6 +404,10 @@ export interface AccountingContextType {
     error?: string | undefined;
   };
 
+  updateInventoryItem: (id: string, data: {name: string; unitPrice: number}) => void;
+  deleteInventoryItem: (id: string) => void;
+  updateProject: (id: string, data: Omit<Project,"id">) => void;
+  deleteProject: (id: string) => void;
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, "id" | "costLots">) => void;
   adjustStock: (itemId: string, qtyDelta: number, unitCost: number, memo: string) => void;
@@ -519,7 +523,8 @@ export function createAccountingEngine(
   initialCompany: ClientCompany,
   userPersona: UserPersona,
 ) {
-  const resolveAccount = (accounts: Account[], preferred: string, legacy: string) => resolvePostingAccount(accounts, currentData.postingAccounts ?? [], preferred, legacy);
+  const resolveAccount = (accounts: Account[], preferred: string, legacy: string) =>
+    resolvePostingAccount(accounts, currentData.postingAccounts ?? [], preferred, legacy);
   let activeCompany = { ...initialCompany };
   let nextData = structuredClone(currentData);
   const currentRole = userPersona.role;
@@ -762,6 +767,33 @@ export function createAccountingEngine(
     return { success: true };
   };
 
+  const updateInventoryItem: AccountingContextType["updateInventoryItem"] = (id,data) => {
+    if (!currentData.inventory.some((i) => i.id === id)) throw new Error("Inventory item not found.");
+    updateCompanyData((prev) => ({...prev, inventory: prev.inventory.map((i) => i.id === id ? {...i,...data} : i)}));
+    addAuditLog("UPDATE_INVENTORY","Inventory",id,"Updated catalog name and selling price.");
+  };
+  const deleteInventoryItem = (id: string) => {
+    const item = currentData.inventory.find((i) => i.id === id);
+    if(!item) throw new Error("Inventory item not found.");
+    if(item.qtyOnHand !== 0 || currentData.invoices.some((d) => d.items.some((l) => l.sku === item.sku)) || currentData.bills.some((d) => d.items.some((l) => l.sku === item.sku)) || currentData.journals.some((j) => j.sourceType === "InventoryAdjustment" && j.sourceId === id)) throw new Error("An item with stock or transaction history cannot be deleted.");
+    updateCompanyData((prev) => ({...prev, inventory:prev.inventory.filter((i) => i.id !== id)}));
+    addAuditLog("DELETE_INVENTORY","Inventory",id,"Deleted unused catalog item.");
+  };
+  const updateProject: AccountingContextType["updateProject"] = (id,data) => {
+    const old = currentData.projects.find((p) => p.id === id);
+    if(!old) throw new Error("Project not found.");
+    if(data.startDate > data.endDate) throw new Error("Project start must precede end date.");
+    const used = currentData.invoices.some((i) => i.projectId === id) || currentData.bills.some((b) => b.projectId === id || b.items.some((l) => l.projectId === id));
+    if(used && old.customerId !== data.customerId) throw new Error("The customer cannot change after project activity.");
+    updateCompanyData((prev) => ({...prev,projects:prev.projects.map((p) => p.id === id ? {...data,id} : p)}));
+    addAuditLog("UPDATE_PROJECT","Project",id,"Updated project details.");
+  };
+  const deleteProject = (id: string) => {
+    if(!currentData.projects.some((p) => p.id === id)) throw new Error("Project not found.");
+    if(currentData.invoices.some((i) => i.projectId === id) || currentData.bills.some((b) => b.projectId === id || b.items.some((l) => l.projectId === id)) || currentData.journals.some((j) => j.lines.some((l) => l.projectId === id))) throw new Error("A project with transaction history cannot be deleted.");
+    updateCompanyData((prev) => ({...prev,projects:prev.projects.filter((p) => p.id !== id)}));
+    addAuditLog("DELETE_PROJECT","Project",id,"Deleted unused project.");
+  };
   const createInvoice: AccountingContextType["createInvoice"] = (invData) => {
     if (!userPersona.canCreateJournals) {
       return { success: false, error: "Unauthorized." };
@@ -777,7 +809,10 @@ export function createAccountingEngine(
     const issueFx = normalizedFx(invData);
     if (invData.customerId && !currentData.customers.some((c) => c.id === invData.customerId))
       throw new Error("Select a customer belonging to this company.");
-    const invoiceTerm = currentData.paymentTerms.find((t) => t.id === customer.paymentTermId && t.status === "Active") ?? currentData.paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active");
+    const invoiceTerm =
+      currentData.paymentTerms.find(
+        (t) => t.id === customer.paymentTermId && t.status === "Active",
+      ) ?? currentData.paymentTerms.find((t) => t.isDefaultCustomer && t.status === "Active");
     const newInvoice: Invoice = {
       ...invData,
       earlyDiscountPercentage: invoiceTerm?.earlyDiscountPercentage,
@@ -1026,11 +1061,20 @@ export function createAccountingEngine(
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Invalid payment" };
     }
-    const control = resolveAccount(
-      nextData.accounts,
-      kind === "AP" ? "20100" : "11000",
-      kind === "AP" ? "2000" : "1100",
+    const originalJournal = nextData.journals.find(
+      (j) => j.sourceId === id && j.sourceType === (kind === "AP" ? "Bill" : "Invoice"),
     );
+    const originalControl =
+      kind === "AP"
+        ? originalJournal?.lines.at(-1)?.accountCode
+        : originalJournal?.lines[0]?.accountCode;
+    const control =
+      originalControl ??
+      resolveAccount(
+        nextData.accounts,
+        kind === "AP" ? "20100" : "11000",
+        kind === "AP" ? "2000" : "1100",
+      );
     const discountAmount = earlyPaymentDiscount(doc, paymentDate, amount);
     const discountFunctional = money(discountAmount * appliedRate);
     const cashFunctionalAmount = money(result.functionalAmount - discountFunctional);
@@ -1049,11 +1093,17 @@ export function createAccountingEngine(
         memo: "Settlement " + fx.transactionCurrency + " " + amount,
       },
     ];
-    if (discountFunctional) lines.push({
-      accountCode: resolveAccount(nextData.accounts, kind === "AR" ? "40900" : "80400", kind === "AR" ? "40200" : "80200"),
-      debit: kind === "AR" ? discountFunctional : 0, credit: kind === "AP" ? discountFunctional : 0,
-      memo: "Contractual early-payment discount " + id,
-    });
+    if (discountFunctional)
+      lines.push({
+        accountCode: resolveAccount(
+          nextData.accounts,
+          kind === "AR" ? "40900" : "80400",
+          kind === "AR" ? "40200" : "80200",
+        ),
+        debit: kind === "AR" ? discountFunctional : 0,
+        credit: kind === "AP" ? discountFunctional : 0,
+        memo: "Contractual early-payment discount " + id,
+      });
     if (result.realizedGain)
       lines.push({
         accountCode: resolveAccount(nextData.accounts, "80300", "6300"),
@@ -1213,7 +1263,10 @@ export function createAccountingEngine(
     });
 
     const billVendor = currentData.vendors.find((v) => v.id === billData.vendorId);
-    const billTerm = currentData.paymentTerms.find((t) => t.id === billVendor?.paymentTermId && t.status === "Active") ?? currentData.paymentTerms.find((t) => t.isDefaultVendor && t.status === "Active");
+    const billTerm =
+      currentData.paymentTerms.find(
+        (t) => t.id === billVendor?.paymentTermId && t.status === "Active",
+      ) ?? currentData.paymentTerms.find((t) => t.isDefaultVendor && t.status === "Active");
     const newBill: Bill = {
       ...billData,
       earlyDiscountPercentage: billTerm?.earlyDiscountPercentage,
@@ -1719,9 +1772,11 @@ export function createAccountingEngine(
       currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
       currentData.statements.some((s) => s.accountCode === code) ||
       currentData.stagingRows.some((s) => s.classifiedAccount === code) ||
-      [...currentData.expenseCategories, ...currentData.taxJurisdictions, ...(currentData.postingAccounts ?? [])].some(
-        (p) => p.glAccountCode === code,
-      );
+      [
+        ...currentData.expenseCategories,
+        ...currentData.taxJurisdictions,
+        ...(currentData.postingAccounts ?? []),
+      ].some((p) => p.glAccountCode === code);
     if (used)
       throw new Error("This account has journal entries or linked records and cannot be deleted.");
     updateCompanyData((prev) => ({
@@ -2149,6 +2204,10 @@ export function createAccountingEngine(
       reverseJournalEntry,
       togglePeriodLock,
       inventory: currentData.inventory,
+      updateInventoryItem,
+      deleteInventoryItem,
+      updateProject,
+      deleteProject,
       addInventoryItem,
       adjustStock,
       setCostMethod,

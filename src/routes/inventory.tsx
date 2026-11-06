@@ -28,6 +28,8 @@ function InventoryPage() {
     setCostMethod,
     adjustStock,
     addInventoryItem,
+    updateInventoryItem,
+    deleteInventoryItem,
     totalInventoryValuation,
     userPersona,
   } = useAccounting();
@@ -338,6 +340,16 @@ function InventoryPage() {
                           </Td>
                           <Td align="right" className="font-mono font-semibold text-[12px]">
                             {item.type === "Product" ? usd(totalVal) : "—"}
+                            {userPersona.canCreateJournals && <div className="flex gap-2 justify-end text-xs">
+                              <button onClick={async () => {try {
+                                const name = await modal.showPrompt({title:"Edit catalog item",message:"Item name",defaultValue:item.name}); if(!name?.trim()) return;
+                                const price = await modal.showPrompt({title:"Edit selling price",message:"Selling price",defaultValue:String(item.unitPrice)}); if(price == null) return;
+                                await updateInventoryItem(item.id,{name:name.trim(),unitPrice:Number(price)});
+                              } catch { /* Provider displays errors. */ }}}>Edit</button>
+                              <button onClick={async () => {try {
+                                if(await modal.showConfirm({title:"Delete unused item?",message:item.name})) await deleteInventoryItem(item.id);
+                              } catch { /* Provider displays errors. */ }}}>Delete</button>
+                            </div>}
                           </Td>
                         </tr>
                       );

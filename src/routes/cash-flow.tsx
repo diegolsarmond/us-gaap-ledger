@@ -109,9 +109,15 @@ function CashFlowPage() {
     queryKey: ["cash-flow", companyId],
     queryFn: () => loadCashData({ data: { companyId } }),
   });
-  const parameters = useQuery({ queryKey: ["parameters", companyId], queryFn: () => loadParameters({ data: { companyId } }) });
-  const activeCurrencies = parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ?? [];
-  const currencyOptions = [...new Set([...activeCurrencies, ...(query.data?.accounts.map((a) => a.currency) ?? [])])];
+  const parameters = useQuery({
+    queryKey: ["parameters", companyId],
+    queryFn: () => loadParameters({ data: { companyId } }),
+  });
+  const activeCurrencies =
+    parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ?? [];
+  const currencyOptions = [
+    ...new Set([...activeCurrencies, ...(query.data?.accounts.map((a) => a.currency) ?? [])]),
+  ];
   const [start, setStart] = useState(() => relativeDate(-28));
   const [end, setEnd] = useState(() => relativeDate(90));
   const [interval, setInterval] = useState<Interval>("weekly");
@@ -467,7 +473,9 @@ function CashFlowPage() {
                           onChange={(e) => setAccountCurrency(e.target.value)}
                           className={control}
                         >
-                          {activeCurrencies.map((c) => <option key={c}>{c}</option>)}
+                          {activeCurrencies.map((c) => (
+                            <option key={c}>{c}</option>
+                          ))}
                         </select>
                       </Field>
                       <Field label="Opening balance date">
@@ -823,7 +831,9 @@ function CashFlowPage() {
                   }}
                   className={control}
                 >
-                  {currencyOptions.map((c) => <option key={c}>{c}</option>)}
+                  {currencyOptions.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
                 </select>
               </Field>
               <Field label="Account">
@@ -1022,8 +1032,8 @@ function CashFlowPage() {
                 >
                   <p className="px-4 py-3 text-xs text-ink3">
                     Closing balance = previous balance + recorded opening balances + inflows −
-                    outflows. Recorded opening balances are included on each account opening date. Net
-                    cash flow equals inflows minus outflows.
+                    outflows. Recorded opening balances are included on each account opening date.
+                    Net cash flow equals inflows minus outflows.
                   </p>
                   <Table>
                     <thead>
@@ -1233,7 +1243,8 @@ function CashFlowPage() {
                                   });
                                   if (confirmed) {
                                     void mutate(
-                                      () => deleteCashTransaction({ data: { id: t.id, companyId } }),
+                                      () =>
+                                        deleteCashTransaction({ data: { id: t.id, companyId } }),
                                       "Transaction deleted.",
                                     );
                                   }

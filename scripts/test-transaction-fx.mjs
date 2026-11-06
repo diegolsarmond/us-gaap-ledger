@@ -247,34 +247,131 @@ export { state };
 // Parameter integration regressions: soft-close and jurisdiction GL mapping.
 const parameterState = structuredClone(state);
 parameterState.fiscalPeriods[0].status = "Soft-Close";
-let parameterEngine = createAccountingEngine(parameterState, company, { ...user, canClosePeriod: false });
+let parameterEngine = createAccountingEngine(parameterState, company, {
+  ...user,
+  canClosePeriod: false,
+});
 const sourceInvoice = structuredClone(state.invoices[0]);
 const denied = parameterEngine.value.createInvoice({ ...sourceInvoice, date: "2026-01-05" });
 assert.equal(denied.success, false);
 assert.match(denied.error, /soft-closed/);
 assert.equal(parameterEngine.getState().invoices.length, parameterState.invoices.length);
 parameterState.fiscalPeriods[0].status = "Open";
-parameterState.accounts.push({ code: "22999", name: "Configured sales tax", type: "Liability", balanceType: "Credit" });
-parameterState.taxJurisdictions = [{ id: "configured-tax", code: "TX-CUSTOM", name: "Configured tax", rate: 5, status: "Active", glAccountCode: "22999", state: "TX", taxType: "Combined", filingFrequency: "Monthly" }];
+parameterState.accounts.push({
+  code: "22999",
+  name: "Configured sales tax",
+  type: "Liability",
+  balanceType: "Credit",
+});
+parameterState.taxJurisdictions = [
+  {
+    id: "configured-tax",
+    code: "TX-CUSTOM",
+    name: "Configured tax",
+    rate: 5,
+    status: "Active",
+    glAccountCode: "22999",
+    state: "TX",
+    taxType: "Combined",
+    filingFrequency: "Monthly",
+  },
+];
 parameterState.customers.find((c) => c.id === customerId).defaultTaxCode = "TX-CUSTOM";
 parameterEngine = createAccountingEngine(parameterState, company, user);
-const configured = parameterEngine.value.createInvoice({ ...sourceInvoice, date: "2026-01-05", transactionCurrency: "USD", exchangeRateValue: 1, transactionAmount: 105, functionalAmount: 105, subtotal: 100, taxRate: 5, taxAmount: 5, total: 105, taxExempt: false, items: [{ id: "tax-line", description: "Taxable service", qty: 1, unitPrice: 100, taxable: true, isProduct: false }] });
+const configured = parameterEngine.value.createInvoice({
+  ...sourceInvoice,
+  date: "2026-01-05",
+  transactionCurrency: "USD",
+  exchangeRateValue: 1,
+  transactionAmount: 105,
+  functionalAmount: 105,
+  subtotal: 100,
+  taxRate: 5,
+  taxAmount: 5,
+  total: 105,
+  taxExempt: false,
+  items: [
+    {
+      id: "tax-line",
+      description: "Taxable service",
+      qty: 1,
+      unitPrice: 100,
+      taxable: true,
+      isProduct: false,
+    },
+  ],
+});
 assert.equal(configured.success, true, configured.error);
-assert.ok(parameterEngine.getState().journals.some((j) => j.sourceId === configured.invoiceId && j.lines.some((l) => l.accountCode === "22999" && l.credit === 5)));
+assert.ok(
+  parameterEngine
+    .getState()
+    .journals.some(
+      (j) =>
+        j.sourceId === configured.invoiceId &&
+        j.lines.some((l) => l.accountCode === "22999" && l.credit === 5),
+    ),
+);
 console.log("PASS: operational soft-close and configured jurisdiction GL account.");
 console.log(
   "PASS: single contact across currencies, required customer fields, foreign invoice posting, AP/AR partial settlement and both FX signs, bank ownership, historical aging, month-end revaluation, next-day reversal, idempotence, balanced unique journals and empty-engine regression.",
 );
 
 const mappedState = structuredClone(parameterState);
-mappedState.accounts.push({code: "11999",name:"Configured AR",type:"Asset",balanceType:"Debit",description:""});
-mappedState.postingAccounts = [{id:"ar-map",code:"ar",name:"AR",glAccountCode:"11999",status:"Active"}];
-mappedState.costCenters = [{id:"ops",code:"OPS",name:"Operations",status:"Active",manager:"Test",annualBudget:1000,description:""}];
-const mappedEngine = createAccountingEngine(mappedState,company,user);
-const mappedInvoice = mappedEngine.value.createInvoice({...sourceInvoice,date:"2026-01-05",costCenterId:"ops"});
-assert.equal(mappedInvoice.success,true,mappedInvoice.error);
-const mappedJournal = mappedEngine.getState().journals.find((j)=>j.sourceId===mappedInvoice.invoiceId);
-assert.ok(mappedJournal.lines.some((l)=>l.accountCode==="11999"));
-assert.ok(mappedJournal.lines.every((l)=>l.costCenterId==="ops"));
-assert.equal(mappedState.journals.some((j)=>j.lines.some((l)=>l.accountCode==="11999")),false);
-console.log("PASS: automatic account mapping and cost-center propagation without rewriting history.");
+mappedState.accounts.push({
+  code: "11999",
+  name: "Configured AR",
+  type: "Asset",
+  balanceType: "Debit",
+  description: "",
+});
+mappedState.postingAccounts = [
+  { id: "ar-map", code: "ar", name: "AR", glAccountCode: "11999", status: "Active" },
+];
+mappedState.costCenters = [
+  {
+    id: "ops",
+    code: "OPS",
+    name: "Operations",
+    status: "Active",
+    manager: "Test",
+    annualBudget: 1000,
+    description: "",
+  },
+];
+const mappedEngine = createAccountingEngine(mappedState, company, user);
+const mappedInvoice = mappedEngine.value.createInvoice({
+  ...sourceInvoice,
+  date: "2026-01-05",
+  costCenterId: "ops",
+});
+assert.equal(mappedInvoice.success, true, mappedInvoice.error);
+const mappedJournal = mappedEngine
+  .getState()
+  .journals.find((j) => j.sourceId === mappedInvoice.invoiceId);
+assert.ok(mappedJournal.lines.some((l) => l.accountCode === "11999"));
+assert.ok(mappedJournal.lines.every((l) => l.costCenterId === "ops"));
+assert.equal(
+  mappedState.journals.some((j) => j.lines.some((l) => l.accountCode === "11999")),
+  false,
+);
+console.log(
+  "PASS: automatic account mapping and cost-center propagation without rewriting history.",
+);
+
+const discountState = structuredClone(mappedState);
+discountState.paymentTerms = [{id:"early",code:"2-10",name:"2/10 Net 30",days:30,earlyDiscountPercentage:2,discountDays:10,isDefaultCustomer:true,isDefaultVendor:true,status:"Active"}];
+let de = createAccountingEngine(discountState,company,user);
+const di = de.value.createInvoice({...sourceInvoice,date:"2026-01-02",transactionCurrency:"USD",exchangeRateValue:1,transactionAmount:100,functionalAmount:100,subtotal:100,total:100,taxAmount:0,taxRate:0,taxExempt:true,items:[{id:"svc",description:"Service",isProduct:false,qty:1,unitPrice:100,taxable:false}]});
+assert.equal(di.success,true,di.error);
+let ds=de.getState();ds.paymentTerms[0].earlyDiscountPercentage=10;
+de=createAccountingEngine(ds,company,user);
+const dp=de.value.recordInvoicePayment(di.invoiceId,"2026-01-05",1,100);
+assert.equal(dp.success,true,dp.error);
+const paidDoc=de.getState().invoices.find((i)=>i.id===di.invoiceId);
+assert.equal(paidDoc.payments[0].discountAmount,2);
+assert.equal(paidDoc.payments[0].cashFunctionalAmount,98);
+assert.equal(outstanding(paidDoc).native,0);
+assert.equal(paidDoc.status,"Paid");
+const pj=de.getState().journals.find((j)=>j.id===paidDoc.payments[0].journalId);
+assert.equal(pj.lines.reduce((t,l)=>t+l.debit-l.credit,0),0);
+console.log("PASS: snapshotted early discount, net cash, full AR clearance and balanced posting.");

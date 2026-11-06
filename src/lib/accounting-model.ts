@@ -268,6 +268,10 @@ export const commandArgs = {
     date,
     z.record(z.object({ rate: num.positive(), date, source: text.min(1) })),
   ]),
+  updateInventoryItem: z.tuple([key,z.object({name:key,unitPrice:num})]),
+  deleteInventoryItem: z.tuple([key]),
+  updateProject: z.tuple([key,project.omit({id:true})]),
+  deleteProject: z.tuple([key]),
   createProject: z.tuple([project.omit({ id: true })]),
   importStatement: z.tuple([
     z.object({
