@@ -132,7 +132,7 @@ for (const [kind, sheets] of Object.entries(source)) {
               stateProvince: text(r.State),
               country: text(r.Country),
               zipCode: text(r.Zip),
-              currency,
+              sourceCurrency: currency,
               track1099: text(r["1099 Tracking"]) === "True",
               sourceOpenBalance: balance(r["Open Balance"]),
             }),
@@ -191,7 +191,7 @@ try {
   }
   const currencyRows = await readLedger(client, companyId, "currencies");
   const createdCurrencies = [];
-  for (const code of new Set(["USD", ...input.vendors.map((r) => r.currency)])) {
+  for (const code of new Set(["USD", ...input.vendors.map((r) => r.sourceCurrency)])) {
     const existing = currencyRows.find((r) => r.code === code);
     if (existing) {
       assert(
@@ -263,7 +263,7 @@ try {
       assert.deepEqual(schema.parse(record), row, "Persisted contact differs from source mapping");
       const amount = Math.round(row.sourceOpenBalance * 100);
       cents += amount;
-      const code = row.currency || "Unspecified";
+      const code = row.sourceCurrency || "Unspecified";
       balances[code] = (balances[code] ?? 0) + amount;
     }
     summary[domain] = {

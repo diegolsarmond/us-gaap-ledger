@@ -437,7 +437,7 @@ function PayablesPage() {
                       if (!vendor) return;
                       setVendorName(vendor.displayName);
                       setAccountCode(vendor.defaultExpenseAccountCode);
-                      handleCurrencyChange(vendor.currency || "USD");
+                      // Currency is selected on each bill, independently of the vendor.
                       const term = paymentTerms.find(
                         (t) => t.id === vendor.paymentTermId && t.status === "Active",
                       );

@@ -76,7 +76,7 @@ export const vendorSchema = z
     zipCode: optionalText,
     country: optionalText,
     paymentTermId: optionalText,
-    currency: z.union([z.literal(""), z.string().regex(/^[A-Z]{3}$/)]).default(""),
+    sourceCurrency: z.string().max(3).default(""),
     defaultExpenseAccountCode: optionalText,
     accountNumber: optionalText,
     taxId: optionalText,
@@ -97,6 +97,14 @@ export const vendorSchema = z
     bankAccountType: z.enum(["", "Checking", "Savings"]).default(""),
     notes: z.string().trim().max(10000).default(""),
     customFields: z.array(vendorCustomFieldSchema).max(50).default([]),
+    bankAccounts: z.array(z.object({
+      id: z.string().uuid(), label: z.string().trim().min(1).max(120),
+      currency: z.string().regex(/^[A-Z]{3}$/), bankName: optionalText,
+      accountNumber: z.string().trim().regex(/^\d{5,17}$/, "Account number must contain 5 to 17 digits."),
+      routingNumber: z.string().trim().regex(/^(?:\d{9})?$/).default(""),
+      swiftBic: z.string().trim().max(20).default(""),
+      paymentType: z.enum(["ACH", "Wire"]).default("ACH"),
+    }).refine((a) => a.paymentType !== "ACH" || /^\d{9}$/.test(a.routingNumber), "ACH accounts require a 9 digit routing number.")).max(20).default([]),
   })
   .superRefine((vendor, ctx) => {
     if (!!vendor.routingNumber !== !!vendor.bankAccountNumber)

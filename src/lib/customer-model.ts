@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { vendorCustomFieldSchema } from "./vendor-model";
 const text = z.string().trim().max(2000).default("");
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const address = z.object({ street: text, city: text, state: text, zip: text, country: text });
@@ -9,7 +10,7 @@ export const customerSchema = z.object({
   middleName: text,
   lastName: text,
   suffix: text,
-  companyName: text,
+  companyName: z.string().trim().min(1, "Enter the customer company name.").max(2000),
   customerType: z.string().trim().max(120).optional(),
   sourceOpenBalance: z.number().finite().nullable().optional(),
   sourceBalanceDate: z.string().date().nullable().optional(),
@@ -18,14 +19,15 @@ export const customerSchema = z.object({
   mobile: text,
   fax: text,
   website: text,
-  email: z.union([z.string().trim().email().max(254), z.literal("")]).default(""),
+  email: z.string().trim().email("Enter a billing email.").max(254),
   billingAddress: address.default({}),
   shippingAddress: address.default({}),
   shippingSameAsBilling: z.boolean().default(true),
-  currency: z.string().max(3).default(""),
+  sourceCurrency: z.string().max(3).default(""),
   paymentTermId: text,
   paymentMethod: z.enum(["", "Credit card", "Check", "ACH", "Cash"]).default(""),
-  deliveryMethod: z.enum(["", "Send later", "Print later"]).default(""),
+  deliveryMethod: z.enum(["", "Send later", "Print later", "Email", "Portal", "Print"]).default(""),
+  customFields: z.array(vendorCustomFieldSchema).max(50).default([]),
   taxId: text,
   taxExempt: z.boolean().default(false),
   exemptionReason: text,
@@ -69,8 +71,6 @@ export function validateCustomers(
     const name = c.displayName.toLowerCase();
     if (names.has(name)) throw new Error("A customer with this display name already exists.");
     names.add(name);
-    if (c.currency && !currencies.includes(c.currency))
-      throw new Error("Currency does not belong to this company.");
     if (c.paymentTermId && !terms.includes(c.paymentTermId))
       throw new Error("Payment term does not belong to this company.");
     if (c.defaultTaxCode && !taxes.includes(c.defaultTaxCode))

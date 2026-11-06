@@ -25,7 +25,7 @@ const scope = " scope? sharedId?:uuid";
 const scopeChildren = { companyIds: "value:uuid" };
 const dimensionValues = "dimensionId valueId lineId?";
 const contact =
-  "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email currency paymentTermId taxId notes";
+  "id displayName title firstName middleName lastName suffix companyName sourceOpenBalance?:numeric sourceBalanceDate?:date phone mobile fax website email sourceCurrency paymentTermId taxId notes";
 export const ledgerSchemas: Record<string, LedgerSchema> = {
   dimensions: schema(
     "id code name status required:boolean applyInvoices:boolean applyBills:boolean",
@@ -36,12 +36,12 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   customers: schema(
     contact +
       " customerType? printOnChecksAs billingAddress.street billingAddress.city billingAddress.state billingAddress.zip billingAddress.country shippingAddress.street shippingAddress.city shippingAddress.state shippingAddress.zip shippingAddress.country shippingSameAsBilling:boolean paymentMethod deliveryMethod taxExempt:boolean exemptionReason defaultTaxCode parentCustomerId billWithParent:boolean",
-    { attachments: "id:uuid name size:integer content" },
+    { attachments: "id:uuid name size:integer content", customFields: "name type value" },
   ),
   vendors: schema(
     contact +
       " printOnCheckAs cc bcc otherContact streetAddress streetAddress2 city stateProvince zipCode country defaultExpenseAccountCode accountNumber track1099:boolean costRate?:numeric billingRate?:numeric bankName routingNumber bankAccountNumber bankAccountType",
-    { addressLines: "line", customFields: "name type value" },
+    { addressLines: "line", customFields: "name type value", bankAccounts: "id:uuid label currency bankName accountNumber routingNumber swiftBic paymentType" },
   ),
   accounts: schema(
     "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode?",

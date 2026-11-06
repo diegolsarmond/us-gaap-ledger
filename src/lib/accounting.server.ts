@@ -160,8 +160,6 @@ export function validateState(state: CompanyState) {
       throw new Error("Select an expense account.");
     if (v.paymentTermId && !state.paymentTerms.some((t) => t.id === v.paymentTermId))
       throw new Error("Payment term does not belong to this company.");
-    if (v.currency && !state.currencies.some((c) => c.code === v.currency))
-      throw new Error("Currency does not belong to this company.");
   }
   for (const b of state.bills) {
     if (b.vendorId && !state.vendors.some((v) => v.id === b.vendorId))
