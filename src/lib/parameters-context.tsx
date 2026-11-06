@@ -18,11 +18,12 @@ type Rows = {
   paymentTerms: Models.PaymentTermParam[];
   costCenters: Models.CostCenterParam[];
   expenseCategories: Models.ExpenseCategoryParam[];
+  postingAccounts: import("./posting-accounts").PostingAccount[];
   fiscalPeriods: Models.FiscalPeriodParam[];
 };
 type Methods = {
   [
-    K in keyof Rows as `add${K extends "currencies" ? "Currency" : K extends "taxJurisdictions" ? "TaxJurisdiction" : K extends "paymentTerms" ? "PaymentTerm" : K extends "costCenters" ? "CostCenter" : K extends "expenseCategories" ? "ExpenseCategory" : "FiscalPeriod"}`
+    K in keyof Rows as `add${K extends "postingAccounts" ? "PostingAccount" : K extends "currencies" ? "Currency" : K extends "taxJurisdictions" ? "TaxJurisdiction" : K extends "paymentTerms" ? "PaymentTerm" : K extends "costCenters" ? "CostCenter" : K extends "expenseCategories" ? "ExpenseCategory" : "FiscalPeriod"}`
   ]: (value: Omit<Rows[K][number], "id">) => Promise<void>;
 } & { [key: string]: any };
 const Context = createContext<
@@ -69,6 +70,7 @@ export function ParametersProvider({ children }: { children: React.ReactNode }) 
   const data = query.data;
   const methods: Record<string, unknown> = {};
   const names: Record<ParameterDomain, string> = {
+    postingAccounts: "PostingAccount",
     currencies: "Currency",
     taxJurisdictions: "TaxJurisdiction",
     paymentTerms: "PaymentTerm",

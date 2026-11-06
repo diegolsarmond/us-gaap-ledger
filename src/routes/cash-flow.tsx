@@ -1,3 +1,4 @@
+import { loadParameters } from "@/lib/parameters";
 import { useModal } from "@/components/modal-provider";
 import { useCompanies } from "@/components/company-context";
 import { CashManagementReport } from "@/components/cash-management-report";
@@ -108,6 +109,9 @@ function CashFlowPage() {
     queryKey: ["cash-flow", companyId],
     queryFn: () => loadCashData({ data: { companyId } }),
   });
+  const parameters = useQuery({ queryKey: ["parameters", companyId], queryFn: () => loadParameters({ data: { companyId } }) });
+  const activeCurrencies = parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ?? [];
+  const currencyOptions = [...new Set([...activeCurrencies, ...(query.data?.accounts.map((a) => a.currency) ?? [])])];
   const [start, setStart] = useState(() => relativeDate(-28));
   const [end, setEnd] = useState(() => relativeDate(90));
   const [interval, setInterval] = useState<Interval>("weekly");
@@ -237,7 +241,7 @@ function CashFlowPage() {
             companyId,
             ...(editingAccount ? { id: editingAccount.id } : {}),
             name: String(f.get("name")),
-            currency: String(f.get("currency")) as "USD" | "BRL" | "EUR",
+            currency: String(f.get("currency")) as string,
             opening_date: String(f.get("opening_date")),
             opening_balance: Number(openingBalanceCents) / 100,
             gl_account_code: String(f.get("gl_account_code") ?? "") || null,
@@ -463,9 +467,7 @@ function CashFlowPage() {
                           onChange={(e) => setAccountCurrency(e.target.value)}
                           className={control}
                         >
-                          <option>USD</option>
-                          <option>BRL</option>
-                          <option>EUR</option>
+                          {activeCurrencies.map((c) => <option key={c}>{c}</option>)}
                         </select>
                       </Field>
                       <Field label="Opening balance date">
@@ -821,9 +823,7 @@ function CashFlowPage() {
                   }}
                   className={control}
                 >
-                  <option>USD</option>
-                  <option>BRL</option>
-                  <option>EUR</option>
+                  {currencyOptions.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </Field>
               <Field label="Account">
@@ -1075,7 +1075,7 @@ function CashFlowPage() {
                   start={start}
                   end={end}
                   projected={projected}
-                  currency={currency as "USD" | "BRL" | "EUR"}
+                  currency={currency as string}
                   companyId={companyId}
                   accountId={accountId}
                   asOf={today()}
@@ -1101,7 +1101,7 @@ function CashFlowPage() {
                   start={start}
                   end={end}
                   projected={projected}
-                  currency={currency as "USD" | "BRL" | "EUR"}
+                  currency={currency as string}
                   companyId={companyId}
                   accountId={accountId}
                   asOf={today()}
@@ -1127,7 +1127,7 @@ function CashFlowPage() {
                   start={start}
                   end={end}
                   projected={projected}
-                  currency={currency as "USD" | "BRL" | "EUR"}
+                  currency={currency as string}
                   companyId={companyId}
                   accountId={accountId}
                   asOf={today()}

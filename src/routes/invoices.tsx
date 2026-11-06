@@ -37,6 +37,7 @@ function InvoicesPage() {
     paymentTerms,
     taxJurisdictions,
     dimensions,
+    costCenters,
     projects,
     createInvoice,
     userPersona,
@@ -57,6 +58,7 @@ function InvoicesPage() {
   const issueQuote = useTransactionQuote(currency, date);
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [kind, setKind] = useState<"Product" | "Service">("Product");
+  const [costCenterId, setCostCenterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [dimensionValues, setDimensionValues] = useState<DimensionValue[]>([]);
   const [taxExempt, setTaxExempt] = useState(false);
@@ -152,6 +154,7 @@ function InvoicesPage() {
 
       const result = await createInvoice({
         dimensionValues,
+        costCenterId: costCenterId || undefined,
         customerName: customerName.trim(),
         customerId: customerId || undefined,
         transactionCurrency: currency,
@@ -623,6 +626,12 @@ function InvoicesPage() {
                 </div>
               </Panel>
               {/* Line Items */}
+              <label className="block text-sm">Cost center
+                <select className="w-full rounded border border-line p-2" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+                  <option value="">Unassigned</option>
+                  {costCenters.filter((c) => c.status === "Active").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
               <DimensionFields
                 dimensions={dimensions}
                 document="invoices"

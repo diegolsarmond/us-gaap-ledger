@@ -130,6 +130,12 @@ export async function writeParameter(input: z.infer<typeof mutationSchema>) {
           next["closingDate"] =
             next["status"] === "Open" ? undefined : new Date().toISOString().slice(0, 10);
         }
+        if (input.domain === "paymentTerms") {
+          for (const row of remaining) {
+            if (next["isDefaultCustomer"]) row["isDefaultCustomer"] = false;
+            if (next["isDefaultVendor"]) row["isDefaultVendor"] = false;
+          }
+        }
         remaining.push(next);
       }
       (state[input.domain] as unknown[]) = remaining;

@@ -39,6 +39,7 @@ function PayablesPage() {
     projects,
     inventory,
     dimensions,
+    costCenters,
     createBill,
     userPersona,
     currencies,
@@ -63,6 +64,7 @@ function PayablesPage() {
   const [isInventory, setIsInventory] = useState(false);
   const [skuPurchased, setSkuPurchased] = useState("");
   const [qtyPurchased, setQtyPurchased] = useState(0);
+  const [costCenterId, setCostCenterId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [dimensionValues, setDimensionValues] = useState<DimensionValue[]>([]);
 
@@ -98,6 +100,7 @@ function PayablesPage() {
 
       const result = await createBill({
         dimensionValues,
+        costCenterId: costCenterId || undefined,
         vendorId: vendorId || undefined,
         vendorName: vendorName.trim(),
         billNumber: billNumber.trim(),
@@ -571,6 +574,12 @@ function PayablesPage() {
                 </select>
               </label>
               {/* Expense Account Classification */}
+              <label className="block text-sm">Cost center
+                <select className="w-full rounded border border-line p-2" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+                  <option value="">Unassigned</option>
+                  {costCenters.filter((c) => c.status === "Active").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
               <DimensionFields
                 dimensions={dimensions}
                 document="bills"

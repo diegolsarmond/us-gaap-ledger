@@ -265,3 +265,16 @@ console.log("PASS: operational soft-close and configured jurisdiction GL account
 console.log(
   "PASS: single contact across currencies, required customer fields, foreign invoice posting, AP/AR partial settlement and both FX signs, bank ownership, historical aging, month-end revaluation, next-day reversal, idempotence, balanced unique journals and empty-engine regression.",
 );
+
+const mappedState = structuredClone(parameterState);
+mappedState.accounts.push({code: "11999",name:"Configured AR",type:"Asset",balanceType:"Debit",description:""});
+mappedState.postingAccounts = [{id:"ar-map",code:"ar",name:"AR",glAccountCode:"11999",status:"Active"}];
+mappedState.costCenters = [{id:"ops",code:"OPS",name:"Operations",status:"Active",manager:"Test",annualBudget:1000,description:""}];
+const mappedEngine = createAccountingEngine(mappedState,company,user);
+const mappedInvoice = mappedEngine.value.createInvoice({...sourceInvoice,date:"2026-01-05",costCenterId:"ops"});
+assert.equal(mappedInvoice.success,true,mappedInvoice.error);
+const mappedJournal = mappedEngine.getState().journals.find((j)=>j.sourceId===mappedInvoice.invoiceId);
+assert.ok(mappedJournal.lines.some((l)=>l.accountCode==="11999"));
+assert.ok(mappedJournal.lines.every((l)=>l.costCenterId==="ops"));
+assert.equal(mappedState.journals.some((j)=>j.lines.some((l)=>l.accountCode==="11999")),false);
+console.log("PASS: automatic account mapping and cost-center propagation without rewriting history.");

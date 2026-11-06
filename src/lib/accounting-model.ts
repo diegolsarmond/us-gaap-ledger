@@ -38,6 +38,7 @@ const line = z.object({
   credit: num,
   memo: text.optional(),
   projectId,
+  costCenterId: key.optional(),
 });
 export const journalInput = z.object({
   date,
@@ -53,6 +54,7 @@ export const journalInput = z.object({
     "FXRevaluation",
     "FXReversal",
   ]),
+  costCenterId: key.optional(),
   sourceId: key.optional(),
   currency: key.optional(),
   fxRate: num.positive().optional(),
@@ -74,6 +76,7 @@ export const inventory = z.object({
   costLots: z.array(z.object({ id: key, qty: num, unitCost: num, date })).max(10000),
 });
 export const invoice = z.object({
+  costCenterId: key.optional(),
   ...fxFields,
   customerId: key.optional(),
   payments: z.array(paymentSchema).default([]),
@@ -108,6 +111,7 @@ export const invoice = z.object({
   paymentDate: date.optional(),
 });
 export const bill = z.object({
+  costCenterId: key.optional(),
   transactionCurrency: z
     .string()
     .regex(/^[A-Z]{3}$/)
@@ -311,5 +315,6 @@ export const domains = [
   "paymentTerms",
   "costCenters",
   "expenseCategories",
+  "postingAccounts",
   "fiscalPeriods",
 ] as const;

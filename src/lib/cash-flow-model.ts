@@ -79,7 +79,7 @@ const cashFlowLineSchema = z.enum(Object.keys(cashFlowLines) as [CashFlowLine, .
 export const accountSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(120),
-  currency: z.enum(["USD", "BRL", "EUR"]),
+  currency: z.string().regex(/^[A-Z]{3}$/),
   opening_date: dateSchema,
   opening_balance: money.min(-999999999999.99),
   gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
@@ -148,7 +148,7 @@ export const reconciliationScopeSchema = z.object({
   companyId: z.string().uuid(),
   start: dateSchema,
   end: dateSchema,
-  currency: z.enum(["USD", "BRL", "EUR"]),
+  currency: z.string().regex(/^[A-Z]{3}$/),
   accountId: z.string().uuid().nullable(),
 });
 export const reconciliationSchema = reconciliationScopeSchema.extend({

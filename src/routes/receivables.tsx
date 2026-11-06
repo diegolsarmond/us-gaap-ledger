@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { TradeAging } from "@/components/trade-aging";
 import { normalizedFx, outstanding } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
@@ -22,13 +23,14 @@ export const Route = createFileRoute("/receivables")({
 function ReceivablesPage() {
   const { activeCompany, invoices } = useAccounting();
 
-  const openInvoices = invoices.filter((i) => i.status !== "Paid");
+  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const openInvoices = invoices.filter((i) => outstanding(i, asOf).native > 0);
 
   // Calculate Aging Buckets based on current date
-  const refDate = Date.now();
+  const refDate = new Date(asOf + "T00:00:00Z").getTime();
 
   const categorized = openInvoices.map((inv) => {
-    const dueTime = new Date(inv.dueDate).getTime();
+    const dueTime = new Date(inv.dueDate + "T00:00:00Z").getTime();
     const diffDays = Math.floor((refDate - dueTime) / (1000 * 60 * 60 * 24));
 
     let bucket: "Current" | "1-30 Days" | "31-60 Days" | "61-90 Days" | "90+ Days" = "Current";
@@ -41,21 +43,21 @@ function ReceivablesPage() {
   });
 
   const totalAR = openInvoices.reduce(
-    (s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional,
+    (s, i) => s + outstanding(i, asOf).functional,
     0,
   );
   const currentTotal = categorized
     .filter((i) => i.bucket === "Current")
-    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
+    .reduce((s, i) => s + outstanding(i, asOf).functional, 0);
   const b1_30 = categorized
     .filter((i) => i.bucket === "1-30 Days")
-    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
+    .reduce((s, i) => s + outstanding(i, asOf).functional, 0);
   const b31_60 = categorized
     .filter((i) => i.bucket === "31-60 Days")
-    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
+    .reduce((s, i) => s + outstanding(i, asOf).functional, 0);
   const b61_plus = categorized
     .filter((i) => i.bucket === "61-90 Days" || i.bucket === "90+ Days")
-    .reduce((s, i) => s + outstanding(i, new Date().toISOString().slice(0, 10)).functional, 0);
+    .reduce((s, i) => s + outstanding(i, asOf).functional, 0);
 
   const handleExportCsv = () => {
     const headers = [
@@ -78,8 +80,8 @@ function ReceivablesPage() {
       i.diffDays > 0 ? i.diffDays : 0,
       i.bucket,
       normalizedFx(i).transactionCurrency,
-      outstanding(i).native,
-      outstanding(i).functional,
+      outstanding(i, asOf).native,
+      outstanding(i, asOf).functional,
       i.status,
     ]);
     exportToCsv(`${activeCompany.id}_ar_aging`, headers, rows);
@@ -87,12 +89,12 @@ function ReceivablesPage() {
 
   return (
     <div className="space-y-4">
-      <TradeAging kind="AR" />
+      <TradeAging kind="AR" asOf={asOf} onAsOfChange={setAsOf} />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
         <PageTitle
           title="Accounts Receivable Aging Position"
-          description={`Customer credit aging analysis for ${activeCompany.name} as of ${new Date().toISOString().slice(0, 10)}`}
+          description={`Customer credit aging analysis for ${activeCompany.name} as of ${asOf}`}
         />
         <button
           type="button"
@@ -180,8 +182,8 @@ function ReceivablesPage() {
                   {inv.diffDays > 0 ? `${inv.diffDays}d` : "Current"}
                 </Td>
                 <Td align="right" className="font-mono font-medium text-[12.5px]">
-                  {normalizedFx(inv).transactionCurrency} {outstanding(inv).native.toFixed(2)} /{" "}
-                  {usd(outstanding(inv).functional)}
+                  {normalizedFx(inv).transactionCurrency} {outstanding(inv, asOf).native.toFixed(2)} /{" "}
+                  {usd(outstanding(inv, asOf).functional)}
                 </Td>
               </tr>
             ))}

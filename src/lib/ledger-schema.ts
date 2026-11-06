@@ -57,7 +57,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
   ),
   journals: schema(
     "id date:date memo sourceType sourceId? currency fxRate:numeric status overrideReason? createdBy createdAt",
-    { lines: "id accountCode debit:numeric credit:numeric memo? projectId?", dimensionValues },
+    { lines: "id accountCode debit:numeric credit:numeric memo? projectId? costCenterId?", dimensionValues },
   ),
   inventory: schema(
     "id sku name type qtyOnHand:numeric unitCost:numeric unitPrice:numeric valuationMethod",
@@ -67,7 +67,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     "id code name clientName customerId? budget:numeric contractValue:numeric status startDate:date endDate:date notes",
   ),
   invoices: schema(
-    "id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" +
+    "costCenterId? id customerName customerId? customerEin? date:date dueDate:date kind subtotal:numeric taxRate:numeric taxAmount:numeric total:numeric taxExempt:boolean status projectId? paymentDate?:date" +
       transaction,
     {
       items: "id description sku? isProduct:boolean qty:numeric unitPrice:numeric taxable:boolean",
@@ -76,7 +76,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     },
   ),
   bills: schema(
-    "id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" +
+    "costCenterId? id vendorId? vendorName billNumber date:date dueDate:date currency fxRate:numeric foreignAmount:numeric usdAmount:numeric status paymentDate?:date paidFxRate?:numeric realizedFxDiff?:numeric projectId?" +
       transaction,
     {
       items:
@@ -113,6 +113,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     "id code name glAccountCode taxDeductibility description status" + scope,
     scopeChildren,
   ),
+  postingAccounts: schema("id code name glAccountCode status" + scope, scopeChildren),
   fiscalPeriods: schema(
     "id periodCode fiscalYear startDate:date endDate:date status closedBy? closingDate? notes?" +
       scope,

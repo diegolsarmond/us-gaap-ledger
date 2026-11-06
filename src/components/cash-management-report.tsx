@@ -46,7 +46,7 @@ export function CashManagementReport({
   start: string;
   end: string;
   projected: boolean;
-  currency: "USD" | "BRL" | "EUR";
+  currency: string;
   companyId: string;
   accountId: string;
   asOf: string;

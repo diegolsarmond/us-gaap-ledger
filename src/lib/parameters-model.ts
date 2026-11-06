@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { postingRoleSchema } from "./posting-accounts";
 const text = z.string().trim().min(1).max(200);
 export const parameterScopeFields = {
   scope: z.enum(["global", "companies"]).optional(),
@@ -13,6 +14,7 @@ const base = {
 };
 const date = z.string().date();
 export const parameterSchemas = {
+  postingAccounts: z.object({ ...base, id: text, code: postingRoleSchema, glAccountCode: text }),
   currencies: z.object({
     ...base,
     code: z.string().regex(/^[A-Z]{3}$/),
@@ -73,6 +75,7 @@ export const parameterSchemas = {
     .refine((v) => v.startDate <= v.endDate, "The start date must be on or before the end date."),
 };
 export const domainSchema = z.enum([
+  "postingAccounts",
   "currencies",
   "taxJurisdictions",
   "paymentTerms",

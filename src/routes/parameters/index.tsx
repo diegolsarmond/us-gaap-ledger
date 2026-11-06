@@ -1,3 +1,4 @@
+import { PostingAccountSettings } from "@/components/posting-account-settings";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { useAccounting } from "@/lib/parameters-context";
@@ -222,6 +223,7 @@ function ParametersIndexPage() {
         })}
       </div>
 
+      <PostingAccountSettings />
       {/* Compliance & US GAAP Notice */}
       <Panel
         title="Parameter Governance & US GAAP Compliance"

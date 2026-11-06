@@ -8,6 +8,7 @@ import {
   type TransactionFx,
   type Payment,
 } from "./transaction-fx";
+import { resolvePostingAccount, type PostingAccount } from "./posting-accounts";
 import { US_GAAP_COA, totalByType, resolveAccount, validateCoa } from "./coa";
 import {
   dimensionSchema,
@@ -61,6 +62,7 @@ export interface Account {
 }
 
 export interface JournalLine {
+  costCenterId?: string;
   id: string;
   accountCode: string;
   debit: number;
@@ -119,6 +121,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice extends TransactionFx {
+  costCenterId?: string;
   customerId?: string | undefined;
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
@@ -150,6 +153,7 @@ export interface BillItem {
 }
 
 export interface Bill extends TransactionFx {
+  costCenterId?: string;
   dimensionValues?: DimensionValue[] | undefined;
   id: string;
   vendorId?: string | undefined;
@@ -322,6 +326,7 @@ export interface CompanyState {
   paymentTerms: PaymentTermParam[];
   costCenters: CostCenterParam[];
   expenseCategories: ExpenseCategoryParam[];
+  postingAccounts: PostingAccount[];
   fiscalPeriods: FiscalPeriodParam[];
 }
 export function createInitialCompanyData(_companyId?: string): CompanyState {
@@ -344,6 +349,7 @@ export function createInitialCompanyData(_companyId?: string): CompanyState {
     paymentTerms: [],
     costCenters: [],
     expenseCategories: [],
+    postingAccounts: [],
     fiscalPeriods: [],
   };
 }
@@ -373,6 +379,7 @@ export interface AccountingContextType {
     date: string;
     memo: string;
     sourceType: JournalEntry["sourceType"];
+    costCenterId?: string;
     sourceId?: string | undefined;
     currency?: string | undefined;
     fxRate?: number | undefined;
@@ -511,6 +518,7 @@ export function createAccountingEngine(
   initialCompany: ClientCompany,
   userPersona: UserPersona,
 ) {
+  const resolveAccount = (accounts: Account[], preferred: string, legacy: string) => resolvePostingAccount(accounts, currentData.postingAccounts ?? [], preferred, legacy);
   let activeCompany = { ...initialCompany };
   let nextData = structuredClone(currentData);
   const currentRole = userPersona.role;
@@ -557,6 +565,7 @@ export function createAccountingEngine(
     memo,
     sourceType,
     sourceId,
+    costCenterId,
     currency = "USD",
     fxRate = 1.0,
     lines,
@@ -642,6 +651,7 @@ export function createAccountingEngine(
       createdBy: userPersona.name,
       createdAt: new Date().toISOString(),
       lines: lines.map((l, idx) => ({
+        costCenterId: costCenterId ?? (l as JournalLine).costCenterId,
         id: `jl-${Date.now()}-${idx}`,
         accountCode: l.accountCode,
         debit: Number(l.debit) || 0,
@@ -934,6 +944,7 @@ export function createAccountingEngine(
       memo: `Invoice ${invId} — ${newInvoice.customerName} (${newInvoice.kind})`,
       sourceType: "Invoice",
       sourceId: invId,
+      costCenterId: newInvoice.costCenterId,
       currency: issueFx.transactionCurrency,
       fxRate: issueFx.exchangeRateValue,
       lines: jeLines,
@@ -1240,6 +1251,7 @@ export function createAccountingEngine(
       memo: `Vendor Bill ${billId} (${newBill.vendorName}) — ${newBill.currency} ${newBill.foreignAmount.toLocaleString()}`,
       sourceType: "Bill",
       sourceId: billId,
+      costCenterId: newBill.costCenterId,
       currency: newBill.currency,
       fxRate: newBill.fxRate,
       lines: jeLines,
@@ -1689,7 +1701,7 @@ export function createAccountingEngine(
       currentData.bills.some((b) => b.items.some((l) => l.accountCode === code)) ||
       currentData.statements.some((s) => s.accountCode === code) ||
       currentData.stagingRows.some((s) => s.classifiedAccount === code) ||
-      [...currentData.expenseCategories, ...currentData.taxJurisdictions].some(
+      [...currentData.expenseCategories, ...currentData.taxJurisdictions, ...(currentData.postingAccounts ?? [])].some(
         (p) => p.glAccountCode === code,
       );
     if (used)

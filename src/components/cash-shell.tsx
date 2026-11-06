@@ -131,7 +131,7 @@ const settingsGroups: MenuGroup[] = [
     label: "System Parameters",
     description: "Tax rules, periods, currencies & dimensions",
     items: [
-      { label: "Modules Overview", route: "/parameters", icon: SlidersHorizontal },
+      { label: "Modules Overview & Posting Accounts", route: "/parameters", icon: SlidersHorizontal },
       { label: "Fiscal Periods", route: "/parameters/fiscal-periods", icon: CalendarRange },
       { label: "Currencies & FX Rates", route: "/parameters/currencies", icon: Coins },
       { label: "Tax Jurisdictions", route: "/parameters/tax-jurisdictions", icon: MapPin },

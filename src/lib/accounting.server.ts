@@ -1,3 +1,4 @@
+import { postingRoles } from "./posting-accounts";
 import { validateCoa } from "./coa";
 import { validateDimensionDefinitions, validateDimensionValues } from "./dimensions";
 import { importCatalog, type ImportDomain } from "./bulk-import";
@@ -168,6 +169,9 @@ export function validateState(state: CompanyState) {
   for (const s of state.statements) ref("statements", s.id, s.accountCode);
   for (const s of state.stagingRows)
     ref("stagingRows", s.id, s.classifiedAccount, undefined, s.fileId);
+  for (const doc of [...state.invoices, ...state.bills, ...state.journals.flatMap((j) => j.lines)]) {
+    if (doc.costCenterId && !state.costCenters.some((c) => c.id === doc.costCenterId)) throw new Error("Cost center does not belong to this company.");
+  }
   for (const i of state.invoices) {
     const fx = normalizedFx(i);
     if (money(i.total) !== fx.transactionAmount)
@@ -254,8 +258,17 @@ export function validateState(state: CompanyState) {
     const codes = state[domain].map((r) => r.code);
     if (new Set(codes).size !== codes.length) throw new Error("Código duplicado.");
   }
-  for (const p of [...state.expenseCategories, ...state.taxJurisdictions])
+  for (const p of [...state.expenseCategories, ...state.taxJurisdictions, ...state.postingAccounts])
     ref("parameters", p.id, p.glAccountCode);
+  for (const flag of ["isDefaultCustomer", "isDefaultVendor"] as const)
+    if (state.paymentTerms.filter((t) => t[flag]).length > 1) throw new Error("Only one default payment term is allowed per company and role.");
+  const roles = new Set<string>();
+  for (const mapping of state.postingAccounts) {
+    if (roles.has(mapping.code)) throw new Error("Each posting role can have only one mapping.");
+    roles.add(mapping.code);
+    if (state.accounts.find((a) => a.code === mapping.glAccountCode)?.type !== postingRoles[mapping.code]?.type)
+      throw new Error("Posting account classification does not match its role.");
+  }
   const periods = [...state.fiscalPeriods].sort((a, b) => a.startDate.localeCompare(b.startDate));
   for (let i = 0; i < periods.length; i++)
     if (

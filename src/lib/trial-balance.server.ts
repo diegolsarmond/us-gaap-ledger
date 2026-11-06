@@ -17,7 +17,7 @@ export const trialSource = `WITH movements AS (
  FROM journal_entries j JOIN journal_entry_lines l ON l.journal_entry_id=j.id AND l.tenant_id=j.tenant_id AND l.company_id=j.company_id
  WHERE j.tenant_id=(SELECT id FROM accounting_tenant WHERE singleton) AND j.company_id=$1 AND j.status='Posted' AND j.accounting_date<=$3::date
  UNION ALL
- SELECT l.account_code,'legacy:'||j.id,j.id,j.date,j.memo,l.memo,'',j.source_type,l.position,NULL,l.debit,l.credit,'USD',l.debit,l.credit
+ SELECT l.account_code,'legacy:'||j.id,j.id,j.date,j.memo,l.memo,'',j.source_type,l.position,l.cost_center_id,l.debit,l.credit,'USD',l.debit,l.credit
  FROM ledger_journals j JOIN ledger_journals_lines l ON l.company_id=j.company_id AND l.parent_id=j.id
  WHERE j.company_id=$1 AND j.status IN ('Posted','Reversed') AND j.date<=$3::date
 ), aggregated AS (
