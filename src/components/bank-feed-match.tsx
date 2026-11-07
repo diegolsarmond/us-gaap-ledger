@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui-kit";
 import { previewBankSettlement } from "@/lib/bank-feed";
-import { formatCurrency as bankMoney, editableCurrencyAmount as editableAmount } from "@/lib/format";
+import {
+  formatCurrency as bankMoney,
+  editableCurrencyAmount as editableAmount,
+} from "@/lib/format";
 import { bankAmount, type BankSettlement } from "@/lib/bank-feed-model";
 import { unitsAmount } from "@/lib/journal-model";
 import { useAccounting } from "@/lib/accounting-store";

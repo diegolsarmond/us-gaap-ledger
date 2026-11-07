@@ -4,7 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useAccounting } from "@/lib/accounting-store";
 import { loadBankAttachment, loadBankRow } from "@/lib/bank-feed";
-import { formatCurrency as bankMoney, editableCurrencyAmount as editableAmount, downloadBlob as downloadBankBlob } from "@/lib/format";
+import {
+  formatCurrency as bankMoney,
+  editableCurrencyAmount as editableAmount,
+  downloadBlob as downloadBankBlob,
+} from "@/lib/format";
 import { bankAmount, itemAmount, type BankCategory } from "@/lib/bank-feed-model";
 import { convertedUnits, unitsAmount } from "@/lib/journal-model";
 import { externalAccount } from "@/lib/statement-csv";

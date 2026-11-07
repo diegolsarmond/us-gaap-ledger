@@ -2,8 +2,10 @@ export const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
 export function currencyPrecision(currency: string) {
-  return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
-    .maximumFractionDigits ?? 2;
+  return (
+    new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
+      .maximumFractionDigits ?? 2
+  );
 }
 
 export function formatCurrency(value: string | number, currency = "USD") {
