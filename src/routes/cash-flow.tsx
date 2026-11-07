@@ -19,6 +19,7 @@ import {
   transactionSchema,
   type CashFlowLine,
   type CashAccount,
+  type CashData,
   type CashTransaction,
   type Interval,
 } from "@/lib/cash-flow-model";
@@ -154,6 +155,13 @@ function CompanyCashFlowPage() {
   const [amountCents, setAmountCents] = useState("");
   const [openingBalanceCents, setOpeningBalanceCents] = useState("0");
   const [accountCurrency, setAccountCurrency] = useState("USD");
+  const [accountName, setAccountName] = useState("");
+  const [accountGl, setAccountGl] = useState("");
+  const [openingDate, setOpeningDate] = useState(today);
+  /** Where the prefilled opening balance came from; cleared once the user edits it. */
+  const [openingSource, setOpeningSource] = useState<NonNullable<
+    CashData["glAccounts"][number]["knownBalance"]
+  > | null>(null);
   const [keepOpen, setKeepOpen] = useState(false);
   const entryFormRef = useRef<HTMLFormElement>(null);
   const continueEntryRef = useRef(false);
@@ -169,6 +177,57 @@ function CompanyCashFlowPage() {
   const forecastAccounts = accounts.filter((a) => !a.ledger_only);
   const categories = query.data?.categories ?? [];
   const glAccounts = query.data?.glAccounts ?? [];
+  const statementPending = query.data?.statementPending ?? [];
+  const pendingFor = (code: string | null) =>
+    code ? statementPending.find((p) => p.account === code) : undefined;
+  /** Ledger history for a GL account: the auto-discovered or configured account that holds it. */
+  const ledgerHistory = (code: string) =>
+    accounts.find((a) => a.gl_account_code === code && a.ledger_opening_date);
+  const configuredOn = (code: string) =>
+    accounts.filter((a) => !a.ledger_only && a.gl_account_code === code);
+  const cashGlOptions = glAccounts
+    .filter((a) => a.type === "Asset")
+    .sort((a, b) => Number(b.cash) - Number(a.cash) || a.code.localeCompare(b.code))
+    .map((a) => {
+      const setUp = configuredOn(a.code).filter((c) => c.id !== editingAccount?.id);
+      return {
+        value: a.code,
+        label: `${a.code} · ${a.name}`,
+        detail: setUp.length
+          ? `Already set up: ${setUp.map((c) => `${c.name} (${c.currency})`).join(", ")}`
+          : a.cash
+            ? `Bank / cash${a.currency ? ` · ${a.currency}` : ""}`
+            : "Other asset",
+      };
+    });
+  const selectedHistory = accountGl ? ledgerHistory(accountGl) : undefined;
+  function openAccountForm(account: CashAccount | null) {
+    setEditingAccount(account);
+    setOpeningBalanceCents(account ? String(Math.round(account.opening_balance * 100)) : "0");
+    setAccountCurrency(account?.currency ?? currency);
+    setAccountName(account?.name ?? "");
+    setAccountGl(account?.gl_account_code ?? "");
+    setOpeningDate(account && !account.ledger_only ? account.opening_date : today());
+    setOpeningSource(null);
+    setForm("account");
+    setError("");
+  }
+  function chooseAccountGl(code: string) {
+    setAccountGl(code);
+    if (editingAccount && !editingAccount.ledger_only) return;
+    const gl = glAccounts.find((a) => a.code === code);
+    const history = ledgerHistory(code);
+    const known = history?.currency ?? gl?.currency;
+    if (known) setAccountCurrency(known);
+    if (gl && !accountName.trim()) setAccountName(gl.name);
+    // Without ledger history, open from the balance Bank Feed or QuickBooks already reported.
+    const balance = history ? null : (gl?.knownBalance ?? null);
+    setOpeningSource(balance);
+    if (balance) {
+      setOpeningBalanceCents(String(Math.round(balance.amount * 100)));
+      if (balance.openingDate) setOpeningDate(balance.openingDate);
+    }
+  }
   const selectedCurrency =
     accounts.find((a) => a.id === entryAccount)?.currency ?? filteredCurrency();
   function filteredCurrency() {
@@ -266,17 +325,27 @@ function CompanyCashFlowPage() {
   function submitAccount(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const configured = editingAccount && !editingAccount.ledger_only ? editingAccount : null;
+    // With posted history the General Ledger supplies opening balance and actuals; the stored
+    // opening only anchors forecasts, so keep the saved one or start forecasting today.
+    const opening = selectedHistory
+      ? configured
+        ? { opening_date: configured.opening_date, opening_balance: configured.opening_balance }
+        : { opening_date: today(), opening_balance: 0 }
+      : {
+          opening_date: openingDate,
+          opening_balance: Number(openingBalanceCents) / 100,
+        };
     void mutate(
       () =>
         saveCashAccount({
           data: {
             companyId,
-            ...(editingAccount && !editingAccount.ledger_only ? { id: editingAccount.id } : {}),
-            name: String(f.get("name")),
-            currency: String(f.get("currency")) as string,
-            opening_date: String(f.get("opening_date")),
-            opening_balance: Number(openingBalanceCents) / 100,
-            gl_account_code: String(f.get("gl_account_code") ?? "") || null,
+            ...(configured ? { id: configured.id } : {}),
+            name: accountName,
+            currency: accountCurrency,
+            ...opening,
+            gl_account_code: accountGl || null,
           },
         }),
       editingAccount && !editingAccount.ledger_only ? "Account updated." : "Account created.",
@@ -371,11 +440,7 @@ function CompanyCashFlowPage() {
               className={button}
               disabled={!query.isSuccess || !activeCurrencies.length || pending}
               onClick={() => {
-                setEditingAccount(null);
-                setOpeningBalanceCents("0");
-                setAccountCurrency(currency);
-                setForm("account");
-                setError("");
+                openAccountForm(null);
                 setActiveTab("accounts");
               }}
             >
@@ -487,40 +552,43 @@ function CompanyCashFlowPage() {
                 <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {form === "account" ? (
                     <>
-                      <Field label="Account name">
-                        <input
-                          name="name"
-                          defaultValue={editingAccount?.name}
-                          required
-                          maxLength={120}
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Linked cash / bank GL account (Asset)">
+                      <Field label="Bank / cash account from Chart of Accounts">
                         <SearchableSelect
                           label="Cash GL account"
                           name="gl_account_code"
-                          defaultValue={editingAccount?.gl_account_code ?? ""}
+                          value={accountGl}
+                          onChange={chooseAccountGl}
                           required
-                          placeholder="Select an Asset account"
-                          options={glAccounts
-                            .filter((a) => a.type === "Asset")
-                            .map((a) => ({ value: a.code, label: `${a.code} · ${a.name}` }))}
+                          autoFocus={!editingAccount}
+                          placeholder="Select a bank or cash account"
+                          options={cashGlOptions}
                         />
                         <Link to="/accounts" className="text-brand underline">
                           Manage Chart of Accounts
                         </Link>
+                      </Field>
+                      <Field label="Account name">
+                        <input
+                          name="name"
+                          value={accountName}
+                          onChange={(e) => setAccountName(e.target.value)}
+                          required
+                          maxLength={120}
+                          className={control}
+                        />
                       </Field>
                       <Field label="Currency">
                         <select
                           name="currency"
                           value={accountCurrency}
                           onChange={(e) => setAccountCurrency(e.target.value)}
+                          disabled={!!selectedHistory}
                           className={control}
                         >
                           {[
                             ...new Set([
                               ...activeCurrencies,
+                              accountCurrency,
                               ...(editingAccount ? [editingAccount.currency] : []),
                             ]),
                           ].map((c) => (
@@ -528,52 +596,105 @@ function CompanyCashFlowPage() {
                           ))}
                         </select>
                       </Field>
-                      <Field label="Opening balance date">
-                        <input
-                          name="opening_date"
-                          type="date"
-                          defaultValue={
-                            editingAccount?.ledger_only
-                              ? today()
-                              : (editingAccount?.opening_date ?? today())
-                          }
-                          required
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Opening balance (may be negative)">
-                        <input
-                          name="opening_balance"
-                          type="text"
-                          inputMode="text"
-                          placeholder={new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: accountCurrency,
-                          }).format(0)}
-                          value={
-                            openingBalanceCents === ""
-                              ? ""
-                              : new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: accountCurrency,
-                                }).format(Number(openingBalanceCents) / 100)
-                          }
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const digits = raw.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14);
-                            setOpeningBalanceCents(
-                              raw === "" ? "" : `${raw.includes("-") ? "-" : ""}${digits || "0"}`,
-                            );
-                          }}
-                          required
-                          className={control}
-                        />
-                      </Field>
-                      <p className="text-xs text-ink3">
-                        {editingAccount?.ledger_opening_date
-                          ? "The General Ledger supplies the actual opening balance for this account."
-                          : "The opening balance is the balance at the start of this date, before the transactions for the day."}
-                      </p>
+                      {selectedHistory ? (
+                        <div className="rounded-md border border-brand/20 bg-brand/5 p-3 text-sm sm:col-span-2 lg:col-span-3">
+                          <p className="font-medium text-ink">
+                            Opening balance and actual transactions come from the General Ledger.
+                          </p>
+                          <p className="mt-1 text-xs text-ink2">
+                            First posting on {selectedHistory.ledger_opening_date} in{" "}
+                            {selectedHistory.currency}. Posted Bank Feed lines, payments and journal
+                            entries for this account appear here automatically; this setup only adds
+                            forecasts.
+                          </p>
+                          {(() => {
+                            const waiting = pendingFor(accountGl);
+                            return waiting ? (
+                              <p className="mt-1 text-xs text-amber-900">
+                                {waiting.count} statement line{waiting.count === 1 ? "" : "s"}{" "}
+                                (since {waiting.oldest}) still await review in{" "}
+                                <Link
+                                  to="/statements"
+                                  search={{ account: accountGl }}
+                                  className="underline"
+                                >
+                                  Bank Feed
+                                </Link>
+                                .
+                              </p>
+                            ) : null;
+                          })()}
+                        </div>
+                      ) : (
+                        <>
+                          <Field label="Opening balance date">
+                            <input
+                              name="opening_date"
+                              type="date"
+                              value={openingDate}
+                              onChange={(e) => {
+                                setOpeningDate(e.target.value);
+                                setOpeningSource(null);
+                              }}
+                              required
+                              className={control}
+                            />
+                          </Field>
+                          <Field label="Opening balance (may be negative)">
+                            <input
+                              name="opening_balance"
+                              type="text"
+                              inputMode="text"
+                              placeholder={new Intl.NumberFormat("en-US", {
+                                style: "currency",
+                                currency: accountCurrency,
+                              }).format(0)}
+                              value={
+                                openingBalanceCents === ""
+                                  ? ""
+                                  : new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: accountCurrency,
+                                    }).format(Number(openingBalanceCents) / 100)
+                              }
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const digits = raw
+                                  .replace(/\D/g, "")
+                                  .replace(/^0+/, "")
+                                  .slice(0, 14);
+                                setOpeningBalanceCents(
+                                  raw === ""
+                                    ? ""
+                                    : `${raw.includes("-") ? "-" : ""}${digits || "0"}`,
+                                );
+                                setOpeningSource(null);
+                              }}
+                              required
+                              className={control}
+                            />
+                          </Field>
+                          {openingSource ? (
+                            <p
+                              className={`rounded-md border p-3 text-xs sm:col-span-2 lg:col-span-3 ${openingSource.openingDate ? "border-brand/20 bg-brand/5 text-ink2" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+                            >
+                              {openingSource.source === "bank-feed"
+                                ? `Prefilled from the bank statement balance recorded in Bank Feed as of ${openingSource.asOf}; it opens the next day.`
+                                : openingSource.openingDate
+                                  ? `Prefilled from the QuickBooks balance imported with the Account List. QuickBooks had posted this account through ${openingSource.asOf}, so it opens the next day.`
+                                  : "Prefilled from the QuickBooks balance imported with the Account List. No posted QuickBooks statement shows its date: enter the date that balance was exported."}{" "}
+                              Statement lines dated before the opening date are already in this
+                              balance. Confirm it against the bank before saving.
+                            </p>
+                          ) : (
+                            <p className="text-xs text-ink3">
+                              No posted activity or known bank balance for this GL account. The
+                              opening balance is the balance at the start of this date, before the
+                              transactions for the day.
+                            </p>
+                          )}
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
@@ -925,6 +1046,51 @@ function CompanyCashFlowPage() {
               transactions. Existing manual actuals on these accounts remain visible as reference.
             </p>
           )}
+          {(() => {
+            // Accounts with only unposted statements have no ledger activity yet; show them
+            // in the currency scope so imported banks never look empty without explanation.
+            const unlinked = accountId
+              ? []
+              : statementPending
+                  .filter((p) => {
+                    // Credit cards are liabilities, not cash; they stay out of this report.
+                    const gl = glAccounts.find((a) => a.code === p.account);
+                    return (
+                      !!gl?.cash &&
+                      !accounts.some((a) => a.gl_account_code === p.account) &&
+                      (gl.currency ?? "USD") === currency
+                    );
+                  })
+                  .map((p) => p.account);
+            const codes = [
+              ...new Set([
+                ...filteredAccounts.flatMap((a) => (a.gl_account_code ? [a.gl_account_code] : [])),
+                ...unlinked,
+              ]),
+            ];
+            const waiting = codes.flatMap((code) => pendingFor(code) ?? []);
+            if (!waiting.length) return null;
+            const total = waiting.reduce((s, p) => s + p.count, 0);
+            return (
+              <div
+                role="status"
+                className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+              >
+                {total} bank statement line{total === 1 ? "" : "s"} still await review and are not
+                in actual cash yet. Review them in Bank Feed:{" "}
+                {waiting.map((p, i) => (
+                  <span key={p.account}>
+                    {i > 0 && ", "}
+                    <Link to="/statements" search={{ account: p.account }} className="underline">
+                      {p.account} · {glAccounts.find((gl) => gl.code === p.account)?.name ?? ""} (
+                      {p.count})
+                    </Link>
+                  </span>
+                ))}
+                .
+              </div>
+            );
+          })()}
           {(filteredAccounts.some((a) => !a.gl_account_code) ||
             filteredTransactions.some((t) => !t.gl_account_code)) && (
             <p
@@ -1346,6 +1512,7 @@ function CompanyCashFlowPage() {
                       <Th>Linked GL account</Th>
                       <Th>Opening date</Th>
                       <Th align="right">Opening balance</Th>
+                      <Th>Bank Feed</Th>
                       <Th>Actions</Th>
                     </tr>
                   </thead>
@@ -1369,16 +1536,31 @@ function CompanyCashFlowPage() {
                               }).format(a.opening_balance)}
                         </Td>
                         <Td>
+                          {(() => {
+                            const waiting = pendingFor(a.gl_account_code);
+                            return waiting ? (
+                              <Link
+                                to="/statements"
+                                search={{ account: a.gl_account_code! }}
+                                className="text-amber-800 underline"
+                              >
+                                {waiting.count} to review
+                              </Link>
+                            ) : a.gl_account_code &&
+                              glAccounts.find((gl) => gl.code === a.gl_account_code)?.cash ? (
+                              <span className="text-ink3">Up to date</span>
+                            ) : (
+                              <span className="text-ink3">—</span>
+                            );
+                          })()}
+                        </Td>
+                        <Td>
                           <button
                             type="button"
                             disabled={pending}
                             className="text-brand underline"
                             onClick={() => {
-                              setEditingAccount(a);
-                              setOpeningBalanceCents(String(Math.round(a.opening_balance * 100)));
-                              setAccountCurrency(a.currency);
-                              setForm("account");
-                              setError("");
+                              openAccountForm(a);
                               setNotice("");
                               window.scrollTo({ top: 0, behavior: "smooth" });
                             }}

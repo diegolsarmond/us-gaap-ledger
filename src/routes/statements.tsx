@@ -65,6 +65,10 @@ import {
 import { pageHead } from "@/lib/head";
 
 export const Route = createFileRoute("/statements")({
+  validateSearch: (search: Record<string, unknown>): { account?: string } =>
+    typeof search["account"] === "string" && search["account"]
+      ? { account: search["account"] }
+      : {},
   head: () =>
     pageHead("Bank Feed · LedgerX", "Review, match, and post bank or credit card transactions."),
   component: () => (
@@ -193,7 +197,8 @@ function CompanyFeed() {
     queryKey: ["bank-feed", companyId],
     queryFn: () => loadBankFeed({ data: { companyId } }),
   });
-  const [accountChoice, setAccountChoice] = useState("");
+  const linkedAccount = Route.useSearch().account;
+  const [accountChoice, setAccountChoice] = useState(linkedAccount ?? "");
   const [selectedStatus, setStatus] = useState<BankTab>();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");

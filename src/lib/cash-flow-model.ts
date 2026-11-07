@@ -148,7 +148,30 @@ export type CashData = {
   accounts: CashAccount[];
   transactions: CashTransaction[];
   categories: CashCategory[];
-  glAccounts: { code: string; name: string; type: string; balanceType: "Debit" | "Credit" }[];
+  glAccounts: {
+    code: string;
+    name: string;
+    type: string;
+    balanceType: "Debit" | "Credit";
+    /** Asset account the Bank Feed treats as a bank or cash account. */
+    cash: boolean;
+    /** Currency known from the account's bank setup or its imported statements. */
+    currency: string | null;
+    /**
+     * Known balance usable as a cash opening balance: the bank statement balance recorded in
+     * Bank Feed, else the QuickBooks register balance from the Account List import.
+     * `openingDate` is the day the balance opens (the day after it was reported), or null
+     * when the QuickBooks export date cannot be inferred.
+     */
+    knownBalance: {
+      amount: number;
+      openingDate: string | null;
+      source: "bank-feed" | "quickbooks";
+      asOf: string | null;
+    } | null;
+  }[];
+  /** Bank Feed lines awaiting review. They are not actual cash until they are posted. */
+  statementPending: { account: string; count: number; oldest: string }[];
 };
 export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 export const reconciliationScopeSchema = z.object({

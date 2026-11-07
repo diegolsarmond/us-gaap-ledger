@@ -6,6 +6,8 @@ import { cashFromLedger } from "./cash-ledger.server";
 import { readLedger } from "./ledger-storage.server";
 import { postedLedgerLines } from "./posted-ledger.server";
 import type { CompanyState } from "./accounting-engine";
+import { bankSourceAccount } from "./bank-feed-model";
+import { quickBooksSourceStatus } from "./statement-csv";
 import type {
   CashAccount,
   CashTransaction,
@@ -65,16 +67,122 @@ async function readCashData(client: PoolClient, id: string): Promise<CashData> {
     ),
     readLedger(client, id, "accounts") as unknown as Promise<CompanyState["accounts"]>,
   ]);
+  const [ledger, statementPending, balances] = await Promise.all([
+    cashFromLedger(client, id, chart, accounts.rows, transactions.rows),
+    pendingStatementLines(client, id),
+    knownBankBalances(client, id),
+  ]);
+  const { statementCurrencies, ...cash } = ledger;
   return {
-    ...(await cashFromLedger(client, id, chart, accounts.rows, transactions.rows)),
+    ...cash,
     categories: categories.rows,
-    glAccounts: chart.map(({ code, name, type, balanceType }) => ({
-      code,
-      name,
-      type,
-      balanceType,
-    })),
+    glAccounts: chart.map((account) => {
+      const isCash = account.type === "Asset" && bankSourceAccount(account, chart);
+      const reported = balances.reported.get(account.code);
+      const quickBooks = account.sourceAccount?.balance;
+      const quickBooksAsOf = balances.quickBooksPostedThrough.get(account.code) ?? null;
+      return {
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        balanceType: account.balanceType,
+        cash: isCash,
+        currency: account.sourceAccount?.currency ?? statementCurrencies.get(account.code) ?? null,
+        knownBalance: !isCash
+          ? null
+          : reported
+            ? {
+                amount: reported.amount,
+                openingDate: nextDay(reported.date),
+                source: "bank-feed" as const,
+                asOf: reported.date,
+              }
+            : quickBooks !== undefined
+              ? {
+                  amount: quickBooks,
+                  openingDate: quickBooksAsOf && nextDay(quickBooksAsOf),
+                  source: "quickbooks" as const,
+                  asOf: quickBooksAsOf,
+                }
+              : null,
+      };
+    }),
+    statementPending,
   };
+}
+
+const nextDay = (date: string) => {
+  const day = new Date(date + "T12:00:00Z");
+  day.setUTCDate(day.getUTCDate() + 1);
+  return day.toISOString().slice(0, 10);
+};
+
+/**
+ * Balances a bank account is already known to have. A Bank Feed statement balance is an
+ * end-of-day bank figure. The QuickBooks Account List balance is the register balance at
+ * export, which includes every line QuickBooks had posted, so it is dated by the last line
+ * the imported "Transaction Posted" files show for that account.
+ */
+async function knownBankBalances(client: Pick<PoolClient, "query">, companyId: string) {
+  const [reported, posted] = await Promise.all([
+    client.query<{ account: string; date: string; amount: number }>(
+      `SELECT DISTINCT ON (account_code) account_code AS account, balance_date::text AS date, amount::float8
+       FROM bank_feed_balances WHERE company_id=$1 ORDER BY account_code, balance_date DESC`,
+      [companyId],
+    ),
+    client.query<{ account: string; date: string }>(
+      `SELECT f.account_code AS account, max(r.date)::text AS date
+       FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
+       WHERE r.company_id=$1 AND f.feed_source_format='quickbooks-posted'
+       GROUP BY f.account_code`,
+      [companyId],
+    ),
+  ]);
+  return {
+    reported: new Map(reported.rows.map((row) => [row.account, row])),
+    quickBooksPostedThrough: new Map(posted.rows.map((row) => [row.account, row.date])),
+  };
+}
+
+/**
+ * Bank Feed lines still in the Pending tab, per bank account. Mirrors the Bank Feed rule:
+ * a QuickBooks line already posted at the source is not pending unless it was returned.
+ */
+async function pendingStatementLines(client: Pick<PoolClient, "query">, companyId: string) {
+  const rows = await client.query<{
+    account: string;
+    date: string;
+    format: Parameters<typeof quickBooksSourceStatus>[0];
+    posting: string;
+    attempted: boolean;
+    returned: boolean;
+  }>(
+    `SELECT f.account_code AS account, r.date::text, f.feed_source_format AS format,
+       r.feed_external_posting AS posting, a.id IS NOT NULL AS attempted,
+       (r.feed_external_posting<>'' AND EXISTS (
+         SELECT 1 FROM system_audit_events e
+         WHERE e.company_id=r.company_id AND e.entity='BankFeed' AND e.target_id=r.id
+           AND e.action IN ('BANK_FEED_UNDO_SOURCE','BANK_FEED_UNDO','BANK_FEED_UNMATCH')
+       )) AS returned
+     FROM ledger_stagingrows r
+     JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
+     LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
+     WHERE r.company_id=$1 AND r.status='Pending'`,
+    [companyId],
+  );
+  const pending = new Map<string, { account: string; count: number; oldest: string }>();
+  for (const row of rows.rows) {
+    const sourcePosted =
+      !row.attempted &&
+      !row.returned &&
+      quickBooksSourceStatus(row.format, row.posting) === "Posted";
+    if (sourcePosted) continue;
+    const item = pending.get(row.account) ?? { account: row.account, count: 0, oldest: row.date };
+    item.count += 1;
+    if (row.date < item.oldest) item.oldest = row.date;
+    pending.set(row.account, item);
+  }
+  return [...pending.values()];
 }
 
 export async function load(companyId: string): Promise<CashData> {
@@ -253,6 +361,21 @@ export async function saveAccount(
       );
       if (!gl.rowCount)
         throw new Error("Select an Asset account from this company's Chart of Accounts.");
+      // Two accounts on one GL account and currency make the ledger actuals ambiguous:
+      // neither would receive them. Existing duplicates may still be edited in place.
+      const duplicate = await client.query<{ name: string }>(
+        `SELECT c.name FROM cash_accounts c
+         WHERE c.company_id=$1 AND c.gl_account_code=$2 AND c.currency=$3
+           AND c.id IS DISTINCT FROM $4::uuid
+           AND NOT EXISTS (SELECT 1 FROM cash_accounts s WHERE s.id=$4::uuid AND s.company_id=$1
+                           AND s.gl_account_code=$2 AND s.currency=$3)
+         LIMIT 1`,
+        [id, data.gl_account_code, data.currency, data.id ?? null],
+      );
+      if (duplicate.rowCount)
+        throw new Error(
+          `GL account ${data.gl_account_code} in ${data.currency} is already set up as "${duplicate.rows[0]!.name}". Edit that account instead.`,
+        );
     }
     if (data.id) {
       const account = await client.query(

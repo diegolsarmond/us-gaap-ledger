@@ -186,5 +186,6 @@ export async function cashFromLedger(
     transactions: [...transactions, ...actuals].sort((a, b) =>
       b.due_date.localeCompare(a.due_date),
     ),
+    statementCurrencies: bankCurrencies,
   };
 }
