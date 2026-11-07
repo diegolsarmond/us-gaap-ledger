@@ -85,7 +85,7 @@ try {
   const migrate = (file) =>
     pool.query(readFileSync(new URL("../database/" + file, import.meta.url), "utf8"));
   for (const file of readdirSync(new URL("../database/", import.meta.url)).sort()) {
-    if (file.endsWith(".sql") && !/^(000|024|033)/.test(file)) await migrate(file);
+    if (file.endsWith(".sql") && !/^(000|024|033|034)/.test(file)) await migrate(file);
   }
   const { replaceLedger, readLedger } = await import("../src/lib/ledger-storage.server.ts");
   const feed = await import("../src/lib/bank-feed.server.ts");
@@ -224,6 +224,8 @@ try {
   }
   await migrate("033_bank_feed.sql");
   await migrate("033_bank_feed.sql");
+  await migrate("034_bank_feed_party.sql");
+  await migrate("034_bank_feed_party.sql");
   const rows = async () => (await feed.bankFeedList({ companyId })).rows;
   const find = async (description) => (await rows()).find((row) => row.description === description);
   const action = (row, input) =>
@@ -514,6 +516,76 @@ try {
   const trial = await generateTrialBalance({ companyId, start: "2026-01-01", end: "2026-02-28" });
   assert.equal(trial.status, "Balanced");
   assert.equal(Number(trial.accounts.find((r) => r.code === "1000").closing_debit), 65);
+  await pool.query("UPDATE accounting_policies SET approval_required=false WHERE company_id=$1", [
+    companyId,
+  ]);
+  const { vendorSchema } = await import("../src/lib/vendor-model.ts");
+  const vendor = {
+    ...vendorSchema.parse({ displayName: "Chosen Supplier", companyName: "Chosen Supplier" }),
+    id: "bulk-vendor",
+  };
+  await replaceLedger(pool, companyId, "vendors", [vendor]);
+  await feed.importBankFile(
+    importFile(
+      "date;Bank description;Amount;From/To;Transaction Posted\n" +
+        "01/16/2026;Bulk fee;-$11.00;Original Supplier;\n" +
+        "02/03/2026;Bulk deposit;$8.00;;\n" +
+        "03/01/2026;Bulk outside fiscal period;-$7.00;;",
+    ),
+  );
+  const bulkFee = await find("Bulk fee");
+  const bulkDeposit = await find("Bulk deposit");
+  const outsidePeriod = await find("Bulk outside fiscal period");
+  const batch = (rows, input) =>
+    feed.bankFeedBatch({
+      companyId,
+      input: { bankAccount: "1000", rowIds: rows.map((row) => row.id), ...input },
+    });
+  await assert.rejects(
+    action(bulkFee, { operation: "party", payeeId: "missing-vendor" }),
+    /this company/,
+  );
+  await action(bulkFee, { operation: "party", payeeId: vendor.id });
+  assert.equal((await find("Bulk fee")).partyName, "Chosen Supplier");
+  assert.equal((await find("Bulk fee")).fromTo, "Original Supplier");
+  await action(bulkFee, { operation: "party", payeeId: null });
+  assert.equal((await find("Bulk fee")).partyId, null);
+  assert.equal((await find("Bulk fee")).partyEdited, true);
+  await action(bulkFee, { operation: "party", payeeId: vendor.id });
+  const bulkCategorize = { operation: "categorize", outflowAccount: "6000", inflowAccount: "4000" };
+  await assert.rejects(
+    batch([bulkFee, outsidePeriod], bulkCategorize),
+    /Bulk outside fiscal period.*fiscal period/i,
+  );
+  assert.equal((await find("Bulk fee")).attemptId, null);
+  await batch([bulkFee, bulkDeposit], { operation: "exclude", reason: "Bulk exclusion" });
+  assert.equal((await find("Bulk fee")).status, "Excluded");
+  await batch([bulkFee, bulkDeposit], { operation: "restore" });
+  assert.equal((await find("Bulk deposit")).status, "Pending");
+  const bulkResult = await batch([bulkFee, bulkDeposit], bulkCategorize);
+  assert.deepEqual(bulkResult, { count: 2, posted: 2, inApproval: 0 });
+  const feeJournal = (await find("Bulk fee")).journalId;
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT vendor_id FROM journal_entry_lines WHERE journal_entry_id=$1 AND account_code='6000'",
+        [feeJournal],
+      )
+    ).rows[0].vendor_id,
+    vendor.id,
+  );
+  await assert.rejects(
+    action(bulkFee, { operation: "party", payeeId: null }),
+    /no longer available/,
+  );
+  await batch([bulkFee, bulkDeposit], {
+    operation: "undo",
+    reason: "Bulk reversal",
+    date: "2026-02-07",
+  });
+  assert.equal((await find("Bulk fee")).status, "Pending");
+  assert.equal((await find("Bulk fee")).partyName, "Chosen Supplier");
+  assert.equal((await find("Bulk deposit")).status, "Pending");
   assert(
     (
       await pool.query(

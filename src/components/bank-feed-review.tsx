@@ -428,8 +428,10 @@ function CategoryForm({
   const [date, setDate] = useState(row.date);
   const [memo, setMemo] = useState(row.description);
   const [payee, setPayee] = useState(
-    party.find((p) => row.fromTo && p.displayName.toLowerCase() === row.fromTo.toLowerCase())?.id ??
-      "",
+    (row.partyEdited
+      ? row.partyName && row.partyId
+      : party.find((p) => row.fromTo && p.displayName.toLowerCase() === row.fromTo.toLowerCase())
+          ?.id) ?? "",
   );
   const [location, setLocation] = useState("");
   const [rate, setRate] = useState("");
@@ -561,254 +563,265 @@ function CategoryForm({
       }}
     >
       <div className="min-w-0 space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Field name="Accounting date">
-          <input
-            required
-            className={fieldStyle}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Field name="Accounting date">
+            <input
+              required
+              className={fieldStyle}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <SelectField
+            name="Transaction type"
+            value={type}
+            change={(value) => {
+              if (value) setType(value as BankCategory["transactionType"]);
+            }}
+            options={[out ? "Expense" : "Deposit", "Transfer", "Card payment"].map((id) => ({
+              id,
+              name: id,
+            }))}
+          />
+          <fieldset className="min-w-0 space-y-1">
+            <legend className="text-xs font-medium text-ink2">
+              {out ? "Paid to" : "Received from"}
+            </legend>
+            <SearchableSelect
+              label={out ? "Paid to" : "Received from"}
+              value={payee}
+              onChange={setPayee}
+              options={[
+                { value: "", label: "No party selected" },
+                ...party.map((p) => ({ value: p.id, label: p.displayName })),
+              ]}
+              fitViewport
+            />
+          </fieldset>
+          <SelectField
+            name="Location"
+            value={location}
+            change={setLocation}
+            options={options("LOCATION")}
+            placeholder={options("LOCATION").length ? "Select…" : "No location configured"}
+          />
+        </div>
+        <Field name="Memo">
+          <textarea
+            className={fieldStyle + " h-auto py-2"}
+            rows={2}
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
           />
         </Field>
-        <SelectField
-          name="Transaction type"
-          value={type}
-          change={(value) => {
-            if (value) setType(value as BankCategory["transactionType"]);
-          }}
-          options={[out ? "Expense" : "Deposit", "Transfer", "Card payment"].map((id) => ({
-            id,
-            name: id,
-          }))}
-        />
-        <fieldset className="min-w-0 space-y-1">
-          <legend className="text-xs font-medium text-ink2">{out ? "Paid to" : "Received from"}</legend>
-          <SearchableSelect label={out ? "Paid to" : "Received from"} value={payee} onChange={setPayee}
-            options={[{ value: "", label: "No party selected" }, ...party.map((p) => ({ value: p.id, label: p.displayName }))]}
-            fitViewport />
-        </fieldset>
-        <SelectField
-          name="Location"
-          value={location}
-          change={setLocation}
-          options={options("LOCATION")}
-          placeholder={options("LOCATION").length ? "Select…" : "No location configured"}
-        />
-      </div>
-      <Field name="Memo">
-        <textarea
-          className={fieldStyle + " h-auto py-2"}
-          rows={2}
-          value={memo}
-          onChange={(e) => setMemo(e.target.value)}
-        />
-      </Field>
-      {row.currency !== "USD" && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field name={`Exchange rate · USD per ${row.currency}`}>
-            <input
-              required
-              className={fieldStyle}
-              inputMode="decimal"
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-            />
-          </Field>
-          <Field name="Rate source">
-            <input
-              required
-              className={fieldStyle}
-              value={rateSource}
-              onChange={(e) => setRateSource(e.target.value)}
-            />
-          </Field>
-          {functional && <p className="text-sm">Functional amount · {bankMoney(functional)} USD</p>}
-        </div>
-      )}
-      <div className="space-y-2 rounded-md border p-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">{split ? "Split allocations" : "Category"}</h3>
-          {!split && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSplit(true);
-                setLines([...lines, blankLine(nextKey)]);
-                setNextKey(nextKey + 1);
-              }}
-            >
-              Split
-            </Button>
-          )}
-        </div>
-        {lines.map((line, index) => (
-          <fieldset
-            key={line.key}
-            className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            <legend className="px-1 text-xs text-ink3">Allocation {index + 1}</legend>
-            <SelectField
-              name="Account"
-              value={line.account}
-              change={(account) => patch(line.key, { account })}
-              options={names}
-            />
-            <Field name="Description">
-              <input
-                className={fieldStyle}
-                value={line.description}
-                onChange={(e) => patch(line.key, { description: e.target.value })}
-              />
-            </Field>
-            <Field name={`Amount (${row.currency})`}>
+        {row.currency !== "USD" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field name={`Exchange rate · USD per ${row.currency}`}>
               <input
                 required
                 className={fieldStyle}
                 inputMode="decimal"
-                readOnly={!!line.sku}
-                value={line.amount}
-                onChange={(e) => patch(line.key, { amount: e.target.value })}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
               />
             </Field>
-            <SelectField
-              name="Customer"
-              value={line.customerId}
-              change={(customerId) => patch(line.key, { customerId })}
-              options={customers.map((c) => ({ id: c.id, name: c.displayName }))}
-            />
-            <SelectField
-              name="Project"
-              value={line.projectId}
-              change={(projectId) => patch(line.key, { projectId })}
-              options={projects
-                .filter((p) => p.status !== "Completed")
-                .map((p) => ({ id: p.id, name: p.name }))}
-            />
-            <SelectField
-              name="Cost center"
-              value={line.costCenterId}
-              change={(costCenterId) => patch(line.key, { costCenterId })}
-              options={costCenters
-                .filter((c) => c.status === "Active")
-                .map((c) => ({ id: c.id, name: c.name }))}
-            />
-            <SelectField
-              name="Class"
-              value={line.classId}
-              change={(classId) => patch(line.key, { classId })}
-              options={options("CLASS")}
-              placeholder={options("CLASS").length ? "Select…" : "No class configured"}
-            />
-            <SelectField
-              name="Product or service"
-              value={line.sku}
-              change={(sku) =>
-                patch(line.key, {
-                  sku,
-                  quantity: sku ? line.quantity || "1" : "",
-                  unitRate: sku ? line.unitRate : "",
-                  amount: "",
-                })
-              }
-              options={inventory.map((item) => ({
-                id: item.sku,
-                name: item.sku + " · " + item.name,
-              }))}
-            />
-            {line.sku && (
-              <>
-                <Field name="Quantity">
-                  <input
-                    required
-                    className={fieldStyle}
-                    inputMode="decimal"
-                    value={line.quantity}
-                    onChange={(e) => patch(line.key, { quantity: e.target.value, amount: "" })}
-                  />
-                </Field>
-                <Field name="Unit rate">
-                  <input
-                    required
-                    className={fieldStyle}
-                    inputMode="decimal"
-                    value={line.unitRate}
-                    onChange={(e) => patch(line.key, { unitRate: e.target.value, amount: "" })}
-                  />
-                </Field>
-              </>
-            )}
-            <label className="flex items-center gap-2 text-sm">
+            <Field name="Rate source">
               <input
-                type="checkbox"
-                checked={line.billable}
-                onChange={(e) => patch(line.key, { billable: e.target.checked })}
+                required
+                className={fieldStyle}
+                value={rateSource}
+                onChange={(e) => setRateSource(e.target.value)}
               />
-              Billable
-            </label>
-            {split && lines.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setLines(lines.filter((l) => l.key !== line.key))}
-              >
-                <Trash2 /> Remove line
-              </Button>
+            </Field>
+            {functional && (
+              <p className="text-sm">Functional amount · {bankMoney(functional)} USD</p>
             )}
-          </fieldset>
-        ))}
-        {split && (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={lines.length >= 100}
-              onClick={() => {
-                setLines([...lines, blankLine(nextKey)]);
-                setNextKey(nextKey + 1);
-              }}
-            >
-              <Plus /> Add line
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setLines([blankLine(nextKey, original)]);
-                setNextKey(nextKey + 1);
-                setSplit(false);
-              }}
-            >
-              Reset
-            </Button>
           </div>
         )}
-        <p className="text-right text-sm">
-          Allocated {bankMoney(unitsAmount(total), row.currency)} · Original{" "}
-          {bankMoney(original, row.currency)} ·{" "}
-          <strong className={difference ? "text-down" : ""}>
-            Difference {bankMoney(unitsAmount(difference), row.currency)}
-          </strong>
-        </p>
-      </div>
-      <DuplicateConfirmation row={row} checked={duplicate} change={setDuplicate} />
-      <ErrorMessage error={error} />
-      <BankSubmit
-        busy={busy}
-        disabled={
-          !!difference ||
-          amountInvalid ||
-          lines.some((l) => !l.account || !l.amount) ||
-          (row.duplicate && !duplicate)
-        }
-      >
-        {split ? "Split and post" : "Post"}
-      </BankSubmit>
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">{split ? "Split allocations" : "Category"}</h3>
+            {!split && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSplit(true);
+                  setLines([...lines, blankLine(nextKey)]);
+                  setNextKey(nextKey + 1);
+                }}
+              >
+                Split
+              </Button>
+            )}
+          </div>
+          {lines.map((line, index) => (
+            <fieldset
+              key={line.key}
+              className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4"
+            >
+              <legend className="px-1 text-xs text-ink3">Allocation {index + 1}</legend>
+              <SelectField
+                name="Account"
+                value={line.account}
+                change={(account) => patch(line.key, { account })}
+                options={names}
+              />
+              <Field name="Description">
+                <input
+                  className={fieldStyle}
+                  value={line.description}
+                  onChange={(e) => patch(line.key, { description: e.target.value })}
+                />
+              </Field>
+              <Field name={`Amount (${row.currency})`}>
+                <input
+                  required
+                  className={fieldStyle}
+                  inputMode="decimal"
+                  readOnly={!!line.sku}
+                  value={line.amount}
+                  onChange={(e) => patch(line.key, { amount: e.target.value })}
+                />
+              </Field>
+              <SelectField
+                name="Customer"
+                value={line.customerId}
+                change={(customerId) => patch(line.key, { customerId })}
+                options={customers.map((c) => ({ id: c.id, name: c.displayName }))}
+              />
+              <SelectField
+                name="Project"
+                value={line.projectId}
+                change={(projectId) => patch(line.key, { projectId })}
+                options={projects
+                  .filter((p) => p.status !== "Completed")
+                  .map((p) => ({ id: p.id, name: p.name }))}
+              />
+              <SelectField
+                name="Cost center"
+                value={line.costCenterId}
+                change={(costCenterId) => patch(line.key, { costCenterId })}
+                options={costCenters
+                  .filter((c) => c.status === "Active")
+                  .map((c) => ({ id: c.id, name: c.name }))}
+              />
+              <SelectField
+                name="Class"
+                value={line.classId}
+                change={(classId) => patch(line.key, { classId })}
+                options={options("CLASS")}
+                placeholder={options("CLASS").length ? "Select…" : "No class configured"}
+              />
+              <SelectField
+                name="Product or service"
+                value={line.sku}
+                change={(sku) =>
+                  patch(line.key, {
+                    sku,
+                    quantity: sku ? line.quantity || "1" : "",
+                    unitRate: sku ? line.unitRate : "",
+                    amount: "",
+                  })
+                }
+                options={inventory.map((item) => ({
+                  id: item.sku,
+                  name: item.sku + " · " + item.name,
+                }))}
+              />
+              {line.sku && (
+                <>
+                  <Field name="Quantity">
+                    <input
+                      required
+                      className={fieldStyle}
+                      inputMode="decimal"
+                      value={line.quantity}
+                      onChange={(e) => patch(line.key, { quantity: e.target.value, amount: "" })}
+                    />
+                  </Field>
+                  <Field name="Unit rate">
+                    <input
+                      required
+                      className={fieldStyle}
+                      inputMode="decimal"
+                      value={line.unitRate}
+                      onChange={(e) => patch(line.key, { unitRate: e.target.value, amount: "" })}
+                    />
+                  </Field>
+                </>
+              )}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={line.billable}
+                  onChange={(e) => patch(line.key, { billable: e.target.checked })}
+                />
+                Billable
+              </label>
+              {split && lines.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLines(lines.filter((l) => l.key !== line.key))}
+                >
+                  <Trash2 /> Remove line
+                </Button>
+              )}
+            </fieldset>
+          ))}
+          {split && (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={lines.length >= 100}
+                onClick={() => {
+                  setLines([...lines, blankLine(nextKey)]);
+                  setNextKey(nextKey + 1);
+                }}
+              >
+                <Plus /> Add line
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setLines([blankLine(nextKey, original)]);
+                  setNextKey(nextKey + 1);
+                  setSplit(false);
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          )}
+          <p className="text-right text-sm">
+            Allocated {bankMoney(unitsAmount(total), row.currency)} · Original{" "}
+            {bankMoney(original, row.currency)} ·{" "}
+            <strong className={difference ? "text-down" : ""}>
+              Difference {bankMoney(unitsAmount(difference), row.currency)}
+            </strong>
+          </p>
+        </div>
+        <DuplicateConfirmation row={row} checked={duplicate} change={setDuplicate} />
+        <ErrorMessage error={error} />
+        <BankSubmit
+          busy={busy}
+          disabled={
+            !!difference ||
+            amountInvalid ||
+            lines.some((l) => !l.account || !l.amount) ||
+            (row.duplicate && !duplicate)
+          }
+        >
+          {split ? "Split and post" : "Post"}
+        </BankSubmit>
       </div>
       <aside className="self-start space-y-2 rounded-md border bg-background p-3 text-sm">
         <h3 className="font-semibold">Suggestions</h3>

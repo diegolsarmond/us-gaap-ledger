@@ -39,6 +39,7 @@ export function BankMatch({
     /^(Matched to)/i.test(row.externalPosting) ? "recorded" : "open",
   );
   const [party, setParty] = useState(() => {
+    if (row.partyEdited) return row.partyName && row.partyId ? row.partyId : "";
     const originalParty = row.fromTo.toLowerCase();
     const candidates = new Set(
       [

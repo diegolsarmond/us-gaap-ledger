@@ -63,7 +63,7 @@ type BankRow = {
 const rowQuery = `
  SELECT r.id,r.file_id AS "fileId",r.date::text,r.description,r.amount::text,r.status,
    f.account_code AS account,f.feed_currency AS currency,r.feed_from_to AS "fromTo",
-   coalesce(a.payee_id,r.feed_payee_id) AS "partyId",
+   selected_party.id AS "partyId",
    coalesce(v.display_name,p.display_name) AS "partyName",r.feed_party_edited AS "partyEdited",
    r.feed_external_posting AS "externalPosting",r.feed_exclusion AS exclusion,
    EXISTS (SELECT 1 FROM ledger_stagingrows d JOIN ledger_statements df ON (df.company_id,df.id)=(d.company_id,d.file_id)
@@ -80,8 +80,9 @@ const rowQuery = `
  FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
  LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
  LEFT JOIN journal_entries j ON j.id=a.journal_id
- LEFT JOIN ledger_vendors v ON v.company_id=r.company_id AND v.id=coalesce(a.payee_id,r.feed_payee_id) AND r.amount<0
- LEFT JOIN ledger_customers p ON p.company_id=r.company_id AND p.id=coalesce(a.payee_id,r.feed_payee_id) AND r.amount>0
+ CROSS JOIN LATERAL (SELECT CASE WHEN a.kind='category' THEN a.payee_id ELSE r.feed_payee_id END AS id) selected_party
+ LEFT JOIN ledger_vendors v ON v.company_id=r.company_id AND v.id=selected_party.id AND r.amount<0
+ LEFT JOIN ledger_customers p ON p.company_id=r.company_id AND p.id=selected_party.id AND r.amount>0
  LEFT JOIN (
    SELECT company_id,row_id,count(*)::int AS count FROM bank_feed_attachments WHERE company_id=$1 GROUP BY company_id,row_id
  ) t ON (t.company_id,t.row_id)=(r.company_id,r.id)
@@ -1436,10 +1437,11 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
     const byId = new Map(found.map((row) => [row.id, row]));
     const rows = input.rowIds.map((id) => byId.get(id)!);
     if (input.operation === "undo") {
-      rows.sort((a, b) =>
-        Number(b.attemptKind === "match") - Number(a.attemptKind === "match") ||
-        (b.accountingDate ?? b.date).localeCompare(a.accountingDate ?? a.date) ||
-        (b.postedAt ?? "").localeCompare(a.postedAt ?? ""),
+      rows.sort(
+        (a, b) =>
+          Number(b.attemptKind === "match") - Number(a.attemptKind === "match") ||
+          (b.accountingDate ?? b.date).localeCompare(a.accountingDate ?? a.date) ||
+          (b.postedAt ?? "").localeCompare(a.postedAt ?? ""),
       );
     }
     if (input.operation === "categorize") {
@@ -1458,8 +1460,9 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
           const counterpart = outgoing(row) ? input.outflowAccount : input.inflowAccount;
           if (!counterpart) throw new Error("Select a counterpart account for this direction.");
           const party = row.fromTo.toLowerCase();
-          const contacts = (outgoing(row) ? state.vendors : state.customers)
-            .filter((contact) => party && contact.displayName.toLowerCase() === party);
+          const contacts = (outgoing(row) ? state.vendors : state.customers).filter(
+            (contact) => party && contact.displayName.toLowerCase() === party,
+          );
           const result = await category(
             c,
             auth,
@@ -1470,8 +1473,13 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
               date: row.date,
               transactionType: outgoing(row) ? "Expense" : "Deposit",
               memo: row.description,
-              payeeId: row.partyEdited ? row.partyName ? row.partyId ?? undefined : undefined
-                : contacts.length === 1 ? contacts[0]!.id : undefined,
+              payeeId: row.partyEdited
+                ? row.partyName
+                  ? (row.partyId ?? undefined)
+                  : undefined
+                : contacts.length === 1
+                  ? contacts[0]!.id
+                  : undefined,
               rate: input.rate,
               rateSource: input.rateSource,
               confirmDuplicate: input.confirmDuplicate,
@@ -1557,7 +1565,10 @@ export async function bankFeedCommand({ companyId, input: raw }: Scope & { input
         "UPDATE ledger_stagingrows SET feed_payee_id=$3,feed_party_edited=true WHERE company_id=$1 AND id=$2",
         [companyId, row.id, input.payeeId],
       );
-      await audit(c, auth, "BANK_FEED_PARTY", row.id, { previous: row.partyId, payeeId: input.payeeId });
+      await audit(c, auth, "BANK_FEED_PARTY", row.id, {
+        previous: row.partyId,
+        payeeId: input.payeeId,
+      });
       return { id: row.id, posted: false };
     }
     if (input.operation === "attach" || input.operation === "removeAttachment") {

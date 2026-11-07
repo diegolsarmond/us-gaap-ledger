@@ -66,11 +66,30 @@ export function BankBatchDialog({
     groups.set(key, ids);
   }
   const accountsByDirection = [
-    ...(hasInflow ? [{ label: hasOutflow ? "Money in counterpart" : "Counterpart account", value: inflowAccount, change: setInflowAccount }] : []),
-    ...(hasOutflow ? [{ label: hasInflow ? "Money out counterpart" : "Counterpart account", value: outflowAccount, change: setOutflowAccount }] : []),
+    ...(hasInflow
+      ? [
+          {
+            label: hasOutflow ? "Money in counterpart" : "Counterpart account",
+            value: inflowAccount,
+            change: setInflowAccount,
+          },
+        ]
+      : []),
+    ...(hasOutflow
+      ? [
+          {
+            label: hasInflow ? "Money out counterpart" : "Counterpart account",
+            value: outflowAccount,
+            change: setOutflowAccount,
+          },
+        ]
+      : []),
   ];
   const accountOptions = accounts
-    .filter((item) => item.code !== first.account && !accounts.some((child) => child.parentCode === item.code))
+    .filter(
+      (item) =>
+        item.code !== first.account && !accounts.some((child) => child.parentCode === item.code),
+    )
     .map((item) => ({ value: item.code, label: `${item.code} · ${item.name}` }));
   const labels = {
     categorize: "Categorize and post",
@@ -92,14 +111,27 @@ export function BankBatchDialog({
     try {
       for (const [bankDate, ids] of groups) {
         for (let offset = 0; offset < ids.length; offset += bankBatchLimit) {
-          const scope = { bankAccount: first.account, rowIds: ids.slice(offset, offset + bankBatchLimit) };
-          const input: BankBatchAction = operation === "categorize"
-            ? { ...scope, operation, inflowAccount: inflowAccount || undefined, outflowAccount: outflowAccount || undefined,
-                costCenterId: costCenter || undefined, rate: rates[bankDate] || undefined,
-                rateSource: rateSource || undefined, confirmDuplicate }
-            : operation === "undo" ? { ...scope, operation, date: date || undefined, reason: reason || undefined }
-              : operation === "exclude" ? { ...scope, operation, reason }
-                : { ...scope, operation };
+          const scope = {
+            bankAccount: first.account,
+            rowIds: ids.slice(offset, offset + bankBatchLimit),
+          };
+          const input: BankBatchAction =
+            operation === "categorize"
+              ? {
+                  ...scope,
+                  operation,
+                  inflowAccount: inflowAccount || undefined,
+                  outflowAccount: outflowAccount || undefined,
+                  costCenterId: costCenter || undefined,
+                  rate: rates[bankDate] || undefined,
+                  rateSource: rateSource || undefined,
+                  confirmDuplicate,
+                }
+              : operation === "undo"
+                ? { ...scope, operation, date: date || undefined, reason: reason || undefined }
+                : operation === "exclude"
+                  ? { ...scope, operation, reason }
+                  : { ...scope, operation };
           const result = await run(input);
           totals.count += result.count;
           totals.posted += result.posted;
@@ -133,7 +165,9 @@ export function BankBatchDialog({
           event.preventDefault();
           setError(null);
           setBusy(true);
-          void submit().catch(setError).finally(() => setBusy(false));
+          void submit()
+            .catch(setError)
+            .finally(() => setBusy(false));
         }}
       >
         {operation === "categorize" && (
@@ -143,17 +177,18 @@ export function BankBatchDialog({
             ) : (
               <>
                 {accountsByDirection.map(({ label, value, change }) => (
-                <fieldset key={label} disabled={busy} className="min-w-0 space-y-1">
-                  <legend className="text-xs font-medium text-ink2">{label}</legend>
-                  <SearchableSelect
-                    label={label}
-                    value={value}
-                    onChange={change}
-                    options={accountOptions}
-                    fitViewport
-                    required
-                  />
-                </fieldset>))}
+                  <fieldset key={label} disabled={busy} className="min-w-0 space-y-1">
+                    <legend className="text-xs font-medium text-ink2">{label}</legend>
+                    <SearchableSelect
+                      label={label}
+                      value={value}
+                      onChange={change}
+                      options={accountOptions}
+                      fitViewport
+                      required
+                    />
+                  </fieldset>
+                ))}
                 <SelectField
                   name="Cost center"
                   value={costCenter}
@@ -165,15 +200,21 @@ export function BankBatchDialog({
                 {foreign && (
                   <>
                     {[...groups.keys()].sort().map((bankDate) => (
-                    <Field key={bankDate} name={`Exchange rate for ${bankDate} · USD per ${first.currency}`}>
-                      <input
-                        className={fieldStyle}
-                        inputMode="decimal"
-                        required
-                        value={rates[bankDate] ?? ""}
-                        onChange={(event) => setRates({ ...rates, [bankDate]: event.target.value })}
-                      />
-                    </Field>))}
+                      <Field
+                        key={bankDate}
+                        name={`Exchange rate for ${bankDate} · USD per ${first.currency}`}
+                      >
+                        <input
+                          className={fieldStyle}
+                          inputMode="decimal"
+                          required
+                          value={rates[bankDate] ?? ""}
+                          onChange={(event) =>
+                            setRates({ ...rates, [bankDate]: event.target.value })
+                          }
+                        />
+                      </Field>
+                    ))}
                     <Field name="Rate source">
                       <input
                         className={fieldStyle}
@@ -220,9 +261,21 @@ export function BankBatchDialog({
             />
           </Field>
         )}
-        {rows.length > bankBatchLimit && <p className="text-xs text-ink3">Transactions are processed in groups of up to {bankBatchLimit}.</p>}
-        {(busy || processed > 0) && <p role="status" className="text-sm font-medium">{processed} of {rows.length} confirmed.</p>}
-        {!!error && processed > 0 && <p className="text-sm">Close this window and select the remaining transactions to try again.</p>}
+        {rows.length > bankBatchLimit && (
+          <p className="text-xs text-ink3">
+            Transactions are processed in groups of up to {bankBatchLimit}.
+          </p>
+        )}
+        {(busy || processed > 0) && (
+          <p role="status" className="text-sm font-medium">
+            {processed} of {rows.length} confirmed.
+          </p>
+        )}
+        {!!error && processed > 0 && (
+          <p className="text-sm">
+            Close this window and select the remaining transactions to try again.
+          </p>
+        )}
         <ErrorMessage error={error} />
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={close} disabled={busy}>
@@ -231,8 +284,11 @@ export function BankBatchDialog({
           <BankSubmit
             busy={busy}
             disabled={
-              processed > 0 || (operation === "categorize" &&
-              (incompatible || accountsByDirection.some((item) => !item.value) || (duplicate && !confirmDuplicate)))
+              processed > 0 ||
+              (operation === "categorize" &&
+                (incompatible ||
+                  accountsByDirection.some((item) => !item.value) ||
+                  (duplicate && !confirmDuplicate)))
             }
           >
             {labels[operation]}

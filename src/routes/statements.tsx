@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Download,
   FileUp,
+  GripVertical,
   Paperclip,
   Printer,
   Settings2,
@@ -30,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { BankReview, type BankReviewView } from "@/components/bank-feed-review";
 import { BankBatchDialog } from "@/components/bank-feed-batch";
 import { SearchableSelect } from "@/components/searchable-select";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,9 +66,39 @@ const statuses = [
   { id: "Excluded", name: "Excluded" },
 ] as const;
 const optionalColumns = ["Files", "Party", "Source posting", "Status"] as const;
+const gridColumns = [
+  "Date",
+  "Description",
+  "Amount",
+  "Files",
+  "Party",
+  "Review",
+  "Source posting",
+  "Status",
+] as const;
 const pageSize = bankBatchLimit;
 type Column = (typeof optionalColumns)[number];
+type GridColumn = (typeof gridColumns)[number];
 type SortField = "date" | "description" | "amount";
+
+function loadColumnOrder(key: string): GridColumn[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? "null");
+    if (Array.isArray(value)) {
+      return [
+        ...new Set([
+          ...value.filter((column): column is GridColumn =>
+            gridColumns.some((item) => item === column),
+          ),
+          ...gridColumns,
+        ]),
+      ];
+    }
+  } catch {
+    // Storage may be unavailable.
+  }
+  return [...gridColumns];
+}
 
 function StatementsPage() {
   const { activeCompany } = useAccounting();
@@ -76,7 +106,7 @@ function StatementsPage() {
 }
 
 function CompanyFeed() {
-  const { activeCompany, accounts } = useAccounting();
+  const { activeCompany, accounts, vendors, customers } = useAccounting();
   const companyId = activeCompany.id;
   const cache = useQueryClient();
   const feed = useQuery({
@@ -104,9 +134,28 @@ function CompanyFeed() {
     "import" | "archive" | "settings" | "balance" | "register" | "rules" | null
   >(null);
   const [columns, setColumns] = useState<Column[]>(["Files", "Party"]);
+  const columnKey = `ledgerx:bank-feed:columns:${companyId}`;
+  const [columnOrder, setColumnOrder] = useState(() => loadColumnOrder(columnKey));
+  const [dragColumn, setDragColumn] = useState<GridColumn>();
+  const [editingParty, setEditingParty] = useState<string>();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const moveColumn = (from: GridColumn, to: GridColumn) => {
+    if (from === to) return;
+    const next = columnOrder.filter((column) => column !== from);
+    next.splice(columnOrder.indexOf(to), 0, from);
+    setColumnOrder(next);
+    try {
+      window.localStorage.setItem(columnKey, JSON.stringify(next));
+    } catch {
+      // The order still applies in this session.
+    }
+  };
+  const visibleColumns = columnOrder.filter(
+    (column) =>
+      !optionalColumns.some((item) => item === column) || columns.some((item) => item === column),
+  );
 
   const refresh = async () => {
     await Promise.all([
@@ -156,9 +205,13 @@ function CompanyFeed() {
         (!to || row.date <= to) &&
         (!direction || (Number(row.amount) < 0 ? "out" : "in") === direction) &&
         (!filter ||
-          [row.description, row.fromTo, row.externalPosting, row.journalNumber ?? ""].some((v) =>
-            v.toLowerCase().includes(filter),
-          )),
+          [
+            row.description,
+            row.fromTo,
+            row.partyName ?? "",
+            row.externalPosting,
+            row.journalNumber ?? "",
+          ].some((v) => v.toLowerCase().includes(filter))),
     )
     .sort((a, b) => {
       const order =
@@ -177,16 +230,31 @@ function CompanyFeed() {
   const canSelect = (row: BankRow) =>
     data.canWrite &&
     ((row.status === "Pending" && !row.attemptId) || row.status === "Excluded" || canUndo(row));
+  const eligibleRows = filtered.filter(canSelect);
   const selectableRows = pageRows.filter(canSelect);
-  const selectedRows = selectableRows.filter((row) => selectedIds.includes(row.id));
-  const allChecked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+  const selectedSet = new Set(selectedIds);
+  const selectedRows = eligibleRows.filter((row) => selectedSet.has(row.id));
+  const checkedOnPage = selectableRows.filter((row) => selectedSet.has(row.id)).length;
+  const allChecked = selectableRows.length > 0 && checkedOnPage === selectableRows.length;
   const clearSelection = () => {
     setSelectedIds([]);
     setReview(undefined);
+    setEditingParty(undefined);
   };
   const goToPage = (page: number) => {
     setPage(page);
     clearSelection();
+  };
+  const paginate = (page: number) => {
+    setPage(page);
+    setReview(undefined);
+    setEditingParty(undefined);
+  };
+  const togglePage = (checked: boolean) => {
+    const pageIds = new Set(selectableRows.map((row) => row.id));
+    setSelectedIds((old) =>
+      checked ? [...new Set([...old, ...pageIds])] : old.filter((id) => !pageIds.has(id)),
+    );
   };
   const openReview = (id: string, view: BankReviewView = "details") =>
     setReview((old) =>
@@ -241,7 +309,14 @@ function CompanyFeed() {
   };
   const table = (items: BankRow[], printable = false) => {
     const showSelection = data.canWrite && !printable;
-    const columnCount = 4 + columns.length + (printable ? 0 : 1) + (showSelection ? 1 : 0);
+    const columnCount = visibleColumns.length + (printable ? 0 : 1) + (showSelection ? 1 : 0);
+    const columnLabel = (column: GridColumn) => {
+      if (column === "Description") return "Full bank description";
+      if (column === "Party") return "From/To";
+      if (column === "Review") return status === "Pending" ? "Match / Categorize" : "Posting";
+      return column;
+    };
+    const sortFields = { Date: "date", Description: "description", Amount: "amount" } as const;
     return (
       <Table
         className={
@@ -252,183 +327,288 @@ function CompanyFeed() {
           <tr>
             {showSelection && (
               <Th className="w-8">
-                <Checkbox
+                <input
+                  type="checkbox"
+                  className="size-3.5 cursor-pointer align-middle accent-brand"
                   aria-label="Select all eligible transactions on this page"
                   disabled={!selectableRows.length}
-                  checked={allChecked || (selectedRows.length ? "indeterminate" : false)}
-                  onCheckedChange={(checked) =>
-                    setSelectedIds(checked ? selectableRows.map((row) => row.id) : [])
-                  }
+                  checked={allChecked}
+                  ref={(input) => {
+                    if (input) input.indeterminate = !allChecked && checkedOnPage > 0;
+                  }}
+                  onChange={(event) => togglePage(event.target.checked)}
                 />
               </Th>
             )}
-            <Th>{sortHeading("Date", "date", printable)}</Th>
-            <Th>{sortHeading("Full bank description", "description", printable)}</Th>
-            <Th align="right">{sortHeading("Amount", "amount", printable)}</Th>
-            {columns.includes("Files") && (
-              <Th align="center">
-                <Paperclip aria-hidden="true" className="mx-auto size-3.5" />
-                <span className="sr-only">Files</span>
-              </Th>
-            )}
-            {columns.includes("Party") && <Th>From/To</Th>}
-            <Th>{status === "Pending" ? "Match / Categorize" : "Posting"}</Th>
-            {columns.includes("Source posting") && <Th>Source posting</Th>}
-            {columns.includes("Status") && <Th>Status</Th>}
+            {visibleColumns.map((column, index) => {
+              const label = columnLabel(column);
+              const sortable = column === "Date" || column === "Description" || column === "Amount";
+              const field = sortable ? sortFields[column] : undefined;
+              return (
+                <th
+                  key={column}
+                  scope="col"
+                  className={`whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-ink3 ${column === "Amount" ? "text-right" : "text-left"} ${dragColumn === column ? "bg-brand/15" : ""}`}
+                  aria-sort={
+                    field && sort.field === field
+                      ? sort.descending
+                        ? "descending"
+                        : "ascending"
+                      : undefined
+                  }
+                  onDragOver={(event) => {
+                    if (dragColumn) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragColumn) moveColumn(dragColumn, column);
+                    setDragColumn(undefined);
+                  }}
+                >
+                  <div
+                    className={`flex items-center gap-1 ${column === "Amount" ? "justify-end" : ""}`}
+                  >
+                    {!printable && (
+                      <button
+                        type="button"
+                        draggable
+                        className="cursor-grab rounded p-0.5 text-ink3 hover:bg-background focus-visible:ring-1 focus-visible:ring-brand active:cursor-grabbing"
+                        title="Drag to reorder or use the left and right arrow keys"
+                        aria-label={`Move ${label} column`}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", column);
+                          setDragColumn(column);
+                        }}
+                        onDragEnd={() => setDragColumn(undefined)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                          event.preventDefault();
+                          const target =
+                            visibleColumns[index + (event.key === "ArrowLeft" ? -1 : 1)];
+                          if (target) moveColumn(column, target);
+                        }}
+                      >
+                        <GripVertical className="size-3" aria-hidden="true" />
+                      </button>
+                    )}
+                    {field ? (
+                      sortHeading(label, field, printable)
+                    ) : column === "Files" ? (
+                      <>
+                        <Paperclip aria-hidden="true" className="size-3.5" />
+                        <span className="sr-only">Files</span>
+                      </>
+                    ) : (
+                      label
+                    )}
+                  </div>
+                </th>
+              );
+            })}
             {!printable && <Th>Action</Th>}
           </tr>
         </thead>
         <tbody>
-          {items.map((r, index) => {
-            const pending = r.status === "Pending" && !r.attemptId && data.canWrite;
-            const expanded = !printable && review?.id === r.id;
-            const checked = !printable && selectedIds.includes(r.id);
-            const category = suggestionFor(r);
+          {items.map((row, index) => {
+            const pending = row.status === "Pending" && !row.attemptId && data.canWrite;
+            const expanded = !printable && review?.id === row.id;
+            const checked = !printable && selectedSet.has(row.id);
+            const category = suggestionFor(row);
             const categoryLabel = category ? `${category} · ${accountName(category)}` : "";
+            const fromTo = row.partyName ?? (row.partyEdited ? "" : row.fromTo);
+            const cells: Record<GridColumn, ReactNode> = {
+              Date: <Td className="whitespace-nowrap">{row.date}</Td>,
+              Description: (
+                <Td className="min-w-48 max-w-80">
+                  {printable ? (
+                    row.description
+                  ) : (
+                    <button
+                      type="button"
+                      className="block max-w-full truncate text-left font-medium hover:underline"
+                      title={row.description}
+                      aria-expanded={expanded}
+                      onClick={() => openReview(row.id)}
+                    >
+                      {row.description}
+                    </button>
+                  )}
+                  {row.duplicate && <Badge tone="down">Possible duplicate</Badge>}
+                </Td>
+              ),
+              Amount: (
+                <Td
+                  align="right"
+                  className={
+                    Number(row.amount) < 0
+                      ? "whitespace-nowrap text-down"
+                      : "whitespace-nowrap text-up"
+                  }
+                >
+                  {bankMoney(row.amount, row.currency)}
+                </Td>
+              ),
+              Files: (
+                <Td align="center">
+                  {printable ? (
+                    row.attachmentCount || "—"
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-1.5"
+                      aria-label={
+                        row.attachmentCount
+                          ? `View ${row.attachmentCount} attached files`
+                          : "View transaction files"
+                      }
+                      onClick={() => openReview(row.id)}
+                    >
+                      <Paperclip className="size-3" />
+                      {row.attachmentCount || ""}
+                    </Button>
+                  )}
+                </Td>
+              ),
+              Party: (
+                <Td className="min-w-32 max-w-44">
+                  {pending && !printable ? (
+                    editingParty === row.id ? (
+                      <SearchableSelect
+                        label={`From/To for ${row.description}`}
+                        value={row.partyId ?? ""}
+                        options={[
+                          { value: "", label: "Clear party" },
+                          ...(Number(row.amount) < 0 ? vendors : customers).map((party) => ({
+                            value: party.id,
+                            label: party.displayName,
+                          })),
+                        ]}
+                        onOpenChange={(open) => {
+                          if (!open) setEditingParty(undefined);
+                        }}
+                        onChange={(payeeId) => {
+                          void handle(async () => {
+                            try {
+                              await run({
+                                operation: "party",
+                                rowId: row.id,
+                                payeeId: payeeId || null,
+                              });
+                              setNotice("From/To updated.");
+                            } finally {
+                              setEditingParty(undefined);
+                            }
+                          });
+                        }}
+                        initiallyOpen
+                        fitViewport
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        title={fromTo || "Select a party"}
+                        aria-label={`Change From/To for ${row.description}`}
+                        className="flex max-w-full items-center gap-1 truncate text-left hover:underline"
+                        disabled={busy}
+                        onClick={() => {
+                          setError(null);
+                          setEditingParty(row.id);
+                        }}
+                      >
+                        <span className="truncate">{fromTo || "Select a party"}</span>
+                        <ChevronDown aria-hidden="true" className="size-3 shrink-0 text-ink3" />
+                      </button>
+                    )
+                  ) : (
+                    fromTo || "—"
+                  )}
+                </Td>
+              ),
+              Review: (
+                <Td>
+                  {pending && !printable ? (
+                    <div className="flex min-w-52 flex-wrap items-center gap-1">
+                      {categoryLabel && (
+                        <span
+                          className="max-w-48 truncate text-brand"
+                          title={`Suggested: ${categoryLabel}`}
+                        >
+                          {categoryLabel}
+                        </span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        aria-label={`Match ${row.description}`}
+                        onClick={() => openReview(row.id, "match")}
+                      >
+                        Match
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        aria-label={`Categorize ${row.description}`}
+                        onClick={() => openReview(row.id)}
+                      >
+                        Categorize
+                      </Button>
+                    </div>
+                  ) : row.attemptState === "pending" ? (
+                    <Badge tone="brand">In approval</Badge>
+                  ) : (
+                    <span className="text-ink2" title={categoryLabel || undefined}>
+                      {row.journalNumber ??
+                        (row.attemptKind === "match" ? "Matched" : categoryLabel || "—")}
+                    </span>
+                  )}
+                </Td>
+              ),
+              "Source posting": (
+                <Td className="max-w-56 truncate" title={row.externalPosting}>
+                  {row.externalPosting || "—"}
+                </Td>
+              ),
+              Status: (
+                <Td>
+                  <Badge tone={row.status === "Classified" ? "up" : "neutral"}>
+                    {row.attemptState === "pending"
+                      ? "In approval"
+                      : statuses.find((tab) => tab.id === row.status)?.name}
+                  </Badge>
+                </Td>
+              ),
+            };
             return (
-              <Fragment key={r.id}>
+              <Fragment key={row.id}>
                 <tr
                   className={`border-b border-line/50 ${expanded || checked ? "bg-brand/10" : index % 2 ? "bg-muted/35 hover:bg-muted/65" : "hover:bg-muted/40"}`}
                 >
                   {showSelection && (
                     <Td>
-                      <Checkbox
-                        aria-label={`Select transaction ${r.description}`}
-                        disabled={!canSelect(r)}
+                      <input
+                        type="checkbox"
+                        className="size-3.5 cursor-pointer align-middle accent-brand"
+                        aria-label={`Select transaction ${row.description}`}
+                        disabled={!canSelect(row)}
                         checked={checked}
-                        onCheckedChange={(value) =>
+                        onChange={(event) => {
+                          const value = event.target.checked;
                           setSelectedIds((old) =>
-                            value ? [...old, r.id] : old.filter((id) => id !== r.id),
-                          )
-                        }
+                            value ? [...old, row.id] : old.filter((id) => id !== row.id),
+                          );
+                        }}
                       />
                     </Td>
                   )}
-                  <Td className="whitespace-nowrap">{r.date}</Td>
-                  <Td className="min-w-48 max-w-80">
-                    {printable ? (
-                      r.description
-                    ) : (
-                      <button
-                        className="block max-w-full truncate text-left font-medium hover:underline"
-                        title={r.description}
-                        aria-expanded={expanded}
-                        onClick={() => openReview(r.id)}
-                      >
-                        {r.description}
-                      </button>
-                    )}
-                    {r.duplicate && <Badge tone="down">Possible duplicate</Badge>}
-                  </Td>
-                  <Td
-                    align="right"
-                    className={
-                      Number(r.amount) < 0
-                        ? "whitespace-nowrap text-down"
-                        : "whitespace-nowrap text-up"
-                    }
-                  >
-                    {bankMoney(r.amount, r.currency)}
-                  </Td>
-                  {columns.includes("Files") && (
-                    <Td align="center">
-                      {printable ? (
-                        r.attachmentCount || "—"
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 gap-1 px-1.5"
-                          title={
-                            r.attachmentCount
-                              ? `${r.attachmentCount} attached files`
-                              : "View transaction files"
-                          }
-                          aria-label={
-                            r.attachmentCount
-                              ? `View ${r.attachmentCount} attached files`
-                              : "View transaction files"
-                          }
-                          onClick={() => openReview(r.id)}
-                        >
-                          <Paperclip className="size-3" />
-                          {r.attachmentCount || ""}
-                        </Button>
-                      )}
-                    </Td>
-                  )}
-                  {columns.includes("Party") && (
-                    <Td className="max-w-40">
-                      {pending && !printable ? (
-                        <button
-                          type="button"
-                          title={r.fromTo || "Select a party"}
-                          className="block max-w-full truncate text-left hover:underline"
-                          onClick={() => openReview(r.id)}
-                        >
-                          {r.fromTo || <span className="text-ink3">Select a party</span>}
-                        </button>
-                      ) : (
-                        r.fromTo || "—"
-                      )}
-                    </Td>
-                  )}
-                  <Td>
-                    {pending && !printable ? (
-                      <div className="flex min-w-52 flex-wrap items-center gap-1">
-                        {categoryLabel && (
-                          <span
-                            className="max-w-48 truncate text-brand"
-                            title={`Suggested: ${categoryLabel}`}
-                          >
-                            {categoryLabel}
-                          </span>
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          aria-label={`Match ${r.description}`}
-                          onClick={() => openReview(r.id, "match")}
-                        >
-                          Match
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          aria-label={`Categorize ${r.description}`}
-                          onClick={() => openReview(r.id)}
-                        >
-                          Categorize
-                        </Button>
-                      </div>
-                    ) : r.attemptState === "pending" ? (
-                      <Badge tone="brand">In approval</Badge>
-                    ) : (
-                      <span className="text-ink2" title={categoryLabel || undefined}>
-                        {r.journalNumber ??
-                          (r.attemptKind === "match" ? "Matched" : categoryLabel || "—")}
-                      </span>
-                    )}
-                  </Td>
-                  {columns.includes("Source posting") && (
-                    <Td className="max-w-56 truncate" title={r.externalPosting}>
-                      {r.externalPosting || "—"}
-                    </Td>
-                  )}
-                  {columns.includes("Status") && (
-                    <Td>
-                      <Badge tone={r.status === "Classified" ? "up" : "neutral"}>
-                        {r.attemptState === "pending"
-                          ? "In approval"
-                          : statuses.find((tab) => tab.id === r.status)?.name}
-                      </Badge>
-                      {r.journalNumber && <div className="mt-1 text-xs">{r.journalNumber}</div>}
-                    </Td>
-                  )}
+                  {visibleColumns.map((column) => (
+                    <Fragment key={column}>{cells[column]}</Fragment>
+                  ))}
                   {!printable && (
                     <Td>
                       {pending ? (
@@ -437,7 +617,7 @@ function CompanyFeed() {
                             variant="ghost"
                             size="sm"
                             className="h-6 px-1.5 text-xs text-brand"
-                            onClick={() => openReview(r.id)}
+                            onClick={() => openReview(row.id)}
                           >
                             Post
                           </Button>
@@ -447,24 +627,24 @@ function CompanyFeed() {
                                 variant="ghost"
                                 size="icon"
                                 className="size-6"
-                                aria-label={`More actions for ${r.description}`}
+                                aria-label={`More actions for ${row.description}`}
                               >
                                 <ChevronDown className="size-3" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => openReview(r.id, "exclude")}>
+                              <DropdownMenuItem onSelect={() => openReview(row.id, "exclude")}>
                                 Exclude
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                      ) : canUndo(r) && data.canWrite ? (
+                      ) : canUndo(row) && data.canWrite ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 px-1.5 text-xs"
-                          onClick={() => openReview(r.id, "undo")}
+                          onClick={() => openReview(row.id, "undo")}
                         >
                           Undo
                         </Button>
@@ -473,7 +653,7 @@ function CompanyFeed() {
                           variant="ghost"
                           size="sm"
                           className="h-6 px-1.5 text-xs"
-                          onClick={() => openReview(r.id)}
+                          onClick={() => openReview(row.id)}
                         >
                           Details
                         </Button>
@@ -485,8 +665,8 @@ function CompanyFeed() {
                   <tr className="border-b border-brand/20 bg-muted/20">
                     <Td colSpan={columnCount}>
                       <BankReview
-                        key={`${r.id}:${review.view}`}
-                        row={r}
+                        key={`${row.id}:${review.view}:${row.partyEdited}:${row.partyId ?? ""}`}
+                        row={row}
                         initialView={review.view}
                         data={data}
                         run={run}
@@ -576,6 +756,7 @@ function CompanyFeed() {
           {notice}
         </p>
       )}
+      {!dialog && <ErrorMessage error={error} />}
       {account && (
         <Panel>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3 print:hidden">
@@ -690,6 +871,16 @@ function CompanyFeed() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-xs print:hidden">
             <div className="flex flex-wrap items-center gap-2">
+              {eligibleRows.length > selectableRows.length &&
+                selectedRows.length < eligibleRows.length && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedIds(eligibleRows.map((row) => row.id))}
+                  >
+                    Select all {eligibleRows.length} filtered transactions
+                  </Button>
+                )}
               {selectedRows.length > 0 && (
                 <>
                   <span className="font-semibold" role="status">
@@ -701,7 +892,7 @@ function CompanyFeed() {
                         size="sm"
                         onClick={() => setBatch({ operation: "categorize", rows: selectedRows })}
                       >
-                        Categorize selected
+                        Post selected
                       </Button>
                       <Button
                         variant="outline"
@@ -745,7 +936,7 @@ function CompanyFeed() {
                 variant="outline"
                 size="sm"
                 disabled={currentPage === 0}
-                onClick={() => goToPage(currentPage - 1)}
+                onClick={() => paginate(currentPage - 1)}
               >
                 Previous
               </Button>
@@ -753,7 +944,7 @@ function CompanyFeed() {
                 variant="outline"
                 size="sm"
                 disabled={currentPage + 1 === pages}
-                onClick={() => goToPage(currentPage + 1)}
+                onClick={() => paginate(currentPage + 1)}
               >
                 Next
               </Button>
@@ -774,11 +965,8 @@ function CompanyFeed() {
           operation={batch.operation}
           rows={batch.rows}
           close={() => setBatch(undefined)}
-          run={async (input) => {
-            const result = await runBankBatch({ data: { companyId, input } });
-            await refresh();
-            return result;
-          }}
+          run={(input) => runBankBatch({ data: { companyId, input } })}
+          refresh={refresh}
           saved={(message) => {
             setBatch(undefined);
             setNotice(message);
@@ -855,7 +1043,7 @@ function CompanyFeed() {
       {dialog === "settings" && (
         <BankDialog
           title="Visible columns"
-          description="Date, description, and amount are always shown."
+          description="Drag the grips in the table header to reorder columns. With a grip focused, use the left and right arrow keys."
           close={close}
         >
           {optionalColumns.map((column) => (
