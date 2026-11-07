@@ -130,6 +130,15 @@ function CompanyAccounting({
   }
   return (
     <Context.Provider value={value}>
+      {value.incompleteJournalCount > 0 && (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg border border-down/30 bg-down/5 p-3 text-sm text-down"
+        >
+          Há lançamentos contabilizados com linhas faltantes ({value.incompleteJournalCount}). Os
+          saldos desta empresa estão incompletos.
+        </p>
+      )}
       {(!query.data!.state.accounts.length || !query.data!.state.fiscalPeriods.length) && (
         <div className="mb-4 rounded-lg border border-line bg-white/80 p-3 text-[12px] text-ink2">
           This company starts with no data. Set up the{" "}

@@ -47,7 +47,8 @@ try {
     connect: async () => ({ query: (...args) => client.query(...args), release() {} }),
   };
   const { executeJournal: run } = await import("../src/lib/journal.server.ts");
-  const { replaceLedger, readLedger } = await import("../src/lib/ledger-storage.server.ts");
+  const { replaceLedger, readLedger, readLedgerDomains } =
+    await import("../src/lib/ledger-storage.server.ts");
   const admin = (await client.query("SELECT id FROM access_profiles WHERE system_admin LIMIT 1"))
     .rows[0].id;
   const user = (
@@ -374,6 +375,24 @@ try {
       )
     ).rows[0].n > 0,
   );
+  const { createAccountingEngine, createInitialCompanyData } =
+    await import("../src/lib/accounting-engine.ts");
+  await client.query("BEGIN");
+  try {
+    await client.query(`TRUNCATE "${schema}".journal_entry_lines`);
+    const journals = await readLedger(client, company, "journals");
+    assert.ok(journals.length > 0);
+    assert.ok(journals.every((entry) => Array.isArray(entry.lines) && entry.lines.length === 0));
+    const state = Object.assign(
+      createInitialCompanyData(),
+      await readLedgerDomains(client, company, ["accounts", "journals"]),
+    );
+    const engine = createAccountingEngine(state, {}, {});
+    assert.equal(engine.value.incompleteJournalCount, journals.length);
+    assert.equal(engine.value.isLedgerBalanced, false);
+  } finally {
+    await client.query("ROLLBACK");
+  }
   console.log(
     "PASS: draft/approval/post/reversal, exact currency amounts, opening balances, immutable GL, idempotency, versioning, company scope, closed periods, rollback, audit and legacy read integration.",
   );

@@ -504,6 +504,7 @@ export interface AccountingContextType {
   resetParametersToDefault: () => void;
 
   accountBalances: Record<string, { debit: number; credit: number; net: number }>;
+  incompleteJournalCount: number;
   isLedgerBalanced: boolean;
   totalDebitSum: number;
   totalCreditSum: number;
@@ -2122,6 +2123,9 @@ export function createAccountingEngine(
     );
   };
 
+  const incompleteJournalCount = currentData.journals.filter(
+    (journal) => journal.lines.length < 2,
+  ).length;
   const { accountBalances, totalDebitSum, totalCreditSum, isLedgerBalanced } = (() => {
     const balances: Record<string, { debit: number; credit: number; net: number }> = {};
 
@@ -2165,7 +2169,7 @@ export function createAccountingEngine(
       accountBalances: balances,
       totalDebitSum: debSum,
       totalCreditSum: credSum,
-      isLedgerBalanced: Math.abs(debSum - credSum) < 0.05,
+      isLedgerBalanced: incompleteJournalCount === 0 && Math.abs(debSum - credSum) < 0.05,
     };
   })();
 
@@ -2304,6 +2308,7 @@ export function createAccountingEngine(
       deleteFiscalPeriod,
       resetParametersToDefault,
       accountBalances,
+      incompleteJournalCount,
       isLedgerBalanced,
       totalDebitSum,
       totalCreditSum,

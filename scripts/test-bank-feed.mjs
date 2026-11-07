@@ -76,7 +76,17 @@ assert.deepEqual(
   review.rows.map((row) => row.amountText),
   ["-1250.30", "20.25"],
 );
+assert.equal(review.rows[0].sourceStatus, "Pending");
 assert.equal(review.rows[0].checkNumber, "000123");
+const postedCsv =
+  "date,Bank description,Amount,From/To,Transaction Posted\n" +
+  "01/19/2026,QuickBooks categorized,-10.00,,Added to: Expense: 6000 Fees\n" +
+  "01/20/2026,QuickBooks matched,20.00,,Matched to: Deposit: 4000 Sales\n" +
+  "01/21/2026,No posting information,30.00,,";
+assert.deepEqual(
+  parseStatementFile(postedCsv).rows.map((row) => row.sourceStatus),
+  ["Posted", "Posted", null],
+);
 assert.throws(() => parseStatementFile(reviewCsv, "EUR"), /Linha 2/);
 assert.throws(
   () => parseStatementFile(reviewHeader + "\n01/17/2026,,Both,$1.00,$2.00,,,,,"),
@@ -636,6 +646,20 @@ try {
   assert.equal(reviewRow.sourceLocation, "Office");
   assert.equal(reviewRow.sourceCustomer, "Buyer");
   assert.equal(reviewRow.externalPosting, "6000 Fees");
+  assert.equal(reviewRow.sourceStatus, "Pending");
+  const postedFile = importFile(postedCsv);
+  assert.equal((await feed.previewBankImport(postedFile)).postedInQuickBooks, 2);
+  const postedImport = await feed.importBankFile(postedFile);
+  assert.equal(postedImport.postedInQuickBooks, 2);
+  const postedRow = await find("QuickBooks categorized");
+  assert.equal(postedRow.sourceStatus, "Posted");
+  assert.equal(postedRow.status, "Pending");
+  assert.equal(postedRow.journalId, null);
+  await pool.query(
+    "UPDATE ledger_statements SET feed_source_format=NULL WHERE company_id=$1 AND id=$2",
+    [companyId, postedImport.id],
+  );
+  assert.equal((await find("QuickBooks matched")).sourceStatus, "Posted");
   console.log(
     "PASS: import and concurrent deduplication, legacy Undo, multi-title AP/AR, existing Match, FX rounding, approval, authorization and GL balances.",
   );

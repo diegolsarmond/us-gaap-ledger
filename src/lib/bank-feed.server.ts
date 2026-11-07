@@ -20,7 +20,7 @@ import { db } from "./db.server";
 import { amountUnits, convertedUnits, unitsAmount, type JournalInput } from "./journal-model";
 import { createBankJournal, journalPostingAccess } from "./journal.server";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
-import { externalAccount, parseStatementFile } from "./statement-csv";
+import { externalAccount, parseStatementFile, quickBooksSourceStatus } from "./statement-csv";
 import { resolvePostingAccount } from "./posting-accounts";
 import {
   money,
@@ -66,6 +66,10 @@ type BankRow = {
   classifiedAccount: string | null;
   attachmentCount: number;
 };
+const withSourceStatus = (row: BankRow) => ({
+  ...row,
+  sourceStatus: quickBooksSourceStatus(row.sourceFormat, row.externalPosting),
+});
 const rowQuery = `
  SELECT r.id,r.file_id AS "fileId",r.date::text,r.description,r.amount::text,r.status,
    f.account_code AS account,f.feed_currency AS currency,r.feed_from_to AS "fromTo",
@@ -138,7 +142,7 @@ async function audit(c: PoolClient, auth: Auth, action: string, id: string, deta
 async function getRow(c: PoolClient, { companyId, rowId }: RowScope) {
   const row = (await c.query<BankRow>(rowQuery + " AND r.id=$2", [companyId, rowId])).rows[0];
   if (!row) throw new Error("Bank Feed transaction unavailable.");
-  return row;
+  return withSourceStatus(row);
 }
 
 async function validateSource(c: PoolClient, companyId: string, code: string, currency: string) {
@@ -240,6 +244,7 @@ async function prepareImport(c: PoolClient, data: Import) {
   return {
     rows,
     format,
+    postedInQuickBooks: rows.filter((row) => row.sourceStatus === "Posted").length,
     keys,
     batchDigest,
     duplicateBatch: !!batch.rowCount,
@@ -250,11 +255,15 @@ async function prepareImport(c: PoolClient, data: Import) {
 export async function previewBankImport(data: Import) {
   return transaction(data.companyId, false, async (c, auth) => {
     if (!auth.permissions.write_accounting) throw new Error("Access denied.");
-    const { rows, format, duplicates, duplicateBatch } = await prepareImport(c, data);
+    const { rows, format, postedInQuickBooks, duplicates, duplicateBatch } = await prepareImport(
+      c,
+      data,
+    );
     const total = rows.reduce((sum, row) => sum + bankAmount(row.amountText, data.currency), 0n);
     return {
       count: rows.length,
       format,
+      postedInQuickBooks,
       total: unitsAmount(total),
       duplicates,
       duplicateBatch,
@@ -265,7 +274,8 @@ export async function previewBankImport(data: Import) {
 
 export async function importBankFile(data: Import) {
   return transaction(data.companyId, true, async (c, auth) => {
-    const { rows, format, keys, batchDigest, duplicateBatch } = await prepareImport(c, data);
+    const { rows, format, postedInQuickBooks, keys, batchDigest, duplicateBatch } =
+      await prepareImport(c, data);
     if (duplicateBatch)
       throw new Error("This batch was already imported into the selected account.");
     const id = randomUUID();
@@ -329,7 +339,7 @@ export async function importBankFile(data: Import) {
       name: data.fileName,
       format,
     });
-    return { id, count: rows.length };
+    return { id, count: rows.length, postedInQuickBooks };
   });
 }
 
@@ -415,7 +425,7 @@ export async function bankFeedList({ companyId }: Scope) {
       journalPostingAccess(c, companyId, auth.user.id),
     ]);
     return {
-      rows: rows.rows,
+      rows: rows.rows.map(withSourceStatus),
       files: files.rows,
       balances: balances.rows,
       posted: posted.rows,

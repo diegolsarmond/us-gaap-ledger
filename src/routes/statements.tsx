@@ -62,9 +62,16 @@ export const Route = createFileRoute("/statements")({
 
 const statuses = [
   { id: "Pending", name: "Pending" },
-  { id: "Classified", name: "Posted" },
+  { id: "QuickBooksPosted", name: "Posted in QuickBooks" },
+  { id: "Classified", name: "Posted in LedgerX" },
   { id: "Excluded", name: "Excluded" },
 ] as const;
+type BankTab = (typeof statuses)[number]["id"];
+function bankTab(row: BankRow): BankTab {
+  return row.status === "Pending" && row.sourceStatus === "Posted"
+    ? "QuickBooksPosted"
+    : row.status;
+}
 const optionalColumns = ["Files", "Party", "Source posting", "Status"] as const;
 const gridColumns = [
   "Date",
@@ -114,7 +121,7 @@ function CompanyFeed() {
     queryFn: () => loadBankFeed({ data: { companyId } }),
   });
   const [accountChoice, setAccountChoice] = useState("");
-  const [status, setStatus] = useState<BankRow["status"]>("Pending");
+  const [selectedStatus, setStatus] = useState<BankTab>();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -197,11 +204,17 @@ function CompanyFeed() {
     data.cashAccounts.find((a) => a.account === code)?.currency ??
     sourceAccounts.find((a) => a.code === code)?.sourceAccount?.currency;
   const rows = data.rows.filter((r) => r.account === account);
+  const status =
+    selectedStatus ??
+    (!rows.some((row) => bankTab(row) === "Pending") &&
+    rows.some((row) => bankTab(row) === "QuickBooksPosted")
+      ? "QuickBooksPosted"
+      : "Pending");
   const filter = search.trim().toLowerCase();
   const filtered = rows
     .filter(
       (row) =>
-        row.status === status &&
+        bankTab(row) === status &&
         (!from || row.date >= from) &&
         (!to || row.date <= to) &&
         (!direction || (Number(row.amount) < 0 ? "out" : "in") === direction) &&
@@ -325,7 +338,10 @@ function CompanyFeed() {
     const columnLabel = (column: GridColumn) => {
       if (column === "Description") return "Full bank description";
       if (column === "Party") return "From/To";
-      if (column === "Review") return status === "Pending" ? "Match / Categorize" : "Posting";
+      if (column === "Review")
+        return status === "Pending" || status === "QuickBooksPosted"
+          ? "Match / Categorize"
+          : "Posting";
       return column;
     };
     const sortFields = { Date: "date", Description: "description", Amount: "amount" } as const;
@@ -588,10 +604,16 @@ function CompanyFeed() {
               ),
               Status: (
                 <Td>
-                  <Badge tone={row.status === "Classified" ? "up" : "neutral"}>
+                  <Badge
+                    tone={
+                      row.status === "Classified" || bankTab(row) === "QuickBooksPosted"
+                        ? "up"
+                        : "neutral"
+                    }
+                  >
                     {row.attemptState === "pending"
                       ? "In approval"
-                      : statuses.find((tab) => tab.id === row.status)?.name}
+                      : statuses.find((tab) => tab.id === bankTab(row))?.name}
                   </Badge>
                 </Td>
               ),
@@ -743,7 +765,7 @@ function CompanyFeed() {
         {[...accountCodes].map((code) => {
           const balance = data.balances.find((b) => b.account === code);
           const pending = data.rows.filter(
-            (r) => r.account === code && r.status === "Pending",
+            (r) => r.account === code && bankTab(r) === "Pending",
           ).length;
           return (
             <button
@@ -795,7 +817,7 @@ function CompanyFeed() {
                     goToPage(0);
                   }}
                 >
-                  {tab.name} ({rows.filter((r) => r.status === tab.id).length})
+                  {tab.name} ({rows.filter((r) => bankTab(r) === tab.id).length})
                 </Button>
               ))}
             </div>
@@ -909,13 +931,15 @@ function CompanyFeed() {
                   <span className="font-semibold" role="status">
                     {selectedRows.length} selected
                   </span>
-                  {status === "Pending" && (
+                  {(status === "Pending" || status === "QuickBooksPosted") && (
                     <>
                       <Button
                         size="sm"
                         onClick={() => setBatch({ operation: "categorize", rows: selectedRows })}
                       >
-                        Post selected
+                        {status === "QuickBooksPosted"
+                          ? "Post selected in LedgerX"
+                          : "Post selected"}
                       </Button>
                       <Button
                         variant="outline"
@@ -1004,11 +1028,13 @@ function CompanyFeed() {
           sourceAccounts={sourceAccounts}
           accountCurrency={accountCurrency}
           close={close}
-          done={(code, count) => {
+          done={(code, count, postedInQuickBooks) => {
             setAccountChoice(code);
-            setStatus("Pending");
+            setStatus(postedInQuickBooks ? "QuickBooksPosted" : "Pending");
             goToPage(0);
-            setNotice(`${count} transactions imported to Pending.`);
+            setNotice(
+              `${count} transactions imported${postedInQuickBooks ? ` · ${postedInQuickBooks} posted in QuickBooks` : ""}.`,
+            );
             close();
             void refresh();
           }}
@@ -1108,7 +1134,7 @@ function exportRows(rows: BankRow[]) {
   const quote = (value: string) =>
     '"' + (/^[\s]*[=+\-@]/.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"';
   const csv = [
-    "date,description,amount,currency,from/to,source posting,status",
+    "date,description,amount,currency,from/to,source posting,status,quickbooks status",
     ...rows.map((r) =>
       [
         r.date,
@@ -1118,6 +1144,7 @@ function exportRows(rows: BankRow[]) {
         quote(r.fromTo),
         quote(r.externalPosting),
         r.status === "Classified" ? "Posted" : r.status,
+        r.sourceStatus ?? "",
       ].join(","),
     ),
   ].join("\r\n");
@@ -1137,7 +1164,7 @@ function ImportDialog({
   sourceAccounts: ReturnType<typeof useAccounting>["accounts"];
   accountCurrency: (code: string) => string | undefined;
   close: () => void;
-  done: (code: string, count: number) => void;
+  done: (code: string, count: number, postedInQuickBooks: number) => void;
 }) {
   const { currencies } = useAccounting();
   const [code, setCode] = useState(sourceAccounts.find((a) => a.code === account)?.code ?? "");
@@ -1169,7 +1196,7 @@ function ImportDialog({
             if (!preview) setPreview(await previewBankFile({ data }));
             else {
               const result = await uploadBankFile({ data });
-              done(code, result.count);
+              done(code, result.count, result.postedInQuickBooks);
             }
           };
           void submit()
@@ -1264,6 +1291,9 @@ function ImportDialog({
               {bankMoney(preview.total, currency)}
             </p>
             {!!preview.duplicates && <p>{preview.duplicates} rows flagged for duplicate review.</p>}
+            {preview.postedInQuickBooks > 0 && (
+              <p>{preview.postedInQuickBooks} transactions posted in QuickBooks.</p>
+            )}
             {preview.duplicateBatch && <ErrorMessage error="This batch was already imported." />}
             {preview.sample.map((r, index) => (
               <p className="truncate" key={index}>
@@ -1274,7 +1304,7 @@ function ImportDialog({
           </div>
         )}
         <BankSubmit busy={busy} disabled={!file || !code || !currency || !!preview?.duplicateBatch}>
-          {preview ? "Import to Pending" : "Preview CSV"}
+          {preview ? "Import CSV" : "Preview CSV"}
         </BankSubmit>
       </form>
     </BankDialog>

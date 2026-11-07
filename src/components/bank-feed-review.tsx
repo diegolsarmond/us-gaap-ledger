@@ -88,6 +88,7 @@ export function BankReview({
       <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
         <p className="text-xs font-semibold uppercase text-ink3">Full bank description</p>
         <p className="break-words">{row.description}</p>
+        {row.sourceStatus && <p className="text-ink2">QuickBooks status · {row.sourceStatus}</p>}
         {row.fromTo && <p className="text-ink2">From/To · {row.fromTo}</p>}
         {row.checkNumber && <p className="text-ink2">Check number · {row.checkNumber}</p>}
         {row.sourceClass && <p className="text-ink2">QuickBooks class · {row.sourceClass}</p>}

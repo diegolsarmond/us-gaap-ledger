@@ -11,6 +11,14 @@ const formats = new Map<string, SourceFormat>([
   ],
 ]);
 
+export function quickBooksSourceStatus(format: SourceFormat | null, posting: string) {
+  if (format === "quickbooks-review") return "Pending" as const;
+  // Older imports may have a posting label but no persisted source format.
+  if (format !== "ledgerx" && /^(?:(?:Added|Matched) to:\s*\S|Posted$)/i.test(posting))
+    return "Posted" as const;
+  return null;
+}
+
 export function readCsvRows(source: string, delimiter: string) {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -118,6 +126,7 @@ export function parseStatementFile(content: string, currency = "USD") {
       amountText: decimal,
       fromTo: party.trim(),
       externalPosting: posting.trim(),
+      sourceStatus: quickBooksSourceStatus(format, posting.trim()),
       checkNumber,
       sourceClass,
       sourceLocation,
