@@ -202,7 +202,7 @@ async function validateSource(c: PoolClient, companyId: string, code: string, cu
 function fingerprint(
   account: string,
   currency: string,
-  row: ReturnType<typeof parseStatementFile>["rows"][number],
+  row: { date: string; amountText: string; description: string },
 ) {
   return digest([
     account,
@@ -1624,6 +1624,17 @@ export async function bankFeedCommand({ companyId, input: raw }: Scope & { input
       return { id: input.id, posted: false };
     }
     const row = await getRow(c, { companyId, rowId: input.rowId });
+    if (input.operation === "date") {
+      assertPending(row);
+      if (input.date !== row.date) {
+        await c.query(
+          "UPDATE ledger_stagingrows SET date=$3,feed_fingerprint=coalesce(feed_fingerprint,$4) WHERE company_id=$1 AND id=$2",
+          [companyId, row.id, input.date, fingerprint(row.account, row.currency, { date: row.date, amountText: row.amount, description: row.description })],
+        );
+        await audit(c, auth, "BANK_FEED_DATE", row.id, { previousDate: row.date, date: input.date });
+      }
+      return { id: row.id, posted: false };
+    }
     if (input.operation === "party") {
       assertPending(row);
       if (input.payeeId) {

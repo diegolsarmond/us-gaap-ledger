@@ -75,6 +75,7 @@ export const bankAction = z.discriminatedUnion("operation", [
   z.object({ ...row, operation: z.literal("exclude"), reason }),
   z.object({ ...row, operation: z.literal("restore") }),
   z.object({ ...row, operation: z.literal("party"), payeeId: id.nullable() }),
+  z.object({ ...row, operation: z.literal("date"), date }),
   z.object({
     ...row,
     operation: z.literal("undo"),

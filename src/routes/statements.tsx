@@ -1,17 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
   ChevronDown,
   Download,
   FileUp,
   GripVertical,
   Paperclip,
+  Plus,
   Printer,
   Settings2,
+  X,
 } from "lucide-react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { bankBatchLimit, bankSourceAccount, type BankBatchAction } from "@/lib/bank-feed-model";
@@ -94,7 +97,65 @@ const gridColumns = [
 const pageSize = bankBatchLimit;
 type Column = (typeof optionalColumns)[number];
 type GridColumn = (typeof gridColumns)[number];
-type SortField = "date" | "description" | "amount";
+type DisplayColumn = GridColumn | "Spent" | "Received";
+type SortField = "date" | "description" | "amount" | "spent" | "received";
+type ColumnWidths = Partial<Record<DisplayColumn, number>>;
+const columnWidthsDefault: Record<DisplayColumn, number> = {
+  Date: 120,
+  Description: 240,
+  Amount: 115,
+  Spent: 115,
+  Received: 115,
+  Files: 65,
+  Party: 165,
+  Review: 215,
+  "Source posting": 175,
+  Status: 155,
+};
+const minimumColumnWidth: Record<DisplayColumn, number> = {
+  ...columnWidthsDefault,
+  Date: 108,
+  Description: 145,
+  Amount: 100,
+  Spent: 94,
+  Received: 102,
+  Files: 48,
+  Party: 105,
+  Review: 145,
+  "Source posting": 120,
+  Status: 100,
+};
+const sortFields: Partial<Record<DisplayColumn, SortField>> = {
+  Date: "date",
+  Description: "description",
+  Amount: "amount",
+  Spent: "spent",
+  Received: "received",
+};
+
+function loadColumnWidths(key: string): ColumnWidths {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+    const widths: ColumnWidths = {};
+    for (const column of Object.keys(columnWidthsDefault) as DisplayColumn[]) {
+      const width: unknown = stored?.[column];
+      if (typeof width === "number" && Number.isFinite(width) && width >= minimumColumnWidth[column]) {
+        widths[column] = width;
+      }
+    }
+    return widths;
+  } catch {
+    return {};
+  }
+}
+
+function sortValue(row: BankRow, field: SortField) {
+  if (field === "date" || field === "description") return row[field];
+  const amount = Number(row.amount);
+  if (field === "spent") return Math.max(0, -amount);
+  if (field === "received") return Math.max(0, amount);
+  return amount;
+}
 
 function loadColumnOrder(key: string): GridColumn[] {
   try {
@@ -153,8 +214,12 @@ function CompanyFeed() {
   const [columns, setColumns] = useState<Column[]>(["Files", "Party"]);
   const columnKey = `ledgerx:bank-feed:columns:${companyId}`;
   const [columnOrder, setColumnOrder] = useState(() => loadColumnOrder(columnKey));
+  const widthKey = `${columnKey}:widths`;
+  const [columnWidths, setColumnWidths] = useState(() => loadColumnWidths(widthKey));
+  const resize = useRef<{ start: number; widths: ColumnWidths; previous: ColumnWidths }>(null);
   const [dragColumn, setDragColumn] = useState<GridColumn>();
   const [editingParty, setEditingParty] = useState<string>();
+  const [editingDate, setEditingDate] = useState<{ id: string; value: string }>();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -173,6 +238,18 @@ function CompanyFeed() {
     (column) =>
       !optionalColumns.some((item) => item === column) || columns.some((item) => item === column),
   );
+  const resizeColumn = (column: DisplayColumn, widths: ColumnWidths, delta: number, save: boolean) => {
+    const width = (widths[column] ?? columnWidthsDefault[column]) + delta;
+    const next = { ...widths, [column]: Math.max(minimumColumnWidth[column], Math.round(width)) };
+    setColumnWidths(next);
+    if (save) {
+      try {
+        window.localStorage.setItem(widthKey, JSON.stringify(next));
+      } catch {
+        // The new widths still apply in this session.
+      }
+    }
+  };
 
   const refresh = async () => {
     await Promise.all([
@@ -220,6 +297,10 @@ function CompanyFeed() {
     rows.some((row) => bankTab(row) === "Posted")
       ? "Posted"
       : "Pending");
+  const tableColumns = visibleColumns.flatMap<DisplayColumn>((column) =>
+    status === "Pending" && column === "Amount" ? ["Spent", "Received"] : [column],
+  );
+  const sortField = tableColumns.some((column) => sortFields[column] === sort.field) ? sort.field : "date";
   const filter = search.trim().toLowerCase();
   const filterRows = rows.map((row) => ({
     row,
@@ -245,11 +326,12 @@ function CompanyFeed() {
     )
     .map(({ row }) => row)
     .sort((a, b) => {
-      const order =
-        sort.field === "amount"
-          ? Number(a.amount) - Number(b.amount)
-          : a[sort.field].localeCompare(b[sort.field]);
-      return sort.descending ? -order : order;
+      const first = sortValue(a, sortField);
+      const second = sortValue(b, sortField);
+      const order = typeof first === "number" && typeof second === "number"
+        ? first - second
+        : String(first).localeCompare(String(second));
+      return (sortField === sort.field ? sort.descending : true) ? -order : order;
     });
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages - 1);
@@ -274,6 +356,7 @@ function CompanyFeed() {
     setSelectedIds([]);
     setReview(undefined);
     setEditingParty(undefined);
+    setEditingDate(undefined);
   };
   const goToPage = (page: number) => {
     setPage(page);
@@ -292,6 +375,7 @@ function CompanyFeed() {
     setPage(page);
     setReview(undefined);
     setEditingParty(undefined);
+    setEditingDate(undefined);
   };
   const togglePage = (checked: boolean) => {
     const pageIds = new Set(selectableRows.map((row) => row.id));
@@ -340,8 +424,8 @@ function CompanyFeed() {
 
   const sortHeading = (label: string, field: SortField, printable: boolean) => {
     if (printable) return label;
-    const active = sort.field === field;
-    const Icon = active ? (sort.descending ? ArrowDown : ArrowUp) : ArrowUpDown;
+    const active = sortField === field;
+    const Icon = active ? (sortField !== sort.field || sort.descending ? ArrowDown : ArrowUp) : ArrowUpDown;
     return (
       <button
         type="button"
@@ -356,8 +440,19 @@ function CompanyFeed() {
   };
   const table = (items: BankRow[], printable = false) => {
     const showSelection = data.canWrite && !printable;
-    const columnCount = visibleColumns.length + (printable ? 0 : 1) + (showSelection ? 1 : 0);
-    const columnLabel = (column: GridColumn) => {
+    const columnCount = tableColumns.length + (printable ? 0 : 1) + (showSelection ? 1 : 0);
+    const widthOf = (column: DisplayColumn) => columnWidths[column] ?? columnWidthsDefault[column];
+    const tableWidth = tableColumns.reduce((sum, column) => sum + widthOf(column), showSelection ? 120 : 88);
+    const customized = tableColumns.some((column) => columnWidths[column] !== undefined);
+    const measureWidths = (handle: HTMLButtonElement) => {
+      const widths = { ...columnWidths };
+      handle.closest("tr")?.querySelectorAll("th[data-column]").forEach((header, index) => {
+        const column = tableColumns[index];
+        if (column) widths[column] = header.getBoundingClientRect().width;
+      });
+      return widths;
+    };
+    const columnLabel = (column: DisplayColumn) => {
       if (column === "Description") return "Full bank description";
       if (column === "Party") return "From/To";
       if (column === "Review") {
@@ -366,13 +461,20 @@ function CompanyFeed() {
       }
       return column;
     };
-    const sortFields = { Date: "date", Description: "description", Amount: "amount" } as const;
     return (
       <Table
         className={
-          printable ? "" : "min-w-[820px] text-xs [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-2"
+          printable ? "" : "table-fixed text-xs [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-2"
         }
+        style={printable ? {} : { minWidth: tableWidth, width: customized ? tableWidth : undefined }}
       >
+        {!printable && (
+          <colgroup>
+            {showSelection && <col style={{ width: 32 }} />}
+            {tableColumns.map((column) => <col key={column} style={{ width: widthOf(column) }} />)}
+            <col style={{ width: 88 }} />
+          </colgroup>
+        )}
         <thead className="border-b bg-muted">
           <tr>
             {showSelection && (
@@ -390,18 +492,21 @@ function CompanyFeed() {
                 />
               </Th>
             )}
-            {visibleColumns.map((column, index) => {
+            {tableColumns.map((column) => {
               const label = columnLabel(column);
-              const sortable = column === "Date" || column === "Description" || column === "Amount";
-              const field = sortable ? sortFields[column] : undefined;
+              const field = sortFields[column];
+              const numeric = field === "amount" || field === "spent" || field === "received";
+              const orderColumn = column === "Spent" || column === "Received" ? "Amount" : column;
+              const moveLabel = column === "Spent" ? "Spent and Received" : label;
               return (
                 <th
                   key={column}
                   scope="col"
-                  className={`whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-ink3 ${column === "Amount" ? "text-right" : "text-left"} ${dragColumn === column ? "bg-brand/15" : ""}`}
+                  data-column={column}
+                  className={`relative whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-ink3 ${numeric ? "text-right" : "text-left"} ${dragColumn === orderColumn ? "bg-brand/15" : ""}`}
                   aria-sort={
-                    field && sort.field === field
-                      ? sort.descending
+                    field && sortField === field
+                      ? sortField !== sort.field || sort.descending
                         ? "descending"
                         : "ascending"
                       : undefined
@@ -411,32 +516,32 @@ function CompanyFeed() {
                   }}
                   onDrop={(event) => {
                     event.preventDefault();
-                    if (dragColumn) moveColumn(dragColumn, column);
+                    if (dragColumn) moveColumn(dragColumn, orderColumn);
                     setDragColumn(undefined);
                   }}
                 >
                   <div
-                    className={`flex items-center gap-1 ${column === "Amount" ? "justify-end" : ""}`}
+                    className={`flex items-center gap-1 ${numeric ? "justify-end" : ""}`}
                   >
-                    {!printable && (
+                    {!printable && column !== "Received" && (
                       <button
                         type="button"
                         draggable
                         className="cursor-grab rounded p-0.5 text-ink3 hover:bg-background focus-visible:ring-1 focus-visible:ring-brand active:cursor-grabbing"
                         title="Drag to reorder or use the left and right arrow keys"
-                        aria-label={`Move ${label} column`}
+                        aria-label={`Move ${moveLabel} column`}
                         onDragStart={(event) => {
                           event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/plain", column);
-                          setDragColumn(column);
+                          event.dataTransfer.setData("text/plain", orderColumn);
+                          setDragColumn(orderColumn);
                         }}
                         onDragEnd={() => setDragColumn(undefined)}
                         onKeyDown={(event) => {
                           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                           event.preventDefault();
                           const target =
-                            visibleColumns[index + (event.key === "ArrowLeft" ? -1 : 1)];
-                          if (target) moveColumn(column, target);
+                            visibleColumns[visibleColumns.indexOf(orderColumn) + (event.key === "ArrowLeft" ? -1 : 1)];
+                          if (target) moveColumn(orderColumn, target);
                         }}
                       >
                         <GripVertical className="size-3" aria-hidden="true" />
@@ -453,6 +558,41 @@ function CompanyFeed() {
                       label
                     )}
                   </div>
+                  {!printable && (
+                    <button
+                      type="button"
+                      aria-label={`Resize ${label} column`}
+                      title="Drag or use the arrow keys to resize"
+                      className="absolute inset-y-0 right-0 w-2 touch-none cursor-col-resize border-r-2 border-transparent hover:border-brand focus-visible:border-brand"
+                      onPointerDown={(event) => {
+                        if (!event.isPrimary || event.button !== 0) return;
+                        resize.current = { start: event.clientX, widths: measureWidths(event.currentTarget), previous: columnWidths };
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }}
+                      onPointerMove={(event) => {
+                        const drag = resize.current;
+                        if (drag && event.currentTarget.hasPointerCapture(event.pointerId)) {
+                          resizeColumn(column, drag.widths, event.clientX - drag.start, false);
+                        }
+                      }}
+                      onPointerUp={(event) => {
+                        const drag = resize.current;
+                        if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                        resize.current = null;
+                        if (event.clientX === drag.start) setColumnWidths(drag.previous);
+                        else resizeColumn(column, drag.widths, event.clientX - drag.start, true);
+                      }}
+                      onLostPointerCapture={() => {
+                        if (resize.current) setColumnWidths(resize.current.previous);
+                        resize.current = null;
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                        event.preventDefault();
+                        resizeColumn(column, measureWidths(event.currentTarget), event.key === "ArrowLeft" ? -12 : 12, true);
+                      }}
+                    />
+                  )}
                 </th>
               );
             })}
@@ -462,13 +602,67 @@ function CompanyFeed() {
         <tbody>
           {items.map((row, index) => {
             const pending = bankTab(row) === "Pending" && !row.attemptId && data.canWrite;
+            const spent = Number(row.amount) < 0;
             const expanded = !printable && review?.id === row.id;
             const checked = !printable && selectedSet.has(row.id);
             const category = suggestionFor(row);
             const categoryLabel = category ? `${category} · ${accountName(category)}` : "";
             const fromTo = row.partyName ?? (row.partyEdited ? "" : row.fromTo);
-            const cells: Record<GridColumn, ReactNode> = {
-              Date: <Td className="whitespace-nowrap">{row.date}</Td>,
+            const cells: Record<DisplayColumn, ReactNode> = {
+              Date: (
+                <Td className="whitespace-nowrap">
+                  {pending && !printable ? (
+                    editingDate?.id === row.id ? (
+                      <form
+                        className="flex flex-wrap items-center gap-0.5"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void handle(async () => {
+                            await run({ operation: "date", rowId: row.id, date: editingDate.value });
+                            setEditingDate(undefined);
+                            setReview(undefined);
+                            setNotice("Transaction date updated.");
+                          });
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") setEditingDate(undefined);
+                        }}
+                      >
+                        <input
+                          type="date"
+                          aria-label={`Date for ${row.description}`}
+                          className="h-7 w-full rounded border border-line bg-background px-0.5 text-xs"
+                          required
+                          autoFocus
+                          disabled={busy}
+                          value={editingDate.value}
+                          onChange={(event) => setEditingDate({ id: row.id, value: event.target.value })}
+                        />
+                        <Button type="submit" variant="ghost" size="icon" className="size-6" disabled={busy} aria-label="Save date">
+                          <Check className="size-3" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="size-6" disabled={busy} aria-label="Cancel date edit" onClick={() => setEditingDate(undefined)}>
+                          <X className="size-3" />
+                        </Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        className="cursor-text hover:underline"
+                        aria-label={`Edit date ${row.date} for ${row.description}`}
+                        title="Double-click to edit date"
+                        disabled={busy}
+                        onDoubleClick={() => setEditingDate({ id: row.id, value: row.date })}
+                        onClick={(event) => {
+                          if (event.detail === 0) setEditingDate({ id: row.id, value: row.date });
+                        }}
+                      >
+                        {row.date}
+                      </button>
+                    )
+                  ) : row.date}
+                </Td>
+              ),
               Description: (
                 <Td className="min-w-48 max-w-80">
                   {printable ? (
@@ -499,6 +693,8 @@ function CompanyFeed() {
                   {bankMoney(row.amount, row.currency)}
                 </Td>
               ),
+              Spent: <Td align="right" className="whitespace-nowrap text-down">{spent && bankMoney(row.amount.slice(1), row.currency)}</Td>,
+              Received: <Td align="right" className="whitespace-nowrap text-up">{!spent && bankMoney(row.amount, row.currency)}</Td>,
               Files: (
                 <Td align="center">
                   {printable ? (
@@ -530,11 +726,25 @@ function CompanyFeed() {
                         value={row.partyId ?? ""}
                         options={[
                           { value: "", label: "Clear party" },
-                          ...(Number(row.amount) < 0 ? vendors : customers).map((party) => ({
+                          ...(spent ? vendors : customers).map((party) => ({
                             value: party.id,
-                            label: party.displayName,
-                          })),
+                            label: party.sourceCurrency ? `${party.displayName} - ${party.sourceCurrency}` : party.displayName,
+                            detail: spent ? "Vendor" : "Customer",
+                          })).sort((first, second) => first.label.localeCompare(second.label)),
                         ]}
+                        action={
+                          <Link
+                            to={spent ? "/vendors" : "/customers"}
+                            search={{ create: true }}
+                            target="_blank"
+                            rel="noopener"
+                            aria-label={spent ? "Add new vendor (opens in a new tab)" : "Add new customer (opens in a new tab)"}
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-brand outline-none hover:bg-accent focus:bg-accent"
+                          >
+                            <Plus className="size-4" aria-hidden="true" /> Add new
+                          </Link>
+                        }
+                        popupClassName="w-[min(24rem,calc(100vw-1rem))]"
                         onOpenChange={(open) => {
                           if (!open) setEditingParty(undefined);
                         }}
@@ -660,7 +870,7 @@ function CompanyFeed() {
                       />
                     </Td>
                   )}
-                  {visibleColumns.map((column) => (
+                  {tableColumns.map((column) => (
                     <Fragment key={column}>{cells[column]}</Fragment>
                   ))}
                   {!printable && (

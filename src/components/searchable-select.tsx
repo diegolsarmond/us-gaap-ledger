@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Command,
   CommandEmpty,
@@ -10,7 +11,7 @@ import {
   CommandList,
 } from "./ui/command";
 
-type Option = { value: string; label: string; disabled?: boolean };
+type Option = { value: string; label: string; detail?: string; disabled?: boolean };
 
 /** Searchable form select. Suggestions open below the field by default. */
 export function SearchableSelect({
@@ -27,6 +28,7 @@ export function SearchableSelect({
   initiallyOpen = false,
   onOpenChange,
   action,
+  popupClassName,
 }: {
   options: Option[];
   name?: string;
@@ -41,6 +43,7 @@ export function SearchableSelect({
   initiallyOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   action?: ReactNode;
+  popupClassName?: string;
 }) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(initiallyOpen);
@@ -105,7 +108,7 @@ export function SearchableSelect({
         align="start"
         avoidCollisions={fitViewport}
         collisionPadding={8}
-        className="z-[60] w-[var(--radix-popover-trigger-width)] p-0"
+        className={cn("z-[60] w-[var(--radix-popover-trigger-width)] p-0", popupClassName)}
       >
         <Command>
           <CommandInput
@@ -139,7 +142,7 @@ export function SearchableSelect({
                 <CommandItem
                   key={option.value}
                   value={option.value}
-                  keywords={[option.label]}
+                  keywords={option.detail ? [option.label, option.detail] : [option.label]}
                   disabled={option.disabled ?? false}
                   onSelect={() => {
                     setInternalValue(option.value);
@@ -152,6 +155,9 @@ export function SearchableSelect({
                     className={`mr-2 h-4 w-4 shrink-0 ${selected === option.value ? "opacity-100" : "opacity-0"}`}
                   />
                   <span>{option.label}</span>
+                  {option.detail && (
+                    <span className="ml-auto shrink-0 text-xs italic text-ink3">{option.detail}</span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
