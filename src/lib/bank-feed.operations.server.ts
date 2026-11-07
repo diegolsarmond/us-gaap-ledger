@@ -1,8 +1,16 @@
 import { z } from "zod";
-import { bankAction, bankImport, bankRowScope, bankScope, bankSettlement } from "./bank-feed-model";
+import {
+  bankAction,
+  bankBatchAction,
+  bankImport,
+  bankRowScope,
+  bankScope,
+  bankSettlement,
+} from "./bank-feed-model";
 import { defineJsonOperation } from "./json-operation.server";
 import {
   bankFeedAttachment,
+  bankFeedBatch,
   bankFeedCommand,
   bankFeedDetail,
   bankFeedFile,
@@ -40,3 +48,6 @@ export const previewSettlement = defineJsonOperation({ method: "POST" })
 export const command = defineJsonOperation({ method: "POST" })
   .validator(bankScope.extend({ input: bankAction }))
   .handler(({ data }) => bankFeedCommand(data));
+export const batch = defineJsonOperation({ method: "POST" })
+  .validator(bankScope.extend({ input: bankBatchAction }))
+  .handler(({ data }) => bankFeedBatch(data));

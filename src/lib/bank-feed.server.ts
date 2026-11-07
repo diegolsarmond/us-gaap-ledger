@@ -5,10 +5,13 @@ import { readState } from "./accounting.server";
 import {
   bankAction,
   bankAmount,
+  bankBatchAction,
+  bankCategory,
   bankRate,
   bankSourceAccount,
   itemAmount,
   type BankAction,
+  type BankBatchAction,
   type BankCategory,
   type BankSettlement,
 } from "./bank-feed-model";
@@ -50,7 +53,9 @@ type BankRow = {
   journalNumber: string | null;
   legacyJournalId: string | null;
   accountingDate: string | null;
+  postedAt: string | null;
   classifiedAccount: string | null;
+  attachmentCount: number;
 };
 const rowQuery = `
  SELECT r.id,r.file_id AS "fileId",r.date::text,r.description,r.amount::text,r.status,
@@ -64,10 +69,16 @@ const rowQuery = `
      )) AS duplicate,
    a.id AS "attemptId",a.kind AS "attemptKind",a.state AS "attemptState",a.journal_id AS "journalId",
    j.journal_number AS "journalNumber",a.legacy_journal_id AS "legacyJournalId",
-   a.accounting_date::text AS "accountingDate",r.classified_account AS "classifiedAccount"
+   a.accounting_date::text AS "accountingDate",r.classified_account AS "classifiedAccount",
+   coalesce(j.posted_at,a.created_at)::text AS "postedAt",
+   coalesce(t.count,0) AS "attachmentCount"
  FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
  LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
- LEFT JOIN journal_entries j ON j.id=a.journal_id WHERE r.company_id=$1`;
+ LEFT JOIN journal_entries j ON j.id=a.journal_id
+ LEFT JOIN (
+   SELECT company_id,row_id,count(*)::int AS count FROM bank_feed_attachments WHERE company_id=$1 GROUP BY company_id,row_id
+ ) t ON (t.company_id,t.row_id)=(r.company_id,r.id)
+ WHERE r.company_id=$1`;
 
 function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -1377,6 +1388,113 @@ async function saveRule(
   return { id, posted: false };
 }
 
+function assertPending(row: BankRow, confirmDuplicate?: boolean) {
+  if (row.status !== "Pending" || row.attemptId)
+    throw new Error("This transaction is no longer available. Refresh the Bank Feed.");
+  if (confirmDuplicate === false && row.duplicate)
+    throw new Error("Review the possible duplicate and confirm before continuing.");
+}
+
+async function moveBankRow(
+  c: PoolClient,
+  auth: Auth,
+  row: BankRow,
+  input: Extract<BankAction, { operation: "exclude" | "restore" }>,
+) {
+  const companyId = auth.company.id;
+  if (input.operation === "restore") {
+    if (row.status !== "Excluded") throw new Error("Only excluded transactions can be restored.");
+    await updateRow(c, companyId, row.id, "Pending");
+    await audit(c, auth, "BANK_FEED_RESTORE", row.id, { reason: row.exclusion });
+  } else {
+    assertPending(row);
+    await updateRow(c, companyId, row.id, "Excluded", undefined, input.reason);
+    await audit(c, auth, "BANK_FEED_EXCLUDE", row.id, { reason: input.reason });
+  }
+  return { id: row.id, posted: false };
+}
+
+export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: BankBatchAction }) {
+  const input = bankBatchAction.parse(raw);
+  return transaction(companyId, true, async (c, auth) => {
+    const found = (
+      await c.query<BankRow>(rowQuery + " AND f.account_code=$2 AND r.id=ANY($3::text[])", [
+        companyId,
+        input.bankAccount,
+        input.rowIds,
+      ])
+    ).rows;
+    if (found.length !== input.rowIds.length)
+      throw new Error("One or more selected transactions are unavailable in this account.");
+    const byId = new Map(found.map((row) => [row.id, row]));
+    const rows = input.rowIds.map((id) => byId.get(id)!);
+    if (input.operation === "undo") {
+      rows.sort((a, b) =>
+        Number(b.attemptKind === "match") - Number(a.attemptKind === "match") ||
+        (b.accountingDate ?? b.date).localeCompare(a.accountingDate ?? a.date) ||
+        (b.postedAt ?? "").localeCompare(a.postedAt ?? ""),
+      );
+    }
+    if (input.operation === "categorize") {
+      const first = rows[0]!;
+      if (rows.some((row) => outgoing(row) !== outgoing(first) || row.currency !== first.currency))
+        throw new Error("Select transactions of the same direction and currency.");
+      if (first.currency !== "USD" && rows.some((row) => row.date !== first.date))
+        throw new Error("Select a single bank date when applying a shared exchange rate.");
+    }
+    const state = input.operation === "categorize" ? await readState(companyId, c) : undefined;
+    let posted = 0;
+    for (const row of rows) {
+      try {
+        if (input.operation === "categorize" && state) {
+          assertPending(row, input.confirmDuplicate);
+          const party = row.fromTo.toLowerCase();
+          const contacts = (outgoing(row) ? state.vendors : state.customers)
+            .filter((contact) => party && contact.displayName.toLowerCase() === party);
+          const result = await category(
+            c,
+            auth,
+            row,
+            bankCategory.parse({
+              operation: "categorize",
+              rowId: row.id,
+              date: row.date,
+              transactionType: outgoing(row) ? "Expense" : "Deposit",
+              memo: row.description,
+              payeeId: contacts.length === 1 ? contacts[0]!.id : undefined,
+              rate: input.rate,
+              rateSource: input.rateSource,
+              confirmDuplicate: input.confirmDuplicate,
+              lines: [
+                {
+                  account: input.account,
+                  description: "",
+                  amount: unitsAmount(nativeTotal(row)),
+                  costCenterId: input.costCenterId,
+                },
+              ],
+            }),
+            state,
+          );
+          if (result.posted) posted++;
+        } else if (input.operation === "undo") {
+          await undo(c, auth, row, { ...input, rowId: row.id });
+        } else if (input.operation === "exclude" || input.operation === "restore") {
+          await moveBankRow(c, auth, row, { ...input, rowId: row.id });
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "Operation failed.";
+        throw new Error(`${row.date} · ${row.description.slice(0, 100)}: ${detail}`);
+      }
+    }
+    return {
+      count: rows.length,
+      posted,
+      inApproval: input.operation === "categorize" ? rows.length - posted : 0,
+    };
+  });
+}
+
 export async function bankFeedCommand({ companyId, input: raw }: Scope & { input: BankAction }) {
   const input = bankAction.parse(raw);
   return transaction(companyId, true, async (c, auth) => {
@@ -1451,21 +1569,9 @@ export async function bankFeedCommand({ companyId, input: raw }: Scope & { input
       return { id: input.id, posted: false };
     }
     if (input.operation === "undo") return undo(c, auth, row, input);
-    if (input.operation === "restore") {
-      if (row.status !== "Excluded") throw new Error("Only excluded transactions can be restored.");
-      await updateRow(c, companyId, row.id, "Pending");
-      await audit(c, auth, "BANK_FEED_RESTORE", row.id, { reason: row.exclusion });
-      return { id: row.id, posted: false };
-    }
-    if (row.status !== "Pending" || row.attemptId)
-      throw new Error("This transaction is no longer available. Refresh the Bank Feed.");
-    if (input.operation === "exclude") {
-      await updateRow(c, companyId, row.id, "Excluded", undefined, input.reason);
-      await audit(c, auth, "BANK_FEED_EXCLUDE", row.id, { reason: input.reason });
-      return { id: row.id, posted: false };
-    }
-    if (row.duplicate && !input.confirmDuplicate)
-      throw new Error("Review the possible duplicate and confirm before continuing.");
+    if (input.operation === "restore" || input.operation === "exclude")
+      return moveBankRow(c, auth, row, input);
+    assertPending(row, input.confirmDuplicate);
     const state = await readState(companyId, c);
     if (input.operation === "match") return match(c, auth, row, input.keys, state);
     if (input.operation === "settle") return settle(c, auth, row, input, state);

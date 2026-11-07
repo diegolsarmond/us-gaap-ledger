@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { useAccounting } from "@/lib/accounting-store";
 import { loadBankAttachment, loadBankRow } from "@/lib/bank-feed";
 import {
@@ -13,6 +13,7 @@ import { bankAmount, itemAmount, type BankCategory } from "@/lib/bank-feed-model
 import { convertedUnits, unitsAmount } from "@/lib/journal-model";
 import { externalAccount } from "@/lib/statement-csv";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/searchable-select";
 import { Badge, Table, Td, Th } from "@/components/ui-kit";
 import {
   BankDialog,
@@ -29,18 +30,22 @@ import {
 } from "@/components/bank-feed-ui";
 import { BankMatch } from "@/components/bank-feed-match";
 
+export type BankReviewView = "details" | "match" | "undo" | "exclude";
+
 export function BankReview({
   row,
   data,
   run,
   close,
   saved,
+  initialView,
 }: {
   row: BankRow;
   data: BankList;
   run: BankRun;
   close: () => void;
   saved: (message: string) => void;
+  initialView: BankReviewView;
 }) {
   const { activeCompany, fiscalPeriods } = useAccounting();
   const companyId = activeCompany.id;
@@ -48,7 +53,7 @@ export function BankReview({
     queryKey: ["bank-feed", companyId, row.id],
     queryFn: () => loadBankRow({ data: { companyId, rowId: row.id } }),
   });
-  const [view, setView] = useState<"details" | "match" | "undo" | "exclude">("details");
+  const [view, setView] = useState(initialView);
   const [tab, setTab] = useState<"details" | "policies">("details");
   const [reason, setReason] = useState("");
   const originalDate = row.accountingDate ?? row.date;
@@ -62,6 +67,7 @@ export function BankReview({
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const pending = row.status === "Pending" && !row.attemptId;
+  const needsReversal = row.attemptKind !== "match";
   const perform = (input: Parameters<BankRun>[0], message?: string) => {
     setBusy(true);
     setError(null);
@@ -77,21 +83,8 @@ export function BankReview({
     setError(null);
   };
 
-  return (
-    <BankDialog
-      title={
-        view === "match"
-          ? "Find a match"
-          : view === "undo"
-            ? "Undo posted transaction"
-            : view === "exclude"
-              ? "Exclude transaction"
-              : "Review bank transaction"
-      }
-      description={`${row.account} · ${row.date} · ${bankMoney(row.amount, row.currency)} ${row.currency}`}
-      close={close}
-      wide={view === "details" || view === "match"}
-    >
+  const content = (
+    <>
       <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
         <p className="text-xs font-semibold uppercase text-ink3">Full bank description</p>
         <p className="break-words">{row.description}</p>
@@ -138,34 +131,44 @@ export function BankReview({
           onSubmit={(e) => {
             e.preventDefault();
             perform(
-              { rowId: row.id, operation: "undo", reason, date: reversalDate },
+              needsReversal
+                ? { rowId: row.id, operation: "undo", reason, date: reversalDate }
+                : { rowId: row.id, operation: "undo" },
               "Transaction returned to Pending.",
             );
           }}
         >
-          <Field name="Reversal date">
-            <input
-              className={fieldStyle}
-              type="date"
-              required
-              min={originalDate}
-              value={reversalDate}
-              onChange={(e) => setReversalDate(e.target.value)}
-            />
-          </Field>
-          <Field name="Reason for reversal">
-            <input
-              className={fieldStyle}
-              required
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </Field>
+          {needsReversal ? (
+            <>
+              <Field name="Reversal date">
+                <input
+                  className={fieldStyle}
+                  type="date"
+                  required
+                  min={originalDate}
+                  value={reversalDate}
+                  onChange={(e) => setReversalDate(e.target.value)}
+                />
+              </Field>
+              <Field name="Reason for reversal">
+                <input
+                  className={fieldStyle}
+                  required
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : (
+            <p className="text-sm">Remove the match and return this transaction to Pending.</p>
+          )}
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={back}>
               Back
             </Button>
-            <BankSubmit busy={busy}>Reverse and return to Pending</BankSubmit>
+            <BankSubmit busy={busy}>
+              {needsReversal ? "Reverse and return to Pending" : "Remove match"}
+            </BankSubmit>
           </div>
         </form>
       )}
@@ -284,6 +287,41 @@ export function BankReview({
           </div>
         </>
       )}
+    </>
+  );
+  if (view === "details") {
+    return (
+      <section className="space-y-3 px-4 py-3" aria-label="Review bank transaction">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Transaction details</h3>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={close}
+            aria-label="Close transaction details"
+          >
+            <X />
+          </Button>
+        </div>
+        {content}
+      </section>
+    );
+  }
+  return (
+    <BankDialog
+      title={
+        view === "match"
+          ? "Find a match"
+          : view === "undo"
+            ? "Undo posted transaction"
+            : "Exclude transaction"
+      }
+      description={`${row.account} · ${row.date} · ${bankMoney(row.amount, row.currency)} ${row.currency}`}
+      close={close}
+      wide={view === "match"}
+    >
+      {content}
     </BankDialog>
   );
 }
@@ -512,7 +550,7 @@ function CategoryForm({
     );
   return (
     <form
-      className="space-y-4"
+      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.34fr)]"
       onSubmit={(e) => {
         e.preventDefault();
         setBusy(true);
@@ -522,7 +560,8 @@ function CategoryForm({
           .finally(() => setBusy(false));
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="min-w-0 space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Field name="Accounting date">
           <input
             required
@@ -543,12 +582,12 @@ function CategoryForm({
             name: id,
           }))}
         />
-        <SelectField
-          name={out ? "Paid to" : "Received from"}
-          value={payee}
-          change={setPayee}
-          options={party.map((p) => ({ id: p.id, name: p.displayName }))}
-        />
+        <fieldset className="min-w-0 space-y-1">
+          <legend className="text-xs font-medium text-ink2">{out ? "Paid to" : "Received from"}</legend>
+          <SearchableSelect label={out ? "Paid to" : "Received from"} value={payee} onChange={setPayee}
+            options={[{ value: "", label: "No party selected" }, ...party.map((p) => ({ value: p.id, label: p.displayName }))]}
+            fitViewport />
+        </fieldset>
         <SelectField
           name="Location"
           value={location}
@@ -757,7 +796,22 @@ function CategoryForm({
           </strong>
         </p>
       </div>
-      <div className="space-y-2 rounded-md border p-3 text-sm">
+      <DuplicateConfirmation row={row} checked={duplicate} change={setDuplicate} />
+      <ErrorMessage error={error} />
+      <BankSubmit
+        busy={busy}
+        disabled={
+          !!difference ||
+          amountInvalid ||
+          lines.some((l) => !l.account || !l.amount) ||
+          (row.duplicate && !duplicate)
+        }
+      >
+        {split ? "Split and post" : "Post"}
+      </BankSubmit>
+      </div>
+      <aside className="self-start space-y-2 rounded-md border bg-background p-3 text-sm">
+        <h3 className="font-semibold">Suggestions</h3>
         <label className="flex gap-2">
           <input
             type="checkbox"
@@ -798,20 +852,7 @@ function CategoryForm({
             Remember QuickBooks account {mapCode} for this company
           </label>
         )}
-      </div>
-      <DuplicateConfirmation row={row} checked={duplicate} change={setDuplicate} />
-      <ErrorMessage error={error} />
-      <BankSubmit
-        busy={busy}
-        disabled={
-          !!difference ||
-          amountInvalid ||
-          lines.some((l) => !l.account || !l.amount) ||
-          (row.duplicate && !duplicate)
-        }
-      >
-        {split ? "Split and post" : "Post"}
-      </BankSubmit>
+      </aside>
     </form>
   );
 }

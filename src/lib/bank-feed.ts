@@ -30,3 +30,4 @@ export const previewBankSettlement = jsonClient<typeof operations.previewSettlem
   "POST",
 );
 export const runBankAction = jsonClient<typeof operations.command>("bank-feed", "command", "POST");
+export const runBankBatch = jsonClient<typeof operations.batch>("bank-feed", "batch", "POST");

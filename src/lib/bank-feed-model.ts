@@ -101,6 +101,36 @@ export type BankCategory = z.infer<typeof bankCategory>;
 export type BankSettlement = z.infer<typeof bankSettlement>;
 export type BankAction = z.input<typeof bankAction>;
 
+export const bankBatchLimit = 50;
+const batchRows = {
+  bankAccount: id,
+  rowIds: z
+    .array(id)
+    .min(1)
+    .max(bankBatchLimit)
+    .refine((values) => new Set(values).size === values.length, "Select each transaction once."),
+};
+export const bankBatchAction = z.discriminatedUnion("operation", [
+  z.object({
+    ...batchRows,
+    operation: z.literal("categorize"),
+    account: id,
+    costCenterId: optionalId,
+    rate: fx.rate,
+    rateSource: fx.rateSource,
+    confirmDuplicate: z.boolean().default(false),
+  }),
+  z.object({ ...batchRows, operation: z.literal("exclude"), reason }),
+  z.object({ ...batchRows, operation: z.literal("restore") }),
+  z.object({
+    ...batchRows,
+    operation: z.literal("undo"),
+    date: date.optional(),
+    reason: reason.optional(),
+  }),
+]);
+export type BankBatchAction = z.infer<typeof bankBatchAction>;
+
 export function bankAmount(value: string, currencyCode: string) {
   const text = value.startsWith("-") ? value.slice(1) : value;
   const units = amountUnits(text);
