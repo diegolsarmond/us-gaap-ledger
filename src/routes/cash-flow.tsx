@@ -166,6 +166,7 @@ function CompanyCashFlowPage() {
   const [notice, setNotice] = useState("");
   const modal = useModal();
   const accounts = query.data?.accounts ?? [];
+  const forecastAccounts = accounts.filter((a) => !a.ledger_only);
   const categories = query.data?.categories ?? [];
   const glAccounts = query.data?.glAccounts ?? [];
   const selectedCurrency =
@@ -187,6 +188,10 @@ function CompanyCashFlowPage() {
   const filteredAccounts = accounts.filter(
     (a) => a.currency === currency && (!accountId || a.id === accountId),
   );
+  const defaultEntryAccount =
+    forecastAccounts.find((a) => a.id === accountId) ??
+    forecastAccounts.find((a) => a.currency === currency) ??
+    forecastAccounts[0];
   const ids = new Set(filteredAccounts.map((a) => a.id));
   const filteredTransactions = transactions.filter((t) => ids.has(t.account_id));
   const validRange =
@@ -266,7 +271,7 @@ function CompanyCashFlowPage() {
         saveCashAccount({
           data: {
             companyId,
-            ...(editingAccount ? { id: editingAccount.id } : {}),
+            ...(editingAccount && !editingAccount.ledger_only ? { id: editingAccount.id } : {}),
             name: String(f.get("name")),
             currency: String(f.get("currency")) as string,
             opening_date: String(f.get("opening_date")),
@@ -274,7 +279,7 @@ function CompanyCashFlowPage() {
             gl_account_code: String(f.get("gl_account_code") ?? "") || null,
           },
         }),
-      editingAccount ? "Account updated." : "Account created.",
+      editingAccount && !editingAccount.ledger_only ? "Account updated." : "Account created.",
     );
   }
   function submitTransaction(e: FormEvent<HTMLFormElement>) {
@@ -378,7 +383,7 @@ function CompanyCashFlowPage() {
             </button>
             <button
               className={button}
-              disabled={!accounts.length || pending}
+              disabled={!forecastAccounts.length || pending}
               onClick={() => {
                 setEditing(null);
                 setDirection("in");
@@ -451,7 +456,9 @@ function CompanyCashFlowPage() {
               title={
                 form === "account"
                   ? editingAccount
-                    ? "Edit cash / bank account"
+                    ? editingAccount.ledger_only
+                      ? "Set up forecasts for this account"
+                      : "Edit cash / bank account"
                     : "Add cash / bank account"
                   : editing
                     ? "Edit transaction"
@@ -525,7 +532,11 @@ function CompanyCashFlowPage() {
                         <input
                           name="opening_date"
                           type="date"
-                          defaultValue={editingAccount?.opening_date ?? today()}
+                          defaultValue={
+                            editingAccount?.ledger_only
+                              ? today()
+                              : (editingAccount?.opening_date ?? today())
+                          }
                           required
                           className={control}
                         />
@@ -559,10 +570,9 @@ function CompanyCashFlowPage() {
                         />
                       </Field>
                       <p className="text-xs text-ink3">
-                        The opening balance is the balance at the start of this date, before the
-                        transactions for the day.
-                        {editingAccount &&
-                          " Changing the opening balance recalculates cash flow balances. The currency can only be changed if there are no transactions."}
+                        {editingAccount?.ledger_opening_date
+                          ? "The General Ledger supplies the actual opening balance for this account."
+                          : "The opening balance is the balance at the start of this date, before the transactions for the day."}
                       </p>
                     </>
                   ) : (
@@ -573,11 +583,9 @@ function CompanyCashFlowPage() {
                           autoFocus
                           name="account_id"
                           required
-                          defaultValue={
-                            editing?.account_id ?? filteredAccounts[0]?.id ?? accounts[0]?.id ?? ""
-                          }
+                          defaultValue={editing?.account_id ?? defaultEntryAccount?.id ?? ""}
                           onChange={setEntryAccount}
-                          options={accounts.map((a) => ({
+                          options={forecastAccounts.map((a) => ({
                             value: a.id,
                             label: `${a.name} · ${a.currency}`,
                           }))}
@@ -659,12 +667,11 @@ function CompanyCashFlowPage() {
                               onChange={setTransferAccount}
                               required
                               placeholder="Select the other cash account"
-                              options={accounts
+                              options={forecastAccounts
                                 .filter(
                                   (a) =>
                                     a.currency === selectedCurrency &&
-                                    a.id !==
-                                      (entryAccount || filteredAccounts[0]?.id || accounts[0]?.id),
+                                    a.id !== (entryAccount || defaultEntryAccount?.id),
                                 )
                                 .map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))}
                             />
@@ -821,10 +828,10 @@ function CompanyCashFlowPage() {
             </EntryFormAccountiner>
           )}
           {!accounts.length && (
-            <Panel title="Start by adding your first account">
+            <Panel title="No cash accounts or posted cash movements">
               <p className="p-4 text-sm text-ink3">
-                No demo data is used. Add an account opening balance and record your receipts and
-                payments.
+                Post transactions for a bank account in the General Ledger to see them here, or add
+                an account to enter forecasts.
               </p>
             </Panel>
           )}
@@ -912,6 +919,12 @@ function CompanyCashFlowPage() {
               transactions do not affect balances.
             </p>
           </Panel>
+          {filteredAccounts.some((a) => a.ledger_opening_date) && (
+            <p className="rounded-md border border-line p-3 text-sm">
+              Accounts with posted activity use the General Ledger for actual balances and
+              transactions. Existing manual actuals on these accounts remain visible as reference.
+            </p>
+          )}
           {(filteredAccounts.some((a) => !a.gl_account_code) ||
             filteredTransactions.some((t) => !t.gl_account_code)) && (
             <p
@@ -1251,7 +1264,15 @@ function CompanyCashFlowPage() {
                             )}
                           </Td>
                           <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
-                          <Td>{statusLabels[t.status]}</Td>
+                          <Td>
+                            {t.balance_adjustment
+                              ? "Ledger adjustment"
+                              : t.ledger_posted
+                                ? "Actual · General Ledger"
+                                : t.reference_only
+                                  ? "Manual · reference only"
+                                  : statusLabels[t.status]}
+                          </Td>
                           <Td
                             align="right"
                             className={`font-medium ${t.direction === "out" ? "text-red-700" : "text-blue-700"}`}
@@ -1260,42 +1281,48 @@ function CompanyCashFlowPage() {
                             {money(t.amount)}
                           </Td>
                           <Td>
-                            <div className="flex gap-3">
-                              <button
-                                disabled={pending}
-                                className="text-brand underline"
-                                onClick={() => startEdit(t)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                disabled={pending || t.forecast_amount != null}
-                                title={
-                                  t.forecast_amount != null
-                                    ? "Cancel this transaction to preserve forecast history"
-                                    : "Delete transaction"
-                                }
-                                className="text-red-700 underline"
-                                onClick={async () => {
-                                  const confirmed = await modal.showConfirm({
-                                    title: "Delete transaction?",
-                                    message: `Permanently delete this transaction? This action cannot be undone.`,
-                                    tone: "error",
-                                    confirmText: "Delete",
-                                    cancelText: "Cancel",
-                                  });
-                                  if (confirmed) {
-                                    void mutate(
-                                      () =>
-                                        deleteCashTransaction({ data: { id: t.id, companyId } }),
-                                      "Transaction deleted.",
-                                    );
+                            {t.ledger_posted ? (
+                              <Link to="/journals" className="text-brand underline">
+                                Journal Entries
+                              </Link>
+                            ) : (
+                              <div className="flex gap-3">
+                                <button
+                                  disabled={pending}
+                                  className="text-brand underline"
+                                  onClick={() => startEdit(t)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  disabled={pending || t.forecast_amount != null}
+                                  title={
+                                    t.forecast_amount != null
+                                      ? "Cancel this transaction to preserve forecast history"
+                                      : "Delete transaction"
                                   }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
+                                  className="text-red-700 underline"
+                                  onClick={async () => {
+                                    const confirmed = await modal.showConfirm({
+                                      title: "Delete transaction?",
+                                      message: `Permanently delete this transaction? This action cannot be undone.`,
+                                      tone: "error",
+                                      confirmText: "Delete",
+                                      cancelText: "Cancel",
+                                    });
+                                    if (confirmed) {
+                                      void mutate(
+                                        () =>
+                                          deleteCashTransaction({ data: { id: t.id, companyId } }),
+                                        "Transaction deleted.",
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </Td>
                         </tr>
                       ))}
@@ -1332,12 +1359,14 @@ function CompanyCashFlowPage() {
                             ? `${a.gl_account_code} · ${glAccounts.find((gl) => gl.code === a.gl_account_code)?.name ?? ""}`
                             : "Not linked"}
                         </Td>
-                        <Td>{a.opening_date}</Td>
+                        <Td>{a.ledger_opening_date ?? a.opening_date}</Td>
                         <Td align="right">
-                          {new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: a.currency,
-                          }).format(a.opening_balance)}
+                          {a.ledger_opening_date
+                            ? "From General Ledger"
+                            : new Intl.NumberFormat("en-US", {
+                                style: "currency",
+                                currency: a.currency,
+                              }).format(a.opening_balance)}
                         </Td>
                         <Td>
                           <button
@@ -1354,7 +1383,7 @@ function CompanyCashFlowPage() {
                               window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
                           >
-                            Edit
+                            {a.ledger_only ? "Set up forecasts" : "Edit"}
                           </button>
                         </Td>
                       </tr>

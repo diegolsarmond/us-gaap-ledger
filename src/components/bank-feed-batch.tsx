@@ -98,10 +98,9 @@ export function BankBatchDialog({
     undo: "Undo posted transactions",
   };
   const explanations = {
-    categorize:
-      rows.some((row) => row.isSourcePosted)
-        ? "Post these transactions in LedgerX using the selected counterpart accounts. If a transaction is already in the LedgerX register, use Match on that row instead."
-        : "Apply a counterpart account per direction. Each transaction keeps its bank date and amount. Company approval rules still apply.",
+    categorize: rows.some((row) => row.isSourcePosted)
+      ? "Post these transactions in LedgerX using the selected counterpart accounts. If a transaction is already in the LedgerX register, use Match on that row instead."
+      : "Apply a counterpart account per direction. Each transaction keeps its bank date and amount. Company approval rules still apply.",
     exclude: "Move the selected transactions to Excluded.",
     restore: "Return the selected transactions to Pending for review.",
     undo: minDate

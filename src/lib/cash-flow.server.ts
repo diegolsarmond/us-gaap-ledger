@@ -68,7 +68,12 @@ async function readCashData(client: PoolClient, id: string): Promise<CashData> {
   return {
     ...(await cashFromLedger(client, id, chart, accounts.rows, transactions.rows)),
     categories: categories.rows,
-    glAccounts: chart.map(({ code, name, type, balanceType }) => ({ code, name, type, balanceType })),
+    glAccounts: chart.map(({ code, name, type, balanceType }) => ({
+      code,
+      name,
+      type,
+      balanceType,
+    })),
   };
 }
 
@@ -132,7 +137,11 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       return unavailable("Every cash account in scope must be linked to a GL account.");
     const codes = [...new Set(accounts.map((a) => a.gl_account_code!))];
     const ids = new Set(accounts.map((a) => a.id));
-    if (cash.accounts.some((a) => !ids.has(a.id) && a.gl_account_code && codes.includes(a.gl_account_code)))
+    if (
+      cash.accounts.some(
+        (a) => !ids.has(a.id) && a.gl_account_code && codes.includes(a.gl_account_code),
+      )
+    )
       return unavailable(
         "A linked GL account is shared with cash accounts outside this scope. Select all accounts that share it.",
       );

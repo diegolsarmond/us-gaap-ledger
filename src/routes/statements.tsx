@@ -1293,13 +1293,13 @@ function CompanyFeed() {
                     </Button>
                   )}
                   {selectedPending.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBatch({ operation: "exclude", rows: selectedPending })}
-                      >
-                        Exclude selected
-                      </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBatch({ operation: "exclude", rows: selectedPending })}
+                    >
+                      Exclude selected
+                    </Button>
                   )}
                   {selectedToUndo.length > 0 && (
                     <Button

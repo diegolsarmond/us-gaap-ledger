@@ -8,6 +8,7 @@ import { postedLedgerLines } from "./posted-ledger.server";
 type CashLine = {
   id: string;
   sequence: number;
+  line_count: number;
   account_code: string;
   date: string;
   description: string;
@@ -24,7 +25,9 @@ type CashLine = {
 // An account discovered in the ledger can be selected in reports before it has a
 // Cash Flow configuration. Its identifier is stable across reads.
 function ledgerAccountId(companyId: string, code: string, currency: string) {
-  const hash = createHash("sha256").update(JSON.stringify([companyId, code, currency])).digest("hex");
+  const hash = createHash("sha256")
+    .update(JSON.stringify([companyId, code, currency]))
+    .digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
@@ -49,19 +52,22 @@ export async function cashFromLedger(
 
   const [postings, statementCurrencies] = await Promise.all([
     client.query<CashLine>(
-      `WITH posted AS (${postedLedgerLines})
+      `WITH posted AS (
+         SELECT *, count(*) OVER (PARTITION BY id)::int AS line_count
+         FROM (${postedLedgerLines}) ledger
+       )
        SELECT p.id,sequence,account_code,p.date::text,coalesce(nullif(line_description,''),description) AS description,
-              opening,source_type,currency,(debit-credit)::float8 AS base,
+              opening,source_type,currency,line_count,(debit-credit)::float8 AS base,
               (original_debit-original_credit)::float8 AS native,legacy_currency,
               payment.transaction_currency AS payment_currency,payment.amount::float8 AS payment_amount
        FROM posted p
        LEFT JOIN LATERAL (
          SELECT transaction_currency, transaction_amount-coalesce(discount_amount,0) AS amount
          FROM (
-           SELECT company_id,journal_id,transaction_currency,transaction_amount,discount_amount,cash_functional_amount,functional_amount
+           SELECT transaction_currency,transaction_amount,discount_amount,cash_functional_amount,functional_amount
            FROM ledger_invoices_payments WHERE company_id=$1 AND journal_id=p.journal_id
            UNION ALL
-           SELECT company_id,journal_id,transaction_currency,transaction_amount,discount_amount,cash_functional_amount,functional_amount
+           SELECT transaction_currency,transaction_amount,discount_amount,cash_functional_amount,functional_amount
            FROM ledger_bills_payments WHERE company_id=$1 AND journal_id=p.journal_id
          ) payments
          WHERE p.legacy_currency IS NOT NULL AND p.source_type='Payment'
@@ -73,11 +79,15 @@ export async function cashFromLedger(
       [companyId, [...codes]],
     ),
     client.query<{ account: string; currency: string }>(
-      "SELECT DISTINCT account_code AS account, feed_currency AS currency FROM ledger_statements WHERE company_id=$1",
+      `SELECT account_code AS account, min(feed_currency) AS currency
+       FROM ledger_statements WHERE company_id=$1 GROUP BY account_code
+       HAVING count(DISTINCT feed_currency)=1`,
       [companyId],
     ),
   ]);
-  const bankCurrencies = new Map(statementCurrencies.rows.map((row) => [row.account, row.currency]));
+  const bankCurrencies = new Map(
+    statementCurrencies.rows.map((row) => [row.account, row.currency]),
+  );
   const linesByAccount = new Map<string, CashLine[]>();
   for (const line of postings.rows) {
     const lines = linesByAccount.get(line.account_code) ?? [];
@@ -108,8 +118,7 @@ export async function cashFromLedger(
             ledger_only: true,
           };
     if (account.ledger_only) accounts.push(account);
-    for (const linked of [...matching, account])
-      linked.ledger_opening_date = first.date < linked.opening_date ? first.date : linked.opening_date;
+    for (const linked of [...matching, account]) linked.ledger_opening_date = first.date;
     active.set(item.code, account);
   }
 
@@ -140,7 +149,7 @@ export async function cashFromLedger(
       ...(adjustment ? { balance_adjustment: true } : {}),
     };
     actuals.push(entry);
-    if (!adjustment) {
+    if (!adjustment && line.line_count === 2) {
       const legs = journalCash.get(line.id) ?? [];
       legs.push(entry);
       journalCash.set(line.id, legs);
@@ -150,10 +159,15 @@ export async function cashFromLedger(
   for (const legs of journalCash.values()) {
     const [a, b] = legs;
     if (
-      legs.length !== 2 || !a || !b || a.account_id === b.account_id ||
-      a.direction === b.direction || a.amount !== b.amount ||
+      legs.length !== 2 ||
+      !a ||
+      !b ||
+      a.account_id === b.account_id ||
+      a.direction === b.direction ||
+      a.amount !== b.amount ||
       accountById.get(a.account_id)?.currency !== accountById.get(b.account_id)?.currency
-    ) continue;
+    )
+      continue;
     a.cash_flow_line = b.cash_flow_line = "internal_transfer";
     a.transfer_account_id = b.account_id;
     b.transfer_account_id = a.account_id;
@@ -169,6 +183,8 @@ export async function cashFromLedger(
   });
   return {
     accounts,
-    transactions: [...transactions, ...actuals].sort((a, b) => b.due_date.localeCompare(a.due_date)),
+    transactions: [...transactions, ...actuals].sort((a, b) =>
+      b.due_date.localeCompare(a.due_date),
+    ),
   };
 }

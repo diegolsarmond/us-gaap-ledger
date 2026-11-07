@@ -275,9 +275,10 @@ export function summarize(
       periods.push(row);
     }
     const entries = eligible.filter((t) => effectiveDate(t) === date);
-    const adjustments = accounts
-      .filter((a) => openingDate(a) === date)
-      .reduce((s, a) => s + cents(openingBalance(a)), 0) +
+    const adjustments =
+      accounts
+        .filter((a) => openingDate(a) === date)
+        .reduce((s, a) => s + cents(openingBalance(a)), 0) +
       entries.filter((t) => t.balance_adjustment).reduce((s, t) => s + signed(t), 0);
     const inflows = entries
       .filter((t) => !t.balance_adjustment && t.direction === "in")

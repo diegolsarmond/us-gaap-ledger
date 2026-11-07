@@ -480,7 +480,11 @@ export function CashManagementReport({
             company-wide statement, select all cash accounts and use company-wide net income.
             Forecasts are management estimates, not recognized sales or expenses.
           </p>
-          {reconciliation.isPending ? (
+          {accountId && accounts.some((a) => a.id === accountId && a.ledger_only) ? (
+            <p className="p-4">
+              Set up this account in the Accounts tab to save its reconciliation.
+            </p>
+          ) : reconciliation.isPending ? (
             <p className="p-4">Loading reconciliation…</p>
           ) : reconciliation.isError ? (
             <p role="alert" className="p-4 text-red-700">

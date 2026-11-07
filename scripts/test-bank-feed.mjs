@@ -179,6 +179,8 @@ try {
   const feed = await import("../src/lib/bank-feed.server.ts");
   const { executeJournal } = await import("../src/lib/journal.server.ts");
   const { generateTrialBalance } = await import("../src/lib/trial-balance.server.ts");
+  const { load: loadCash, checkGlCash } = await import("../src/lib/cash-flow.server.ts");
+  const { summarize } = await import("../src/lib/cash-flow-model.ts");
   const { outstanding } = await import("../src/lib/transaction-fx.ts");
   const profile = (await pool.query("SELECT id FROM access_profiles WHERE system_admin")).rows[0]
     .id;
@@ -604,6 +606,15 @@ try {
   const trial = await generateTrialBalance({ companyId, start: "2026-01-01", end: "2026-02-28" });
   assert.equal(trial.status, "Balanced");
   assert.equal(Number(trial.accounts.find((r) => r.code === "1000").closing_debit), 65);
+  const reconciledCash = await checkGlCash({
+    companyId,
+    start: "2026-01-01",
+    end: "2026-02-28",
+    currency: "USD",
+    accountId: null,
+  });
+  assert.equal(reconciledCash.status, "verified");
+  assert.equal(reconciledCash.cashBalance, 65);
   await pool.query("UPDATE accounting_policies SET approval_required=false WHERE company_id=$1", [
     companyId,
   ]);
@@ -735,27 +746,43 @@ try {
   assert.equal(postedRow.isSourcePosted, true);
   assert.equal(postedRow.status, "Pending");
   assert.equal(postedRow.journalId, null);
-  await assert.rejects(category(postedRow), /Undo the imported posting/);
-  await action(postedRow, { operation: "undo" });
-  const reopened = await find("QuickBooks categorized");
-  assert.equal(reopened.isSourcePosted, false);
-  assert.equal(reopened.sourceStatus, "Posted");
-  assert.equal(reopened.externalPosting, postedRow.externalPosting);
-  assert.equal(reopened.status, "Pending");
-  assert.equal(reopened.journalId, null);
-  assert.equal(reopened.attemptId, null);
-  await assert.rejects(
-    action(reopened, { operation: "undo" }),
-    /Undo requires a posted transaction/,
-  );
-  await category(reopened);
+  const cashForBank = async () => {
+    const { accounts, transactions } = await loadCash(companyId);
+    return { bank: accounts.find((a) => a.gl_account_code === "1000"), transactions };
+  };
+  const trialForBank = async () =>
+    (
+      await generateTrialBalance({ companyId, start: postedRow.date, end: postedRow.date })
+    ).accounts.find((r) => r.code === "1000");
+  const before = await trialForBank();
+  assert(!(await cashForBank()).transactions.some((t) => t.description === postedRow.description));
+  const posting = await category(postedRow);
   const postedInLedger = await find("QuickBooks categorized");
   assert.equal(postedInLedger.status, "Classified");
+  assert.equal(postedInLedger.sourceStatus, "Posted");
+  assert.equal(postedInLedger.externalPosting, postedRow.externalPosting);
+  assert.equal(Number((await trialForBank()).period_credit), Number(before.period_credit) + 10);
+  const cash = await cashForBank();
+  assert(cash.bank.ledger_only);
+  const cashEntry = cash.transactions.find((t) => t.id.startsWith(`ledger:${posting.id}:`));
+  assert.equal(cashEntry.account_id, cash.bank.id);
+  assert.equal(cashEntry.amount, 10);
+  assert.equal(cashEntry.direction, "out");
+  await assert.rejects(category(postedRow), /no longer available/);
   await assert.rejects(
     action(postedInLedger, { operation: "date", date: "2026-01-23" }),
     /no longer available/,
   );
   await undo(postedInLedger, postedInLedger.date);
+  const corrected = await cashForBank();
+  const originalAndReversal = corrected.transactions.filter(
+    (t) => t.account_id === cash.bank.id && t.paid_date === postedRow.date,
+  );
+  assert.equal(
+    summarize([cash.bank], originalAndReversal, postedRow.date, postedRow.date, "daily", false)
+      .periods[0].net,
+    0,
+  );
   assert.equal((await find("QuickBooks categorized")).isSourcePosted, false);
   assert.equal((await find("QuickBooks categorized")).status, "Pending");
   await pool.query(
