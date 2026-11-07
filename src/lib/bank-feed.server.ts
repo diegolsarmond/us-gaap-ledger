@@ -52,6 +52,7 @@ type BankRow = {
   sourceClass: string | null;
   sourceLocation: string | null;
   sourceCustomer: string | null;
+  returnedToPending: boolean;
   duplicate: boolean;
   status: "Pending" | "Classified" | "Excluded";
   exclusion: string | null;
@@ -70,10 +71,19 @@ type BankRow = {
   classifiedAccount: string | null;
   attachmentCount: number;
 };
-const withSourceStatus = (row: BankRow) => ({
-  ...row,
-  sourceStatus: quickBooksSourceStatus(row.sourceFormat, row.externalPosting),
-});
+const withSourceStatus = (row: BankRow) => {
+  const sourceStatus = quickBooksSourceStatus(row.sourceFormat, row.externalPosting);
+  return {
+    ...row,
+    sourceStatus,
+    isSourcePosted:
+      row.status === "Pending" &&
+      !row.attemptId &&
+      !row.returnedToPending &&
+      sourceStatus === "Posted",
+  };
+};
+// Undo events keep imported postings in Pending without changing the original CSV metadata.
 const rowQuery = `
  SELECT r.id,r.file_id AS "fileId",r.date::text,r.description,r.amount::text,r.status,
    f.account_code AS account,f.feed_currency AS currency,r.feed_from_to AS "fromTo",
@@ -96,7 +106,7 @@ const rowQuery = `
    j.journal_number AS "journalNumber",a.legacy_journal_id AS "legacyJournalId",
    a.accounting_date::text AS "accountingDate",r.classified_account AS "classifiedAccount",
    coalesce(j.posted_at,a.created_at)::text AS "postedAt",
-   coalesce(t.count,0) AS "attachmentCount"
+   coalesce(t.count,0) AS "attachmentCount",returned.target_id IS NOT NULL AS "returnedToPending"
  FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
  LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
  LEFT JOIN LATERAL (
@@ -111,6 +121,10 @@ const rowQuery = `
  LEFT JOIN (
    SELECT company_id,row_id,count(*)::int AS count FROM bank_feed_attachments WHERE company_id=$1 GROUP BY company_id,row_id
  ) t ON (t.company_id,t.row_id)=(r.company_id,r.id)
+  LEFT JOIN (
+    SELECT DISTINCT target_id FROM system_audit_events
+    WHERE company_id=$1 AND entity='BankFeed' AND action IN ('BANK_FEED_UNDO_SOURCE','BANK_FEED_UNDO','BANK_FEED_UNMATCH')
+  ) returned ON returned.target_id=r.id AND r.feed_external_posting<>''
  WHERE r.company_id=$1`;
 
 function digest(value: unknown) {
@@ -576,7 +590,7 @@ export async function bankFeedDetail(data: RowScope) {
         : [];
     });
     const [moves, attachments, history, rules, { policy, grant }] = await Promise.all([
-      row.status === "Pending" && !row.attemptId
+      row.status === "Pending" && !row.isSourcePosted && !row.attemptId
         ? eligibleMovements(c, data.companyId, row, state)
         : [],
       c.query<{ id: string; name: string; size: number }>(
@@ -1324,10 +1338,14 @@ async function reverseSettlements(
 async function undo(
   c: PoolClient,
   auth: Auth,
-  row: BankRow,
+  row: ReturnType<typeof withSourceStatus>,
   input: Extract<BankAction, { operation: "undo" }>,
 ) {
   const companyId = auth.company.id;
+  if (row.isSourcePosted) {
+    await audit(c, auth, "BANK_FEED_UNDO_SOURCE", row.id, { sourceStatus: row.sourceStatus });
+    return { id: row.id, posted: false };
+  }
   if (row.status !== "Classified" || !row.attemptId || !row.attemptKind)
     throw new Error("Undo requires a posted transaction with a verified journal or match.");
   if (row.attemptKind === "match") {
@@ -1447,7 +1465,9 @@ async function saveRule(
   return { id, posted: false };
 }
 
-function assertPending(row: BankRow, confirmDuplicate?: boolean) {
+function assertPending(row: ReturnType<typeof withSourceStatus>, confirmDuplicate?: boolean) {
+  if (row.isSourcePosted)
+    throw new Error("Undo the imported posting before processing this transaction.");
   if (row.status !== "Pending" || row.attemptId)
     throw new Error("This transaction is no longer available. Refresh the Bank Feed.");
   if (confirmDuplicate === false && row.duplicate)
@@ -1457,7 +1477,7 @@ function assertPending(row: BankRow, confirmDuplicate?: boolean) {
 async function moveBankRow(
   c: PoolClient,
   auth: Auth,
-  row: BankRow,
+  row: ReturnType<typeof withSourceStatus>,
   input: Extract<BankAction, { operation: "exclude" | "restore" }>,
 ) {
   const companyId = auth.company.id;
@@ -1485,7 +1505,7 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
     ).rows;
     if (found.length !== input.rowIds.length)
       throw new Error("One or more selected transactions are unavailable in this account.");
-    const byId = new Map(found.map((row) => [row.id, row]));
+    const byId = new Map(found.map((row) => [row.id, withSourceStatus(row)]));
     const rows = input.rowIds.map((id) => byId.get(id)!);
     if (input.operation === "undo") {
       rows.sort(

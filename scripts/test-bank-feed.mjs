@@ -729,13 +729,39 @@ try {
   assert.equal(postedImport.postedInQuickBooks, 2);
   const postedRow = await find("QuickBooks categorized");
   assert.equal(postedRow.sourceStatus, "Posted");
+  assert.equal(postedRow.isSourcePosted, true);
   assert.equal(postedRow.status, "Pending");
   assert.equal(postedRow.journalId, null);
+  await assert.rejects(category(postedRow), /Undo the imported posting/);
+  await action(postedRow, { operation: "undo" });
+  const reopened = await find("QuickBooks categorized");
+  assert.equal(reopened.isSourcePosted, false);
+  assert.equal(reopened.sourceStatus, "Posted");
+  assert.equal(reopened.externalPosting, postedRow.externalPosting);
+  assert.equal(reopened.status, "Pending");
+  assert.equal(reopened.journalId, null);
+  assert.equal(reopened.attemptId, null);
+  await assert.rejects(
+    action(reopened, { operation: "undo" }),
+    /Undo requires a posted transaction/,
+  );
+  await category(reopened);
+  const postedInLedger = await find("QuickBooks categorized");
+  assert.equal(postedInLedger.status, "Classified");
+  await undo(postedInLedger, postedInLedger.date);
+  assert.equal((await find("QuickBooks categorized")).isSourcePosted, false);
+  assert.equal((await find("QuickBooks categorized")).status, "Pending");
   await pool.query(
     "UPDATE ledger_statements SET feed_source_format=NULL WHERE company_id=$1 AND id=$2",
     [companyId, postedImport.id],
   );
-  assert.equal((await find("QuickBooks matched")).sourceStatus, "Posted");
+  const matchedInQuickBooks = await find("QuickBooks matched");
+  assert.equal(matchedInQuickBooks.isSourcePosted, true);
+  await batch([matchedInQuickBooks], { operation: "undo" });
+  const reopenedMatch = await find("QuickBooks matched");
+  assert.equal(reopenedMatch.isSourcePosted, false);
+  assert.equal(reopenedMatch.sourceStatus, "Posted");
+  assert.equal(reopenedMatch.status, "Pending");
   const postedDetailsFile = importFile(postedWithDetailsCsv);
   assert.equal((await feed.importBankFile(postedDetailsFile)).postedInQuickBooks, 1);
   const postedDetailsRow = await find("Card, expense");

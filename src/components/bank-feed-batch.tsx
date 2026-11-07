@@ -38,7 +38,7 @@ export function BankBatchDialog({
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [reason, setReason] = useState("");
   const reversalDates = rows
-    .filter((row) => row.attemptKind !== "match")
+    .filter((row) => !row.isSourcePosted && row.attemptKind !== "match")
     .map((row) => row.accountingDate ?? row.date);
   const minDate = reversalDates.sort().at(-1) ?? "";
   const [date, setDate] = useState(
@@ -104,7 +104,7 @@ export function BankBatchDialog({
     restore: "Return the selected transactions to Pending for review.",
     undo: minDate
       ? "Remove matches, reverse entries created by the feed and return the selected transactions to Pending."
-      : "Remove the matches and return the selected transactions to Pending.",
+      : "Return the selected transactions to Pending in LedgerX and remove any LedgerX matches.",
   };
   const submit = async () => {
     const totals = { count: 0, posted: 0, inApproval: 0 };

@@ -78,9 +78,7 @@ const statuses = [
 ] as const;
 type BankTab = (typeof statuses)[number]["id"];
 function bankTab(row: BankRow): BankTab {
-  return row.status === "Classified" || (row.status === "Pending" && row.sourceStatus === "Posted")
-    ? "Posted"
-    : row.status;
+  return row.status === "Classified" || row.isSourcePosted ? "Posted" : row.status;
 }
 const optionalColumns = ["Files", "Party", "Source posting", "Status"] as const;
 const gridColumns = [
@@ -257,9 +255,10 @@ function CompanyFeed() {
   const currentPage = Math.min(page, pages - 1);
   const pageRows = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const canUndo = (row: BankRow) =>
-    row.status === "Classified" &&
-    !!row.attemptId &&
-    (row.attemptKind === "match" || data.canReverse);
+    row.isSourcePosted ||
+    (row.status === "Classified" &&
+      !!row.attemptId &&
+      (row.attemptKind === "match" || data.canReverse));
   const canSelect = (row: BankRow) =>
     data.canWrite &&
     ((row.status === "Pending" && !row.attemptId) || row.status === "Excluded" || canUndo(row));
@@ -267,7 +266,7 @@ function CompanyFeed() {
   const selectableRows = pageRows.filter(canSelect);
   const selectedSet = new Set(selectedIds);
   const selectedRows = eligibleRows.filter((row) => selectedSet.has(row.id));
-  const selectedPending = selectedRows.filter((row) => row.status === "Pending");
+  const selectedPending = selectedRows.filter((row) => bankTab(row) === "Pending");
   const selectedToUndo = selectedRows.filter(canUndo);
   const checkedOnPage = selectableRows.filter((row) => selectedSet.has(row.id)).length;
   const allChecked = selectableRows.length > 0 && checkedOnPage === selectableRows.length;
@@ -462,7 +461,7 @@ function CompanyFeed() {
         </thead>
         <tbody>
           {items.map((row, index) => {
-            const pending = row.status === "Pending" && !row.attemptId && data.canWrite;
+            const pending = bankTab(row) === "Pending" && !row.attemptId && data.canWrite;
             const expanded = !printable && review?.id === row.id;
             const checked = !printable && selectedSet.has(row.id);
             const category = suggestionFor(row);
@@ -993,18 +992,14 @@ function CompanyFeed() {
                         size="sm"
                         onClick={() => setBatch({ operation: "categorize", rows: selectedPending })}
                       >
-                        {status === "Posted"
-                          ? `Post ${selectedPending.length} in LedgerX`
-                          : "Post selected"}
+                        Post selected
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setBatch({ operation: "exclude", rows: selectedPending })}
                       >
-                        {status === "Posted"
-                          ? `Exclude ${selectedPending.length}`
-                          : "Exclude selected"}
+                        Exclude selected
                       </Button>
                     </>
                   )}
@@ -1013,7 +1008,7 @@ function CompanyFeed() {
                       size="sm"
                       onClick={() => setBatch({ operation: "undo", rows: selectedToUndo })}
                     >
-                      Undo {selectedToUndo.length} in LedgerX
+                      Undo selected
                     </Button>
                   )}
                   {status === "Excluded" && (

@@ -82,8 +82,7 @@ export function bankFilterData(
       location: values(optionName("LOCATION", row.locationId ?? null), row.sourceLocation),
       transactionType: values(row.transactionType ?? sourceType ?? "Unspecified"),
     },
-    uncategorized:
-      row.status === "Pending" && row.sourceStatus !== "Posted" && !assignedCodes.length,
+    uncategorized: row.status === "Pending" && !row.isSourcePosted && !assignedCodes.length,
     hasRule:
       Boolean(bankRuleFor(row, rules)) ||
       autoPost === "rule" ||

@@ -74,8 +74,8 @@ export function BankReview({
   );
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const pending = row.status === "Pending" && !row.attemptId;
-  const needsReversal = row.attemptKind !== "match";
+  const pending = row.status === "Pending" && !row.isSourcePosted && !row.attemptId;
+  const needsReversal = !row.isSourcePosted && row.attemptKind !== "match";
   const perform = (input: Parameters<BankRun>[0], message?: string) => {
     setBusy(true);
     setError(null);
@@ -176,6 +176,11 @@ export function BankReview({
                 />
               </Field>
             </>
+          ) : row.isSourcePosted ? (
+            <p className="text-sm">
+              Return this transaction to Pending in LedgerX. The QuickBooks posting remains in the
+              import history.
+            </p>
           ) : (
             <p className="text-sm">Remove the match and return this transaction to Pending.</p>
           )}
@@ -184,7 +189,7 @@ export function BankReview({
               Back
             </Button>
             <BankSubmit busy={busy}>
-              {needsReversal ? "Reverse and return to Pending" : "Remove match"}
+              {needsReversal ? "Reverse and return to Pending" : "Return to Pending"}
             </BankSubmit>
           </div>
         </form>
@@ -287,20 +292,21 @@ export function BankReview({
                 Undo match
               </Button>
             )}
-            {row.status === "Classified" &&
-              row.attemptId &&
-              row.attemptKind !== "match" &&
-              data.canReverse && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setReason("");
-                    setView("undo");
-                  }}
-                >
-                  Undo posting
-                </Button>
-              )}
+            {((row.isSourcePosted && data.canWrite) ||
+              (row.status === "Classified" &&
+                row.attemptId &&
+                needsReversal &&
+                data.canReverse)) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReason("");
+                  setView("undo");
+                }}
+              >
+                Undo posting
+              </Button>
+            )}
           </div>
         </>
       )}
