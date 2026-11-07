@@ -2,7 +2,7 @@ import { useState } from "react";
 import { SearchableSelect } from "@/components/searchable-select";
 import { Button } from "@/components/ui/button";
 import { useAccounting } from "@/lib/accounting-store";
-import type { BankBatchAction } from "@/lib/bank-feed-model";
+import { bankBatchLimit, type BankBatchAction } from "@/lib/bank-feed-model";
 import type { runBankBatch } from "@/lib/bank-feed";
 import {
   BankDialog,
@@ -18,19 +18,22 @@ export function BankBatchDialog({
   operation,
   rows,
   run,
+  refresh,
   close,
   saved,
 }: {
   operation: BankBatchAction["operation"];
   rows: BankRow[];
   run: (input: BankBatchAction) => ReturnType<typeof runBankBatch>;
+  refresh: () => Promise<unknown>;
   close: () => void;
   saved: (message: string) => void;
 }) {
   const { accounts, costCenters, fiscalPeriods } = useAccounting();
-  const [account, setAccount] = useState("");
+  const [inflowAccount, setInflowAccount] = useState("");
+  const [outflowAccount, setOutflowAccount] = useState("");
   const [costCenter, setCostCenter] = useState("");
-  const [rate, setRate] = useState("");
+  const [rates, setRates] = useState<Record<string, string>>({});
   const [rateSource, setRateSource] = useState("");
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [reason, setReason] = useState("");
@@ -48,13 +51,27 @@ export function BankBatchDialog({
   );
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [processed, setProcessed] = useState(0);
   const first = rows[0]!;
   const foreign = first.currency !== "USD";
   const duplicate = rows.some((row) => row.duplicate);
-  const incompatible = rows.some(
-    (row) => row.currency !== first.currency || Number(row.amount) < 0 !== Number(first.amount) < 0,
-  );
-  const multipleDates = foreign && rows.some((row) => row.date !== first.date);
+  const incompatible = rows.some((row) => row.currency !== first.currency);
+  const hasInflow = rows.some((row) => Number(row.amount) > 0);
+  const hasOutflow = rows.some((row) => Number(row.amount) < 0);
+  const groups = new Map<string, string[]>();
+  for (const row of rows) {
+    const key = operation === "categorize" && foreign ? row.date : "";
+    const ids = groups.get(key) ?? [];
+    ids.push(row.id);
+    groups.set(key, ids);
+  }
+  const accountsByDirection = [
+    ...(hasInflow ? [{ label: hasOutflow ? "Money in counterpart" : "Counterpart account", value: inflowAccount, change: setInflowAccount }] : []),
+    ...(hasOutflow ? [{ label: hasInflow ? "Money out counterpart" : "Counterpart account", value: outflowAccount, change: setOutflowAccount }] : []),
+  ];
+  const accountOptions = accounts
+    .filter((item) => item.code !== first.account && !accounts.some((child) => child.parentCode === item.code))
+    .map((item) => ({ value: item.code, label: `${item.code} · ${item.name}` }));
   const labels = {
     categorize: "Categorize and post",
     exclude: "Exclude transactions",
@@ -63,7 +80,7 @@ export function BankBatchDialog({
   };
   const explanations = {
     categorize:
-      "Apply the same counterpart account. Each transaction keeps its own bank date and amount. Company approval rules still apply.",
+      "Apply a counterpart account per direction. Each transaction keeps its bank date and amount. Company approval rules still apply.",
     exclude: "Move the selected transactions to Excluded.",
     restore: "Return the selected transactions to Pending for review.",
     undo: minDate
@@ -71,30 +88,34 @@ export function BankBatchDialog({
       : "Remove the matches and return the selected transactions to Pending.",
   };
   const submit = async () => {
-    const scope = { bankAccount: first.account, rowIds: rows.map((row) => row.id) };
-    const input: BankBatchAction =
-      operation === "categorize"
-        ? {
-            ...scope,
-            operation,
-            account,
-            costCenterId: costCenter || undefined,
-            rate: rate || undefined,
-            rateSource: rateSource || undefined,
-            confirmDuplicate,
-          }
-        : operation === "undo"
-          ? { ...scope, operation, date: date || undefined, reason: reason || undefined }
-          : operation === "exclude"
-            ? { ...scope, operation, reason }
-            : { ...scope, operation };
-    const result = await run(input);
+    const totals = { count: 0, posted: 0, inApproval: 0 };
+    try {
+      for (const [bankDate, ids] of groups) {
+        for (let offset = 0; offset < ids.length; offset += bankBatchLimit) {
+          const scope = { bankAccount: first.account, rowIds: ids.slice(offset, offset + bankBatchLimit) };
+          const input: BankBatchAction = operation === "categorize"
+            ? { ...scope, operation, inflowAccount: inflowAccount || undefined, outflowAccount: outflowAccount || undefined,
+                costCenterId: costCenter || undefined, rate: rates[bankDate] || undefined,
+                rateSource: rateSource || undefined, confirmDuplicate }
+            : operation === "undo" ? { ...scope, operation, date: date || undefined, reason: reason || undefined }
+              : operation === "exclude" ? { ...scope, operation, reason }
+                : { ...scope, operation };
+          const result = await run(input);
+          totals.count += result.count;
+          totals.posted += result.posted;
+          totals.inApproval += result.inApproval;
+          setProcessed(totals.count);
+        }
+      }
+    } finally {
+      await refresh();
+    }
     const summary =
       operation === "categorize"
-        ? `${result.posted} posted · ${result.inApproval} in approval.`
+        ? `${totals.posted} posted · ${totals.inApproval} in approval.`
         : operation === "exclude"
-          ? `${result.count} moved to Excluded.`
-          : `${result.count} returned to Pending.`;
+          ? `${totals.count} moved to Excluded.`
+          : `${totals.count} returned to Pending.`;
     saved(summary);
   };
 
@@ -112,38 +133,27 @@ export function BankBatchDialog({
           event.preventDefault();
           setError(null);
           setBusy(true);
-        void submit().catch(setError).finally(() => setBusy(false));
+          void submit().catch(setError).finally(() => setBusy(false));
         }}
       >
         {operation === "categorize" && (
           <>
-            {incompatible || multipleDates ? (
-              <ErrorMessage
-                error={
-                  incompatible
-                    ? "Select transactions of the same direction and currency."
-                    : "Select transactions from one bank date when applying a shared exchange rate."
-                }
-              />
+            {incompatible ? (
+              <ErrorMessage error="Select transactions in the same currency." />
             ) : (
               <>
-                <fieldset disabled={busy} className="min-w-0 space-y-1">
-                  <legend className="text-xs font-medium text-ink2">Counterpart account</legend>
+                {accountsByDirection.map(({ label, value, change }) => (
+                <fieldset key={label} disabled={busy} className="min-w-0 space-y-1">
+                  <legend className="text-xs font-medium text-ink2">{label}</legend>
                   <SearchableSelect
-                    label="Counterpart account"
-                    value={account}
-                    onChange={setAccount}
-                    options={accounts
-                      .filter(
-                        (item) =>
-                          item.code !== first.account &&
-                          !accounts.some((child) => child.parentCode === item.code),
-                      )
-                      .map((item) => ({ value: item.code, label: `${item.code} · ${item.name}` }))}
+                    label={label}
+                    value={value}
+                    onChange={change}
+                    options={accountOptions}
                     fitViewport
                     required
                   />
-                </fieldset>
+                </fieldset>))}
                 <SelectField
                   name="Cost center"
                   value={costCenter}
@@ -154,15 +164,16 @@ export function BankBatchDialog({
                 />
                 {foreign && (
                   <>
-                    <Field name={`Exchange rate · USD per ${first.currency}`}>
+                    {[...groups.keys()].sort().map((bankDate) => (
+                    <Field key={bankDate} name={`Exchange rate for ${bankDate} · USD per ${first.currency}`}>
                       <input
                         className={fieldStyle}
                         inputMode="decimal"
                         required
-                        value={rate}
-                        onChange={(event) => setRate(event.target.value)}
+                        value={rates[bankDate] ?? ""}
+                        onChange={(event) => setRates({ ...rates, [bankDate]: event.target.value })}
                       />
-                    </Field>
+                    </Field>))}
                     <Field name="Rate source">
                       <input
                         className={fieldStyle}
@@ -209,6 +220,9 @@ export function BankBatchDialog({
             />
           </Field>
         )}
+        {rows.length > bankBatchLimit && <p className="text-xs text-ink3">Transactions are processed in groups of up to {bankBatchLimit}.</p>}
+        {(busy || processed > 0) && <p role="status" className="text-sm font-medium">{processed} of {rows.length} confirmed.</p>}
+        {!!error && processed > 0 && <p className="text-sm">Close this window and select the remaining transactions to try again.</p>}
         <ErrorMessage error={error} />
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={close} disabled={busy}>
@@ -217,8 +231,8 @@ export function BankBatchDialog({
           <BankSubmit
             busy={busy}
             disabled={
-              operation === "categorize" &&
-              (incompatible || multipleDates || !account || (duplicate && !confirmDuplicate))
+              processed > 0 || (operation === "categorize" &&
+              (incompatible || accountsByDirection.some((item) => !item.value) || (duplicate && !confirmDuplicate)))
             }
           >
             {labels[operation]}

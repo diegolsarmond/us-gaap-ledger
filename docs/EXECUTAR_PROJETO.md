@@ -53,7 +53,7 @@ No Easypanel, configure DATABASE_URL nas variáveis do serviço e use o Dockerfi
 
 ### Bank Feed
 
-Antes de publicar a versão com o Bank Feed, aplique `database/033_bank_feed.sql` após as migrações anteriores. A migração é reexecutável. Ela preserva os extratos existentes e recupera vínculos de postagens legadas quando a auditoria comprova a relação.
+Antes de publicar a versão com o Bank Feed, aplique `database/033_bank_feed.sql` e `database/034_bank_feed_party.sql` após as migrações anteriores. As migrações são reexecutáveis. Elas preservam os extratos existentes, recuperam vínculos de postagens legadas comprovados pela auditoria e mantêm o From/To original separado da seleção do contador.
 
 Em **Bank Feed**, selecione a conta e a moeda do extrato, importe o CSV e revise as linhas em **Pending**. Use **Categorize** para postar contrapartidas, **Open bills / receivables** para liquidar títulos e **Recorded payments / receipts & journals** para conciliar movimentos já lançados. As regras de aprovação e os períodos fiscais são os mesmos da área de lançamentos.
 

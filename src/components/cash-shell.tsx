@@ -1,7 +1,15 @@
 import { useCompanies } from "./company-context";
 import { CompanySwitcher } from "./company-switcher";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./ui/breadcrumb";
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -178,6 +186,7 @@ function getRouteMeta(pathname: string) {
           section: "Features",
           group: group.label,
           label: item.label,
+          route: item.route,
         };
       }
     }
@@ -192,11 +201,117 @@ function getRouteMeta(pathname: string) {
           section: "Global Settings",
           group: group.label,
           label: item.label,
+          route: item.route,
         };
       }
     }
   }
   return null;
+}
+
+interface BreadcrumbItemDef {
+  label: string;
+  route: string;
+  responsiveClass?: string;
+  isCurrent?: boolean;
+}
+
+function getBreadcrumbs(pathname: string): BreadcrumbItemDef[] {
+  const meta = getRouteMeta(pathname);
+  const items: BreadcrumbItemDef[] = [
+    {
+      label: "Workspace",
+      route: "/dashboard",
+      responsiveClass: "hidden lg:inline-flex",
+    },
+  ];
+
+  if (!meta) {
+    if (pathname !== "/" && pathname !== "/dashboard") {
+      const cleanPath = pathname.replace(/^\//, "").split("/")[0];
+      const fallbackLabel = cleanPath
+        ? cleanPath.charAt(0).toUpperCase() + cleanPath.slice(1)
+        : "Workspace";
+      items.push({
+        label: fallbackLabel,
+        route: pathname,
+        isCurrent: true,
+      });
+    }
+    return items;
+  }
+
+  // Se estiver no próprio Dashboard
+  if (meta.route === "/dashboard" && (pathname === "/dashboard" || pathname === "/dashboard/")) {
+    items.push({
+      label: "Dashboard",
+      route: "/dashboard",
+      isCurrent: true,
+    });
+    return items;
+  }
+
+  // Se estiver em sub-rotas de System Parameters (/parameters/* ou /dimensions)
+  if (
+    (pathname.startsWith("/parameters/") && pathname !== "/parameters") ||
+    pathname === "/dimensions"
+  ) {
+    items.push({
+      label: "System Parameters",
+      route: "/parameters",
+      responsiveClass: "hidden md:inline-flex",
+    });
+    items.push({
+      label: meta.label,
+      route: meta.route,
+      isCurrent: true,
+    });
+    return items;
+  }
+
+  // Se for a própria página de Parameters (/parameters)
+  if (meta.route === "/parameters") {
+    items.push({
+      label: "Global Settings",
+      route: "/parameters",
+      responsiveClass: "hidden md:inline-flex",
+    });
+    items.push({
+      label: "System Parameters",
+      route: "/parameters",
+      isCurrent: true,
+    });
+    return items;
+  }
+
+  // Se for Global Settings (Administration: /companies, /users, /access, /audit-log, /imports)
+  if (meta.section === "Global Settings") {
+    items.push({
+      label: "Global Settings",
+      route: "/companies",
+      responsiveClass: "hidden md:inline-flex",
+    });
+    items.push({
+      label: meta.label,
+      route: meta.route,
+      isCurrent: true,
+    });
+    return items;
+  }
+
+  // Demais rotas de Features (Operations, General Ledger, Financial Statements, Banking & Reports)
+  items.push({
+    label: "Features",
+    route: "/dashboard",
+    responsiveClass: "hidden md:inline-flex",
+  });
+  items.push({
+    label: meta.label,
+    route: meta.route,
+    isCurrent: true,
+  });
+
+  return items;
 }
 
 export function CashShell({
@@ -244,6 +359,7 @@ export function CashShell({
     .toUpperCase();
 
   const routeMeta = getRouteMeta(path);
+  const breadcrumbs = getBreadcrumbs(path);
 
   const currentGroups = activeSection === "features" ? functionalGroups : settingsGroups;
 
@@ -684,21 +800,52 @@ export function CashShell({
                   className="size-6 rounded-md object-contain shrink-0"
                 />
               </div>
-              <div className="hidden sm:flex items-center gap-2 text-[12px] sm:text-[12.5px] text-ink3 truncate min-w-0">
-                <span className="hidden lg:inline">Workspace</span>
-                <span className="hidden lg:inline text-line">/</span>
-                {routeMeta ? (
-                  <>
-                    <span className="hidden md:inline font-medium text-ink2">
-                      {routeMeta.section}
-                    </span>
-                    <span className="hidden md:inline text-line">/</span>
-                    <span className="font-semibold text-ink truncate">{routeMeta.label}</span>
-                  </>
-                ) : (
-                  <span className="font-medium text-ink truncate">Workspace</span>
-                )}
-              </div>
+              <Breadcrumb className="hidden sm:flex min-w-0">
+                <BreadcrumbList className="flex items-center gap-2 text-[12px] sm:text-[12.5px] text-ink3 min-w-0">
+                  {breadcrumbs.map((crumb, idx) => {
+                    const isLast = idx === breadcrumbs.length - 1;
+                    return (
+                      <Fragment key={`${crumb.label}-${crumb.route}-${idx}`}>
+                        <BreadcrumbItem className={crumb.responsiveClass ?? "inline-flex min-w-0"}>
+                          {isLast ? (
+                            <BreadcrumbPage className="font-semibold text-ink truncate max-w-[200px] sm:max-w-[320px]">
+                              <Link
+                                to={crumb.route}
+                                onClick={() => setUserTab(null)}
+                                className="hover:text-brand transition-colors truncate"
+                                title={crumb.label}
+                              >
+                                {crumb.label}
+                              </Link>
+                            </BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink asChild className="hover:text-ink text-ink3 transition-colors">
+                              <Link
+                                to={crumb.route}
+                                onClick={() => setUserTab(null)}
+                                className="font-medium hover:text-ink transition-colors"
+                              >
+                                {crumb.label}
+                              </Link>
+                            </BreadcrumbLink>
+                          )}
+                        </BreadcrumbItem>
+                        {!isLast && (
+                          <BreadcrumbSeparator
+                            className={
+                              crumb.responsiveClass
+                                ? `${crumb.responsiveClass} text-line text-[11px]`
+                                : "text-line text-[11px]"
+                            }
+                          >
+                            /
+                          </BreadcrumbSeparator>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               <CompanySwitcher />

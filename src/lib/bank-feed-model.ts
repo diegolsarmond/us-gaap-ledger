@@ -74,6 +74,7 @@ export const bankAction = z.discriminatedUnion("operation", [
   }),
   z.object({ ...row, operation: z.literal("exclude"), reason }),
   z.object({ ...row, operation: z.literal("restore") }),
+  z.object({ ...row, operation: z.literal("party"), payeeId: id.nullable() }),
   z.object({
     ...row,
     operation: z.literal("undo"),
@@ -114,7 +115,8 @@ export const bankBatchAction = z.discriminatedUnion("operation", [
   z.object({
     ...batchRows,
     operation: z.literal("categorize"),
-    account: id,
+    inflowAccount: optionalId,
+    outflowAccount: optionalId,
     costCenterId: optionalId,
     rate: fx.rate,
     rateSource: fx.rateSource,

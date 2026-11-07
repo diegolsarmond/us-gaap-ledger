@@ -42,6 +42,9 @@ type BankRow = {
   amount: string;
   description: string;
   fromTo: string;
+  partyId: string | null;
+  partyName: string | null;
+  partyEdited: boolean;
   externalPosting: string;
   duplicate: boolean;
   status: "Pending" | "Classified" | "Excluded";
@@ -60,6 +63,8 @@ type BankRow = {
 const rowQuery = `
  SELECT r.id,r.file_id AS "fileId",r.date::text,r.description,r.amount::text,r.status,
    f.account_code AS account,f.feed_currency AS currency,r.feed_from_to AS "fromTo",
+   coalesce(a.payee_id,r.feed_payee_id) AS "partyId",
+   coalesce(v.display_name,p.display_name) AS "partyName",r.feed_party_edited AS "partyEdited",
    r.feed_external_posting AS "externalPosting",r.feed_exclusion AS exclusion,
    EXISTS (SELECT 1 FROM ledger_stagingrows d JOIN ledger_statements df ON (df.company_id,df.id)=(d.company_id,d.file_id)
      WHERE d.company_id=r.company_id AND d.id<>r.id AND (
@@ -75,6 +80,8 @@ const rowQuery = `
  FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
  LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
  LEFT JOIN journal_entries j ON j.id=a.journal_id
+ LEFT JOIN ledger_vendors v ON v.company_id=r.company_id AND v.id=coalesce(a.payee_id,r.feed_payee_id) AND r.amount<0
+ LEFT JOIN ledger_customers p ON p.company_id=r.company_id AND p.id=coalesce(a.payee_id,r.feed_payee_id) AND r.amount>0
  LEFT JOIN (
    SELECT company_id,row_id,count(*)::int AS count FROM bank_feed_attachments WHERE company_id=$1 GROUP BY company_id,row_id
  ) t ON (t.company_id,t.row_id)=(r.company_id,r.id)
@@ -1437,8 +1444,8 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
     }
     if (input.operation === "categorize") {
       const first = rows[0]!;
-      if (rows.some((row) => outgoing(row) !== outgoing(first) || row.currency !== first.currency))
-        throw new Error("Select transactions of the same direction and currency.");
+      if (rows.some((row) => row.currency !== first.currency))
+        throw new Error("Select transactions in the same currency.");
       if (first.currency !== "USD" && rows.some((row) => row.date !== first.date))
         throw new Error("Select a single bank date when applying a shared exchange rate.");
     }
@@ -1448,6 +1455,8 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
       try {
         if (input.operation === "categorize" && state) {
           assertPending(row, input.confirmDuplicate);
+          const counterpart = outgoing(row) ? input.outflowAccount : input.inflowAccount;
+          if (!counterpart) throw new Error("Select a counterpart account for this direction.");
           const party = row.fromTo.toLowerCase();
           const contacts = (outgoing(row) ? state.vendors : state.customers)
             .filter((contact) => party && contact.displayName.toLowerCase() === party);
@@ -1461,13 +1470,14 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
               date: row.date,
               transactionType: outgoing(row) ? "Expense" : "Deposit",
               memo: row.description,
-              payeeId: contacts.length === 1 ? contacts[0]!.id : undefined,
+              payeeId: row.partyEdited ? row.partyName ? row.partyId ?? undefined : undefined
+                : contacts.length === 1 ? contacts[0]!.id : undefined,
               rate: input.rate,
               rateSource: input.rateSource,
               confirmDuplicate: input.confirmDuplicate,
               lines: [
                 {
-                  account: input.account,
+                  account: counterpart,
                   description: "",
                   amount: unitsAmount(nativeTotal(row)),
                   costCenterId: input.costCenterId,
@@ -1535,6 +1545,21 @@ export async function bankFeedCommand({ companyId, input: raw }: Scope & { input
       return { id: input.id, posted: false };
     }
     const row = await getRow(c, { companyId, rowId: input.rowId });
+    if (input.operation === "party") {
+      assertPending(row);
+      if (input.payeeId) {
+        const domain = outgoing(row) ? "vendors" : "customers";
+        const contacts = await readLedger(c, companyId, domain);
+        if (!contacts.some((contact) => contact["id"] === input.payeeId))
+          throw new Error("Select a counterparty from this company.");
+      }
+      await c.query(
+        "UPDATE ledger_stagingrows SET feed_payee_id=$3,feed_party_edited=true WHERE company_id=$1 AND id=$2",
+        [companyId, row.id, input.payeeId],
+      );
+      await audit(c, auth, "BANK_FEED_PARTY", row.id, { previous: row.partyId, payeeId: input.payeeId });
+      return { id: row.id, posted: false };
+    }
     if (input.operation === "attach" || input.operation === "removeAttachment") {
       if (input.operation === "attach") {
         const content = Buffer.from(input.content, "base64");

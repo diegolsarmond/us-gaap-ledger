@@ -24,6 +24,8 @@ export function SearchableSelect({
   required = false,
   autoFocus = false,
   fitViewport = false,
+  initiallyOpen = false,
+  onOpenChange,
 }: {
   options: Option[];
   name?: string;
@@ -35,9 +37,11 @@ export function SearchableSelect({
   required?: boolean;
   autoFocus?: boolean;
   fitViewport?: boolean;
+  initiallyOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [internalValue, setInternalValue] = useState(defaultValue);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -47,6 +51,7 @@ export function SearchableSelect({
     if (nextOpen)
       setPortalContainer(triggerRef.current?.closest<HTMLElement>('[role="dialog"]') ?? null);
     setOpen(nextOpen);
+    onOpenChange?.(nextOpen);
   }
   useEffect(() => {
     const form = inputRef.current?.form;
