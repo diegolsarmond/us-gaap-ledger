@@ -1,4 +1,7 @@
 import { jsonClient } from "./json-client";
+export const importAccountList = jsonClient<
+  typeof import("./accounting.operations.server").importAccountList
+>("accounting", "importAccountList", "POST");
 export const importSpreadsheet = jsonClient<
   typeof import("./accounting.operations.server").importSpreadsheet
 >("accounting", "importSpreadsheet", "POST");

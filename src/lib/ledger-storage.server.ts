@@ -133,7 +133,10 @@ export async function replaceLedger(
   await client.query(`DELETE FROM ${ledgerTable(domain)} WHERE company_id=$1`, [companyId]);
   for (const [position, row] of rows.entries()) {
     const id = domain === "accounts" || domain === "currencies" ? row["code"] : row["id"];
-    const fields = spec.fields.filter((f) => f.column !== "id");
+    const fields = spec.fields.filter(
+      (f) =>
+        f.column !== "id" && (!f.path.startsWith("sourceAccount.") || row["sourceAccount"] != null),
+    );
     const values = [companyId, id, position, ...fields.map((f) => get(row, f.path) ?? null)];
     await client.query(
       `INSERT INTO ${ledgerTable(domain)}(company_id,id,position,${fields.map((f) => f.column).join(",")}) VALUES(${values.map((_, i) => "$" + (i + 1)).join(",")})`,

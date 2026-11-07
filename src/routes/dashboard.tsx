@@ -15,6 +15,8 @@ import {
 } from "@/components/dashboard-charts";
 import { DashboardCash } from "@/components/dashboard-cash";
 import { pageHead } from "@/lib/head";
+import { cashBalanceAccount } from "@/lib/coa";
+import { resolvePostingAccount } from "@/lib/posting-accounts";
 
 function Link(props: ComponentProps<typeof RouterLink>) {
   if (typeof props.to === "string" && !isModuleAvailable(props.to)) return null;
@@ -38,6 +40,7 @@ function Dashboard() {
   const {
     activeCompany,
     accounts,
+    postingAccounts,
     journals: allJournals,
     isLedgerBalanced,
     bills: allBills,
@@ -62,15 +65,16 @@ function Dashboard() {
   const grossProfit = totalRevenue - totalCOGS;
   const netIncome =
     Math.round((grossProfit - totalOpEx + sum("Other Income") - sum("Other Expense")) * 100) / 100;
-  const fxCode = accounts.some((a) => a.code === "80300") ? "80300" : "6300";
+  const fxCode = resolvePostingAccount(accounts, postingAccounts, "80300", "6300");
   const totalFXVariance = journals.reduce(
     (total, j) =>
       total +
       j.lines.filter((l) => l.accountCode === fxCode).reduce((s, l) => s + l.credit - l.debit, 0),
     0,
   );
+  const cashCodes = new Set(accounts.filter(cashBalanceAccount).map((a) => a.code));
   const cashOnHand = reportRows(accounts, allJournals, period.end)
-    .filter((row) => ["10100", "10200", "10300", "10400", "1000", "1050"].includes(row.code))
+    .filter((row) => cashCodes.has(row.code))
     .reduce((total, row) => total + row.amount, 0);
 
   const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;

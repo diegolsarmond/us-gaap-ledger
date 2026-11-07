@@ -159,13 +159,24 @@ export function bankRate(currencyCode: string, rate?: string, source?: string) {
 }
 
 export function bankSourceAccount(
-  account: { code: string; name: string; type: string; detailType?: string | undefined },
+  account: {
+    code: string;
+    name: string;
+    type: string;
+    detailType?: string | undefined;
+    sourceAccount?: { type: string } | undefined;
+  },
   accounts: { parentCode?: string | undefined }[],
 ) {
+  if (accounts.some((a) => a.parentCode === account.code)) return false;
+  if (account.sourceAccount)
+    return (
+      (account.type === "Asset" && account.sourceAccount.type === "Bank") ||
+      (account.type === "Liability" && account.sourceAccount.type === "Credit Card")
+    );
   return (
-    !accounts.some((a) => a.parentCode === account.code) &&
-    ((account.type === "Asset" &&
+    (account.type === "Asset" &&
       /bank|checking|savings|money market|^cash$/i.test(account.detailType || account.name)) ||
-      (account.type === "Liability" && /credit card/i.test(account.detailType || account.name)))
+    (account.type === "Liability" && /credit card/i.test(account.detailType || account.name))
   );
 }

@@ -9,7 +9,7 @@ import {
   type Payment,
 } from "./transaction-fx";
 import { resolvePostingAccount, type PostingAccount } from "./posting-accounts";
-import { US_GAAP_COA, totalByType, validateCoa } from "./coa";
+import { cashBalanceAccount, US_GAAP_COA, totalByType, validateCoa } from "./coa";
 import {
   dimensionSchema,
   validateDimensionDefinitions,
@@ -24,6 +24,7 @@ import { customerSchema, type Customer, type CustomerInput } from "./customer-mo
 import { vendorSchema, type Vendor, type VendorInput } from "./vendor-model";
 import { customerLinks, vendorLinks } from "./contact-usage";
 import { parseStatementCsv } from "./statement-csv";
+import type { AccountSource } from "./accounting-model";
 
 export type UserRole = "platform_admin" | "accounting_admin" | "accounting_staff" | "client_portal";
 
@@ -59,6 +60,7 @@ export interface Account {
   isContra?: boolean | undefined;
   track1099?: boolean | undefined;
   parentCode?: string | undefined;
+  sourceAccount?: AccountSource | undefined;
 }
 
 export interface JournalLine {
@@ -1767,6 +1769,14 @@ export function createAccountingEngine(
     validateCoa([...currentData.accounts, acct]);
     if (currentData.accounts.some((a) => a.code.toLowerCase() === acct.code.toLowerCase()))
       throw new Error("An account with this code already exists for this company.");
+    const path = acct.sourceAccount?.path.normalize("NFC").toLowerCase();
+    if (
+      path &&
+      currentData.accounts.some(
+        (a) => a.sourceAccount?.path.normalize("NFC").toLowerCase() === path,
+      )
+    )
+      throw new Error("An account with this QuickBooks path already exists for this company.");
     updateCompanyData((prev) => ({
       ...prev,
       accounts: [...prev.accounts, acct],
@@ -1792,7 +1802,9 @@ export function createAccountingEngine(
       );
     updateCompanyData((prev) => ({
       ...prev,
-      accounts: prev.accounts.map((a) => (a.code === code ? { ...data, code } : a)),
+      accounts: prev.accounts.map((a) =>
+        a.code === code ? { ...data, code, sourceAccount: a.sourceAccount } : a,
+      ),
     }));
     addAuditLog("UPDATE_ACCOUNT", "Account", code, `Updated account ${code} — ${data.name}.`);
   };
@@ -2169,10 +2181,9 @@ export function createAccountingEngine(
     Math.round((operatingIncome + sumType("Other Income") - sumType("Other Expense")) * 100) / 100;
   const net = (preferred: string, legacy: string) =>
     accountBalances[resolveAccount(currentData.accounts, preferred, legacy)]?.net || 0;
-  const cashOnHand = ["10100", "10200", "10300", "10400", "1000", "1050"].reduce(
-    (sum, code) => sum + (accountBalances[code]?.net || 0),
-    0,
-  );
+  const cashOnHand = currentData.accounts
+    .filter(cashBalanceAccount)
+    .reduce((sum, account) => sum + (accountBalances[account.code]?.net || 0), 0);
   const totalAR = net("11000", "1100");
   const totalAP = net("20100", "2000");
   const totalInventoryValuation = net("13000", "1300");

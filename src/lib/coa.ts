@@ -1299,6 +1299,15 @@ export function totalByType(
 export function resolveAccount(accounts: Account[], preferred: string, legacy: string) {
   return accounts.some((a) => a.code === preferred) ? preferred : legacy;
 }
+export const templateCashCodes = ["10100", "10200", "10300", "10400", "1000", "1050"];
+export function cashBalanceAccount(account: Account) {
+  return (
+    account.type === "Asset" &&
+    (account.sourceAccount
+      ? account.sourceAccount.type === "Bank"
+      : templateCashCodes.includes(account.code))
+  );
+}
 export function validateCoa(accounts: Account[]) {
   for (const a of accounts) {
     if (a.parentCode) {

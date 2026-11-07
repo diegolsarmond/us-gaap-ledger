@@ -53,7 +53,7 @@ export const ledgerSchemas: Record<string, LedgerSchema> = {
     },
   ),
   accounts: schema(
-    "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode?",
+    "code name type balanceType description subgroup? detailType? maturity? isContra?:boolean track1099?:boolean parentCode? sourceAccount.number? sourceAccount.path? sourceAccount.type? sourceAccount.currency? sourceAccount.balance?:numeric",
   ),
   journals: schema(
     "id date:date memo sourceType sourceId? currency fxRate:numeric status overrideReason? createdBy createdAt",

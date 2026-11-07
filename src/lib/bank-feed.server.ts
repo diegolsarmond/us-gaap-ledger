@@ -20,7 +20,8 @@ import { db } from "./db.server";
 import { amountUnits, convertedUnits, unitsAmount, type JournalInput } from "./journal-model";
 import { createBankJournal, journalPostingAccess } from "./journal.server";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
-import { externalAccount, parseStatementCsv } from "./statement-csv";
+import { externalAccount, parseStatementFile } from "./statement-csv";
+import { resolvePostingAccount } from "./posting-accounts";
 import {
   money,
   normalizedFx,
@@ -46,6 +47,11 @@ type BankRow = {
   partyName: string | null;
   partyEdited: boolean;
   externalPosting: string;
+  sourceFormat: ReturnType<typeof parseStatementFile>["format"] | null;
+  checkNumber: string | null;
+  sourceClass: string | null;
+  sourceLocation: string | null;
+  sourceCustomer: string | null;
   duplicate: boolean;
   status: "Pending" | "Classified" | "Excluded";
   exclusion: string | null;
@@ -66,6 +72,9 @@ const rowQuery = `
    selected_party.id AS "partyId",
    coalesce(v.display_name,p.display_name) AS "partyName",r.feed_party_edited AS "partyEdited",
    r.feed_external_posting AS "externalPosting",r.feed_exclusion AS exclusion,
+   f.feed_source_format AS "sourceFormat",r.feed_check_number AS "checkNumber",
+   r.feed_source_class AS "sourceClass",r.feed_source_location AS "sourceLocation",
+   r.feed_source_customer AS "sourceCustomer",
    EXISTS (SELECT 1 FROM ledger_stagingrows d JOIN ledger_statements df ON (df.company_id,df.id)=(d.company_id,d.file_id)
      WHERE d.company_id=r.company_id AND d.id<>r.id AND (
        d.feed_fingerprint=r.feed_fingerprint OR ((d.feed_fingerprint IS NULL OR r.feed_fingerprint IS NULL)
@@ -141,6 +150,8 @@ async function validateSource(c: PoolClient, companyId: string, code: string, cu
   const account = accounts.find((a) => a.code === code);
   if (!account || !bankSourceAccount(account, accounts))
     throw new Error("Select a bank or credit card account from this company's chart of accounts.");
+  if (account.sourceAccount && account.sourceAccount.currency !== currency)
+    throw new Error("Select the currency recorded on the imported bank or credit card account.");
   const currencies = await readLedger(c, companyId, "currencies");
   if (!currencies.some((item) => item["code"] === currency && item["status"] === "Active"))
     throw new Error("Select an active company currency.");
@@ -161,7 +172,7 @@ async function validateSource(c: PoolClient, companyId: string, code: string, cu
 function fingerprint(
   account: string,
   currency: string,
-  row: ReturnType<typeof parseStatementCsv>[number],
+  row: ReturnType<typeof parseStatementFile>["rows"][number],
 ) {
   return digest([
     account,
@@ -174,7 +185,7 @@ function fingerprint(
 
 async function prepareImport(c: PoolClient, data: Import) {
   await validateSource(c, data.companyId, data.account, data.currency);
-  const rows = parseStatementCsv(data.content, data.currency);
+  const { format, rows } = parseStatementFile(data.content, data.currency);
   const keys = rows.map((row) => fingerprint(data.account, data.currency, row));
   const batchDigest = digest([
     data.currency,
@@ -186,6 +197,9 @@ async function prepareImport(c: PoolClient, data: Import) {
           unitsAmount(bankAmount(row.amountText, data.currency)),
           row.fromTo,
           row.externalPosting,
+          ...(format === "quickbooks-review"
+            ? [format, row.checkNumber, row.sourceClass, row.sourceLocation, row.sourceCustomer]
+            : []),
         ]),
       )
       .sort(),
@@ -225,6 +239,7 @@ async function prepareImport(c: PoolClient, data: Import) {
   }
   return {
     rows,
+    format,
     keys,
     batchDigest,
     duplicateBatch: !!batch.rowCount,
@@ -235,10 +250,11 @@ async function prepareImport(c: PoolClient, data: Import) {
 export async function previewBankImport(data: Import) {
   return transaction(data.companyId, false, async (c, auth) => {
     if (!auth.permissions.write_accounting) throw new Error("Access denied.");
-    const { rows, duplicates, duplicateBatch } = await prepareImport(c, data);
+    const { rows, format, duplicates, duplicateBatch } = await prepareImport(c, data);
     const total = rows.reduce((sum, row) => sum + bankAmount(row.amountText, data.currency), 0n);
     return {
       count: rows.length,
+      format,
       total: unitsAmount(total),
       duplicates,
       duplicateBatch,
@@ -249,15 +265,15 @@ export async function previewBankImport(data: Import) {
 
 export async function importBankFile(data: Import) {
   return transaction(data.companyId, true, async (c, auth) => {
-    const { rows, keys, batchDigest, duplicateBatch } = await prepareImport(c, data);
+    const { rows, format, keys, batchDigest, duplicateBatch } = await prepareImport(c, data);
     if (duplicateBatch)
       throw new Error("This batch was already imported into the selected account.");
     const id = randomUUID();
     await c.query(
       `INSERT INTO ledger_statements(company_id,id,position,content,file_name,account_code,file_type,
-       rows_count,uploaded_at,uploaded_by,status,feed_currency,feed_digest)
+       rows_count,uploaded_at,uploaded_by,status,feed_currency,feed_digest,feed_source_format)
        VALUES($1,$2,(SELECT coalesce(min(position),0)-1 FROM ledger_statements WHERE company_id=$1),
-       $3,$4,$5,'CSV',$6,$7,$8,'Pending Review',$9,$10)`,
+       $3,$4,$5,'CSV',$6,$7,$8,'Pending Review',$9,$10,$11)`,
       [
         data.companyId,
         id,
@@ -269,16 +285,20 @@ export async function importBankFile(data: Import) {
         auth.user.name,
         data.currency,
         batchDigest,
+        format,
       ],
     );
     const ids = rows.map(() => randomUUID());
     await c.query(
       `INSERT INTO ledger_stagingrows(company_id,id,position,file_id,date,description,amount,suggested_account,
-         status,feed_from_to,feed_external_posting,feed_fingerprint)
-       SELECT $1,t.id,offsets.start+t.n::int,$2,t.date,t.description,t.amount,'','Pending',t.party,t.posting,t.fingerprint
-       FROM unnest($3::text[],$4::date[],$5::text[],$6::numeric[],$7::text[],$8::text[],$9::text[])
-         WITH ORDINALITY AS t(id,date,description,amount,party,posting,fingerprint,n)
-       CROSS JOIN (SELECT coalesce(min(position),0)-$10::int-1 AS start FROM ledger_stagingrows WHERE company_id=$1) offsets`,
+         status,feed_from_to,feed_external_posting,feed_fingerprint,feed_check_number,feed_source_class,
+         feed_source_location,feed_source_customer)
+       SELECT $1,t.id,offsets.start+t.n::int,$2,t.date,t.description,t.amount,'','Pending',t.party,t.posting,t.fingerprint,
+         t.check_number,t.source_class,t.source_location,t.source_customer
+       FROM unnest($3::text[],$4::date[],$5::text[],$6::numeric[],$7::text[],$8::text[],$9::text[],
+                   $10::text[],$11::text[],$12::text[],$13::text[])
+         WITH ORDINALITY AS t(id,date,description,amount,party,posting,fingerprint,check_number,source_class,source_location,source_customer,n)
+       CROSS JOIN (SELECT coalesce(min(position),0)-$14::int-1 AS start FROM ledger_stagingrows WHERE company_id=$1) offsets`,
       [
         data.companyId,
         id,
@@ -289,6 +309,10 @@ export async function importBankFile(data: Import) {
         rows.map((r) => r.fromTo),
         rows.map((r) => r.externalPosting),
         keys,
+        rows.map((r) => r.checkNumber),
+        rows.map((r) => r.sourceClass),
+        rows.map((r) => r.sourceLocation),
+        rows.map((r) => r.sourceCustomer),
         rows.length,
       ],
     );
@@ -303,6 +327,7 @@ export async function importBankFile(data: Import) {
       currency: data.currency,
       count: rows.length,
       name: data.fileName,
+      format,
     });
     return { id, count: rows.length };
   });
@@ -834,7 +859,7 @@ async function category(
     journal,
     input.lines.length === 1 ? input.lines[0]?.account : undefined,
   );
-  const mapCode = externalAccount(row.externalPosting);
+  const mapCode = externalAccount(row.externalPosting, row.sourceFormat);
   if (input.rememberMapping && mapCode && input.lines.length === 1)
     await saveRule(c, auth, "mapping", mapCode, input.lines[0]!.account);
   return journal;
@@ -873,7 +898,7 @@ function controlAccount(state: CompanyState, kind: "AP" | "AR", doc: Document) {
 }
 
 function resolveAccount(state: CompanyState, preferred: string, legacy: string) {
-  return state.accounts.some((a) => a.code === preferred) ? preferred : legacy;
+  return resolvePostingAccount(state.accounts, state.postingAccounts ?? [], preferred, legacy);
 }
 
 function prepareSettlement(state: CompanyState, row: BankRow, input: BankSettlement) {

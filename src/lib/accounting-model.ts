@@ -9,6 +9,14 @@ const text = z.string().max(2000),
   num = z.number().finite().min(0).max(1e14);
 const status = z.enum(["Active", "Inactive"]);
 const projectId = key.optional();
+export const accountSource = z.object({
+  number: z.string().max(116),
+  path: z.string().min(1).max(2000),
+  type: z.string().min(1).max(120),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  balance: z.number().finite().gt(-1e11).lt(1e11).optional(),
+});
+export type AccountSource = z.infer<typeof accountSource>;
 export const account = z.object({
   code: z.string().trim().min(1).max(120),
   name: z.string().trim().min(1).max(120),
@@ -30,6 +38,7 @@ export const account = z.object({
   isContra: z.boolean().optional(),
   track1099: z.boolean().optional(),
   parentCode: z.string().trim().min(1).max(120).optional(),
+  sourceAccount: accountSource.optional(),
 });
 const line = z.object({
   id: key,

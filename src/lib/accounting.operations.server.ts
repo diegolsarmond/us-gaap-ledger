@@ -2,6 +2,29 @@ import { defineJsonOperation } from "./json-operation.server";
 import { z } from "zod";
 import { importCatalog, importDomainSchema, parseImportRows } from "./bulk-import";
 import { companySchema } from "./company-model";
+import { parseAccountListCsv } from "./account-list-csv.server";
+
+export const importAccountList = defineJsonOperation({ method: "POST" })
+  .validator(
+    z.object({
+      companyId: z.string().uuid(),
+      revision: z.number().int().nonnegative(),
+      content: z.string().max(2_000_000),
+      preview: z.boolean(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const accounts = parseAccountListCsv(data.content);
+    const rows = accounts.map((account) => [account]);
+    await (
+      await import("./accounting.server")
+    ).execute(
+      { companyId: data.companyId, revision: data.revision, command: "addAccount", args: rows[0]! },
+      { rows, preview: data.preview },
+    );
+    return { accounts: data.preview ? accounts : [], count: accounts.length };
+  });
+
 export const importSpreadsheet = defineJsonOperation({ method: "POST" })
   .validator(
     z.object({

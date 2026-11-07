@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { bankBatchLimit, bankSourceAccount, type BankBatchAction } from "@/lib/bank-feed-model";
-import { externalAccount } from "@/lib/statement-csv";
+import { externalAccount, sourceCategoryAccount } from "@/lib/statement-csv";
 import { formatCurrency as bankMoney, downloadBlob as downloadBankBlob } from "@/lib/format";
 import {
   loadBankFeed,
@@ -194,7 +194,8 @@ function CompanyFeed() {
   const accountCurrency = (code: string) =>
     data.files.find((f) => f.account === code)?.currency ??
     data.balances.find((b) => b.account === code)?.currency ??
-    data.cashAccounts.find((a) => a.account === code)?.currency;
+    data.cashAccounts.find((a) => a.account === code)?.currency ??
+    sourceAccounts.find((a) => a.code === code)?.sourceAccount?.currency;
   const rows = data.rows.filter((r) => r.account === account);
   const filter = search.trim().toLowerCase();
   const filtered = rows
@@ -272,12 +273,16 @@ function CompanyFeed() {
   const suggestionFor = (row: BankRow) => {
     if (row.classifiedAccount) return row.classifiedAccount;
     if (row.status !== "Pending" || row.attemptId) return;
-    const external = externalAccount(row.externalPosting);
+    const external = externalAccount(row.externalPosting, row.sourceFormat);
+    const sourceAccount = sourceCategoryAccount(row.externalPosting, row.sourceFormat, accounts);
     return (
       data.rules.find((rule) => rule.kind === "mapping" && rule.pattern === external)?.account ??
       data.rules.find(
         (rule) => rule.kind === "rule" && row.description.toLowerCase().includes(rule.pattern),
-      )?.account
+      )?.account ??
+      (sourceAccount !== row.account && !accounts.some((a) => a.parentCode === sourceAccount)
+        ? sourceAccount
+        : undefined)
     );
   };
   const close = () => {
@@ -1149,7 +1154,7 @@ function ImportDialog({
   return (
     <BankDialog
       title="Import bank or card CSV"
-      description="QuickBooks Bank Transactions exports and the LedgerX CSV template are supported."
+      description="Supports QuickBooks exports with Spent and Received, QuickBooks posted transactions, and the LedgerX CSV template."
       close={close}
     >
       <form
@@ -1207,6 +1212,7 @@ function ImportDialog({
             className="block max-w-full text-sm"
             type="file"
             accept=".csv,text/csv"
+            disabled={busy}
             onChange={(e) => {
               const value = e.target.files?.[0];
               setFile(undefined);
@@ -1248,6 +1254,9 @@ function ImportDialog({
         <ErrorMessage error={error} />
         {preview && (
           <div className="space-y-2 rounded-md border p-3 text-sm">
+            {preview.format === "quickbooks-review" && (
+              <p>QuickBooks · Spent / Received. Source categories are saved for review.</p>
+            )}
             <p>
               <strong>{preview.count} transactions</strong> · Net{" "}
               {bankMoney(preview.total, currency)}
@@ -1257,6 +1266,7 @@ function ImportDialog({
             {preview.sample.map((r, index) => (
               <p className="truncate" key={index}>
                 {r.date} · {bankMoney(r.amount, currency)} · {r.description}
+                {r.checkNumber && ` · Check ${r.checkNumber}`}
               </p>
             ))}
           </div>

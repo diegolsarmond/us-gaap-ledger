@@ -10,10 +10,11 @@ import {
 } from "@/lib/accounting-store";
 import { account as accountSchema } from "@/lib/accounting-model";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
+import { AccountListImport } from "@/components/account-list-import";
 import { usd, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
-import { ArrowLeft, Plus, Search } from "lucide-react";
+import { ArrowLeft, Plus, Search, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/accounts")({
   head: () =>
@@ -53,6 +54,7 @@ function AccountsPage() {
 
   // Screen View Mode: "list" | "create"
   const [view, setView] = useState<"list" | "create">("list");
+  const [showImport, setShowImport] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
@@ -196,6 +198,24 @@ function AccountsPage() {
       a.description,
       accountBalances[a.code]?.net || 0,
     ]);
+    if (accounts.some((a) => a.sourceAccount)) {
+      headers.push(
+        "QBO Account #",
+        "QBO Account Path",
+        "QBO Account Type",
+        "QBO Currency",
+        "QBO Reported Balance",
+      );
+      accounts.forEach(({ sourceAccount: source }, index) => {
+        rows[index]!.push(
+          source?.number ?? "",
+          source?.path ?? "",
+          source?.type ?? "",
+          source?.currency ?? "",
+          source?.balance ?? "",
+        );
+      });
+    }
     exportToCsv(`${activeCompany.id}_chart_of_accounts`, headers, rows);
   };
 
@@ -216,6 +236,8 @@ function AccountsPage() {
       a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.sourceAccount?.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.sourceAccount?.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.detailType || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "ALL" || a.type === selectedCategory;
@@ -255,6 +277,17 @@ function AccountsPage() {
               >
                 Export COA (CSV)
               </button>
+              {userPersona.canCreateJournals && (
+                <button
+                  type="button"
+                  onClick={() => setShowImport((open) => !open)}
+                  aria-expanded={showImport}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-brand px-3 py-1.5 text-[12px] text-brand"
+                >
+                  <Upload className="size-4" />
+                  Import Account List (CSV)
+                </button>
+              )}
               {userPersona.canCreateJournals && accounts.length === 0 && (
                 <button
                   type="button"
@@ -276,6 +309,9 @@ function AccountsPage() {
               )}
             </div>
           </div>
+          {userPersona.canCreateJournals && showImport && (
+            <AccountListImport companyId={activeCompany.id} name={activeCompany.name} />
+          )}
 
           {/* Search and Category Filters */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -352,6 +388,11 @@ function AccountsPage() {
                           <Td className="font-medium text-ink text-[12px]">
                             {a.name}
                             <div className="text-[11px] font-normal text-ink3">{a.detailType}</div>
+                            {a.sourceAccount && (
+                              <div className="text-[11px] font-normal text-ink3">
+                                QBO {a.sourceAccount.number || "—"} · {a.sourceAccount.path}
+                              </div>
+                            )}
                           </Td>
                           <Td>
                             <Badge
@@ -382,6 +423,11 @@ function AccountsPage() {
                           </Td>
                           <Td align="right" className="font-mono text-[12px] font-medium text-ink">
                             {usd(net)}
+                            {a.sourceAccount && (
+                              <div className="text-[11px] font-normal text-ink3">
+                                QBO · {a.sourceAccount.currency} {a.sourceAccount.balance ?? "—"}
+                              </div>
+                            )}
                           </Td>
                           <Td>
                             {cashLinks.isPending

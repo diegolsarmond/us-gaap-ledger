@@ -11,7 +11,7 @@ import {
 } from "@/lib/format";
 import { bankAmount, itemAmount, type BankCategory } from "@/lib/bank-feed-model";
 import { convertedUnits, unitsAmount } from "@/lib/journal-model";
-import { externalAccount } from "@/lib/statement-csv";
+import { externalAccount, sourceCategoryAccount } from "@/lib/statement-csv";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/searchable-select";
 import { Badge, Table, Td, Th } from "@/components/ui-kit";
@@ -89,6 +89,10 @@ export function BankReview({
         <p className="text-xs font-semibold uppercase text-ink3">Full bank description</p>
         <p className="break-words">{row.description}</p>
         {row.fromTo && <p className="text-ink2">From/To · {row.fromTo}</p>}
+        {row.checkNumber && <p className="text-ink2">Check number · {row.checkNumber}</p>}
+        {row.sourceClass && <p className="text-ink2">QuickBooks class · {row.sourceClass}</p>}
+        {row.sourceLocation && <p className="text-ink2">QuickBooks location · {row.sourceLocation}</p>}
+        {row.sourceCustomer && <p className="text-ink2">QuickBooks customer · {row.sourceCustomer}</p>}
         {row.externalPosting && (
           <p className="text-ink3">QuickBooks history · {row.externalPosting}</p>
         )}
@@ -452,7 +456,8 @@ function CategoryForm({
     dimensions
       .find((d) => d.code.toUpperCase() === code && d.status === "Active")
       ?.options.filter((o) => o.status === "Active") ?? [];
-  const mapCode = externalAccount(row.externalPosting);
+  const mapCode = externalAccount(row.externalPosting, row.sourceFormat);
+  const sourceAccount = sourceCategoryAccount(row.externalPosting, row.sourceFormat, accounts);
   const suggested = [
     ...list.rules.flatMap((rule) => {
       const applies =
@@ -471,6 +476,7 @@ function CategoryForm({
           ]
         : [];
     }),
+    ...(sourceAccount ? [{ account: sourceAccount, reason: "QuickBooks Match/Categorize" }] : []),
     ...detail.recent.map((rule) => ({
       account: rule.account,
       reason: `${rule.count} previous allocations for ${row.fromTo}`,

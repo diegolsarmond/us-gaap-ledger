@@ -69,6 +69,7 @@ export const importDomainSchema = z.enum([
 ]);
 export function importSchema(domain: ImportDomain) {
   if (domain === "companies") return companySchema.omit({ id: true });
+  if (domain === "accounts") return commandArgs.addAccount.items[0].omit({ sourceAccount: true });
   return commandArgs[importCatalog[domain].command].items[0];
 }
 export type ImportColumn = { path: string; type: string; required: boolean; options: string[] };
