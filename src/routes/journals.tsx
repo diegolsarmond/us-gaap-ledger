@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/components/company-context";
@@ -200,11 +200,16 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
     setBusy(true);
     setMessage("");
     try {
-      await work();
+      const result = await work();
       await cache.invalidateQueries({ queryKey: ["journal-list", companyId] });
       await cache.invalidateQueries({ queryKey: ["journal-detail", companyId] });
       await cache.invalidateQueries({ queryKey: ["accounting", companyId] });
-      setMessage(success);
+      await cache.invalidateQueries({ queryKey: ["bank-feed", companyId] });
+      setMessage(
+        result && typeof result === "object" && "conflict" in result
+          ? String(result.conflict)
+          : success,
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -894,11 +899,17 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                           </button>
                         </>
                       )}
-                      {e.status === "Rejected" && permissions?.create && (
-                        <button disabled={busy} className={button} onClick={() => action("revise")}>
-                          Revise as draft
-                        </button>
-                      )}
+                      {e.status === "Rejected" &&
+                        e.source_module !== "Bank Feed" &&
+                        permissions?.create && (
+                          <button
+                            disabled={busy}
+                            className={button}
+                            onClick={() => action("revise")}
+                          >
+                            Revise as draft
+                          </button>
+                        )}
                       {e.status === "Pending Approval" &&
                         permissions?.approve &&
                         (!listing.data?.policy.segregate_approval || e.created_by !== user.id) && (
@@ -931,7 +942,8 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                           </button>
                         )}
                     </div>
-                    {(e.status === "Pending Approval" || e.status === "Posted") && (
+                    {(e.status === "Pending Approval" ||
+                      (e.status === "Posted" && e.source_module !== "Bank Feed")) && (
                       <label className="block text-sm">
                         Reason
                         <textarea
@@ -941,26 +953,35 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                         />
                       </label>
                     )}
-                    {e.status === "Posted" && permissions?.reverse && permissions.post && (
-                      <div className="flex items-end gap-2">
-                        <label>
-                          Reversal accounting date
-                          <input
-                            type="date"
-                            className={control}
-                            value={reversalDate}
-                            onChange={(v) => setReversalDate(v.target.value)}
-                          />
-                        </label>
-                        <button
-                          disabled={busy || !reason.trim() || !reversalDate}
-                          className={button}
-                          onClick={() => action("reverse")}
-                        >
-                          Create and post reversal
-                        </button>
-                      </div>
-                    )}
+                    {e.status === "Posted" &&
+                      e.source_module !== "Bank Feed" &&
+                      permissions?.reverse &&
+                      permissions.post && (
+                        <div className="flex items-end gap-2">
+                          <label>
+                            Reversal accounting date
+                            <input
+                              type="date"
+                              className={control}
+                              value={reversalDate}
+                              onChange={(v) => setReversalDate(v.target.value)}
+                            />
+                          </label>
+                          <button
+                            disabled={busy || !reason.trim() || !reversalDate}
+                            className={button}
+                            onClick={() => action("reverse")}
+                          >
+                            Create and post reversal
+                          </button>
+                        </div>
+                      )}
+                    {e.source_module === "Bank Feed" &&
+                      (e.status === "Posted" || e.status === "Rejected") && (
+                        <Link className="text-sm text-brand underline" to="/statements">
+                          Open Bank Feed
+                        </Link>
+                      )}
                   </div>
                 )
               )}

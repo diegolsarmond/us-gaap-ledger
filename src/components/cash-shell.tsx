@@ -104,7 +104,7 @@ const functionalGroups: MenuGroup[] = [
     label: "Banking & Reports",
     description: "Bank feeds, staging & report builder",
     items: [
-      { label: "Bank Feeds & Staging", route: "/statements", icon: Building },
+      { label: "Bank Feed", route: "/statements", icon: Building },
       { label: "Report Builder", route: "/reports", icon: FileBarChart2 },
     ],
   },

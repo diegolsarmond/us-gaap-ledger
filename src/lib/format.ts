@@ -1,6 +1,32 @@
 export const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
+export function currencyPrecision(currency: string) {
+  return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits ?? 2;
+}
+
+export function formatCurrency(value: string | number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  }).format(Number(value));
+}
+
+export function editableCurrencyAmount(value: string | number, currency: string) {
+  return Number(value).toFixed(Math.min(currencyPrecision(currency), 4));
+}
+
+export function downloadBlob(name: string, content: BlobPart, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** US GAAP accounting format: negative numbers in parentheses e.g. ($1,250.00) */
 export const acct = (n: number) => (n < 0 ? `(${usd(Math.abs(n))})` : usd(n));
 

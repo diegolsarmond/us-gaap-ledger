@@ -21,12 +21,15 @@ interface Journal extends QueryResultRow {
   created_by: string;
   payload_hash: string;
   fiscal_period_id: string;
+  source_module: string;
 }
 interface Line extends QueryResultRow {
   account_code: string;
   description: string;
   debit: string;
   credit: string;
+  base_debit: string;
+  base_credit: string;
   cost_center_id: string | null;
   project_id: string | null;
   customer_id: string | null;
@@ -154,11 +157,16 @@ async function validate(
   if (!rate.rows[0].valid) throw new Error("Invalid exchange rate; USD requires parity 1.");
   return String(period["id"]);
 }
-async function replaceLines(c: PoolClient, j: Journal, v: JournalInput) {
+async function replaceLines(
+  c: PoolClient,
+  j: Journal,
+  v: JournalInput,
+  bases?: { debit: string; credit: string }[],
+) {
   await c.query("DELETE FROM journal_entry_lines WHERE journal_entry_id=$1", [j.id]);
   for (const [i, l] of v.lines.entries())
     await c.query(
-      `INSERT INTO journal_entry_lines(tenant_id,company_id,journal_entry_id,line_number,account_code,description,debit,credit,base_debit,base_credit,cost_center_id,project_id,customer_id,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7::numeric,$8::numeric,round($7::numeric*$9::numeric,2),round($8::numeric*$9::numeric,2),$10,$11,$12,$13)`,
+      `INSERT INTO journal_entry_lines(tenant_id,company_id,journal_entry_id,line_number,account_code,description,debit,credit,base_debit,base_credit,cost_center_id,project_id,customer_id,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7::numeric,$8::numeric,coalesce($14::numeric,round($7::numeric*$9::numeric,2)),coalesce($15::numeric,round($8::numeric*$9::numeric,2)),$10,$11,$12,$13)`,
       [
         j.tenant_id,
         j.company_id,
@@ -173,6 +181,8 @@ async function replaceLines(c: PoolClient, j: Journal, v: JournalInput) {
         l.projectId || null,
         l.customerId || null,
         l.vendorId || null,
+        bases?.[i]?.debit ?? null,
+        bases?.[i]?.credit ?? null,
       ],
     );
 }
@@ -228,7 +238,11 @@ async function create(
       [
         tenant,
         company,
-        reversalOf ? "Reversal" : source ? "Automatic" : v.journalType,
+        reversalOf || (source?.module === bankJournalModule && source.type === "BankFeedReversal")
+          ? "Reversal"
+          : source
+            ? "Automatic"
+            : v.journalType,
         v.accountingDate,
         period,
         v.description,
@@ -249,6 +263,119 @@ async function create(
     )
   ).rows[0]!;
 }
+
+type Actor = { id: string; name: string };
+export const bankJournalModule = "Bank Feed";
+
+export async function journalPostingAccess(c: PoolClient, companyId: string, actorId: string) {
+  const tenant = (await c.query("SELECT id FROM accounting_tenant WHERE singleton")).rows[0]
+    .id as string;
+  const grant = (
+    await c.query(
+      `SELECT coalesce(j.can_approve,p.system_admin) AS approve,coalesce(j.can_post,p.system_admin) AS post,coalesce(j.can_reverse,p.system_admin) AS reverse,coalesce(j.can_soft_close,false) AS soft FROM app_users u JOIN access_profiles p ON p.id=u.profile_id LEFT JOIN accounting_profile_permissions j ON j.profile_id=p.id WHERE u.id=$1`,
+      [actorId],
+    )
+  ).rows[0] as { approve: boolean; post: boolean; reverse: boolean; soft: boolean };
+  const policy = (
+    await c.query("SELECT * FROM accounting_policies WHERE company_id=$1", [companyId])
+  ).rows[0] ?? { approval_required: true, segregate_approval: true };
+  return { tenant, grant, policy };
+}
+
+async function markPosted(c: PoolClient, j: Journal, actor: Actor) {
+  await balanced(c, j.id);
+  await c.query("INSERT INTO accounting_policies(company_id) VALUES($1) ON CONFLICT DO NOTHING", [
+    j.company_id,
+  ]);
+  const n = (
+    await c.query(
+      "UPDATE accounting_policies SET next_number=next_number+1 WHERE company_id=$1 RETURNING next_number-1 AS n",
+      [j.company_id],
+    )
+  ).rows[0].n;
+  await c.query(
+    "UPDATE journal_entries SET journal_number=$2,status='Posted',posted_by=$3,posted_at=now(),version=version+1 WHERE id=$1",
+    [j.id, `JE-${String(n).padStart(8, "0")}`, actor.id],
+  );
+}
+
+/** Called inside the Bank Feed's authorized, company-locked transaction. */
+export async function createBankJournal(
+  c: PoolClient,
+  auth: Awaited<ReturnType<typeof authorizeCompany>>,
+  attempt: string,
+  raw: JournalInput,
+  options: {
+    bases?: { debit: string; credit: string }[];
+    reversal?: { journalId?: string; legacyId?: string; reason: string };
+  } = {},
+) {
+  const companyId = auth.company.id;
+  const { tenant, grant, policy } = await journalPostingAccess(c, companyId, auth.user.id);
+  const value = journalRequest.shape.value.unwrap().parse(raw);
+  const post = !!options.reversal || (!policy.approval_required && grant.post);
+  if (options.reversal && (!grant.post || !grant.reverse))
+    throw new Error("Posting and reversal permissions are required.");
+  if (auth.company.isPeriodClosed) throw new Error("Company accounting period is closed.");
+  const period = await validate(c, companyId, value, grant.soft, true);
+  let original: Journal | undefined;
+  let bases = options.bases;
+  if (options.reversal?.journalId) {
+    original = (
+      await c.query<Journal>(
+        "SELECT * FROM journal_entries WHERE company_id=$1 AND id=$2 AND status='Posted' FOR UPDATE",
+        [companyId, options.reversal.journalId],
+      )
+    ).rows[0];
+    if (
+      !original ||
+      (await c.query("SELECT 1 FROM journal_entries WHERE reversal_of_entry_id=$1", [original.id]))
+        .rowCount
+    )
+      throw new Error("Journal unavailable or already reversed.");
+    const lines = (
+      await c.query(
+        "SELECT base_debit,base_credit FROM journal_entry_lines WHERE journal_entry_id=$1 ORDER BY line_number",
+        [original.id],
+      )
+    ).rows;
+    bases = lines.map((line) => ({ debit: line.base_credit, credit: line.base_debit }));
+  }
+  const eventId = options.reversal ? `${attempt}:reversal` : attempt;
+  const j = await create(
+    c,
+    tenant,
+    companyId,
+    auth.user.id,
+    value,
+    period,
+    {
+      module: bankJournalModule,
+      type: options.reversal ? "BankFeedReversal" : "BankFeedPosting",
+      id: options.reversal?.legacyId ?? attempt,
+      eventId,
+      eventVersion: 1,
+      idempotencyKey: eventId,
+      contractVersion: 1,
+    },
+    undefined,
+    original?.id,
+  );
+  await replaceLines(c, j, value, bases);
+  await balanced(c, j.id);
+  if (post) {
+    await markPosted(c, j, auth.user);
+    if (original) await audit(c, original, auth.user, "reversal_created", options.reversal?.reason);
+  } else {
+    await c.query(
+      "UPDATE journal_entries SET status='Pending Approval',version=version+1 WHERE id=$1",
+      [j.id],
+    );
+  }
+  await audit(c, j, auth.user, post ? "post" : "submit", options.reversal?.reason);
+  return { id: j.id, posted: post };
+}
+
 export async function executeJournal(raw: JournalRequest): Promise<Record<string, unknown>> {
   const input = journalRequest.parse(raw),
     c = await db().connect();
@@ -266,17 +393,7 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
     await setActor(c, auth.user.id);
     // Same lock as parameters/legacy writers: posting cannot race period closure or account changes.
     await c.query("SELECT id FROM companies WHERE id=$1 FOR UPDATE", [input.companyId]);
-    const tenant = (await c.query("SELECT id FROM accounting_tenant WHERE singleton")).rows[0]
-      .id as string;
-    const grant = (
-      await c.query(
-        `SELECT coalesce(j.can_approve,p.system_admin) AS approve,coalesce(j.can_post,p.system_admin) AS post,coalesce(j.can_reverse,p.system_admin) AS reverse,coalesce(j.can_soft_close,false) AS soft FROM app_users u JOIN access_profiles p ON p.id=u.profile_id LEFT JOIN accounting_profile_permissions j ON j.profile_id=p.id WHERE u.id=$1`,
-        [auth.user.id],
-      )
-    ).rows[0];
-    const policy = (
-      await c.query("SELECT * FROM accounting_policies WHERE company_id=$1", [input.companyId])
-    ).rows[0] ?? { approval_required: true, segregate_approval: true };
+    const { tenant, grant, policy } = await journalPostingAccess(c, input.companyId, auth.user.id);
     let result: Record<string, unknown>;
     if (input.operation === "list") {
       const f = input.filters ?? { page: 0 },
@@ -376,10 +493,15 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
           ).rows,
         };
       } else {
+        const bankPosting = j?.source_module === bankJournalModule;
+        if (bankPosting && !["approve", "reject", "post"].includes(input.operation))
+          throw new Error("Manage this journal from the Bank Feed.");
         let hash: string | undefined;
         if (input.operation === "event") {
           if (!input.source || !input.value || input.id)
             throw new Error("Event source and journal payload required.");
+          if (input.source.module === bankJournalModule)
+            throw new Error("Use the Bank Feed operations.");
           hash = createHash("sha256")
             .update(JSON.stringify({ value: input.value, source: input.source }))
             .digest("hex");
@@ -509,6 +631,10 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
               "UPDATE journal_entries SET status=$2,approved_by=$3,approved_at=now(),version=version+1 WHERE id=$1",
               [j.id, input.operation === "approve" ? "Approved" : "Rejected", auth.user.id],
             );
+            if (bankPosting && input.operation === "reject")
+              await (
+                await import("./bank-feed.server")
+              ).releaseBankPosting(c, input.companyId, j.id);
           } else if (input.operation === "revise") {
             if (j.status !== "Rejected")
               throw new Error("Only rejected journals can return to draft.");
@@ -518,6 +644,16 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
             );
           } else if (input.operation === "post" || input.operation === "reverse") {
             if (input.operation === "reverse") {
+              if (
+                (await c.query("SELECT to_regclass('bank_feed_links') AS name")).rows[0].name &&
+                (
+                  await c.query(
+                    "SELECT 1 FROM bank_feed_links WHERE company_id=$1 AND active AND starts_with(movement_key,$2)",
+                    [input.companyId, `journal:${j.id}:`],
+                  )
+                ).rowCount
+              )
+                throw new Error("Undo the Bank Feed match before reversing this journal.");
               if (
                 !grant.reverse ||
                 !grant.post ||
@@ -555,7 +691,15 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
                 undefined,
                 original.id,
               );
-              await replaceLines(c, j, rv);
+              await replaceLines(
+                c,
+                j,
+                rv,
+                ls.map((line) => ({
+                  debit: String(line.base_credit),
+                  credit: String(line.base_debit),
+                })),
+              );
               await audit(c, original, auth.user, "reversal_created", input.reason);
             } else {
               if (
@@ -571,21 +715,24 @@ export async function executeJournal(raw: JournalRequest): Promise<Record<string
             }
             if (auth.company.isPeriodClosed)
               throw new Error("Company accounting period is closed.");
-            await balanced(c, j.id);
-            await c.query(
-              "INSERT INTO accounting_policies(company_id) VALUES($1) ON CONFLICT DO NOTHING",
-              [input.companyId],
-            );
-            const n = (
-              await c.query(
-                "UPDATE accounting_policies SET next_number=next_number+1 WHERE company_id=$1 RETURNING next_number-1 AS n",
-                [input.companyId],
-              )
-            ).rows[0].n;
-            await c.query(
-              "UPDATE journal_entries SET journal_number=$2,status='Posted',posted_by=$3,posted_at=now(),version=version+1 WHERE id=$1",
-              [j.id, `JE-${String(n).padStart(8, "0")}`, auth.user.id],
-            );
+            if (bankPosting) {
+              const feed = await import("./bank-feed.server");
+              const conflict = await feed.completeBankPosting(c, auth, j.id);
+              if (conflict) {
+                await c.query(
+                  "UPDATE journal_entries SET status='Rejected',version=version+1 WHERE id=$1",
+                  [j.id],
+                );
+                await feed.releaseBankPosting(c, input.companyId, j.id);
+                await audit(c, j, auth.user, "reject", conflict);
+                await c.query("UPDATE companies SET revision=revision+1 WHERE id=$1", [
+                  input.companyId,
+                ]);
+                await c.query("COMMIT");
+                return { entry: { ...j, status: "Rejected", version: j.version + 1 }, conflict };
+              }
+            }
+            await markPosted(c, j, auth.user);
           } else throw new Error("Unsupported journal action.");
           await audit(c, j, auth.user, input.operation, input.reason);
         }

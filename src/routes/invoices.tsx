@@ -3,7 +3,7 @@ import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
 import { TransactionRateFields } from "@/components/transaction-rate-fields";
 import { useTransactionQuote } from "@/lib/use-transaction-quote";
-import { normalizedFx, outstanding } from "@/lib/transaction-fx";
+import { normalizedFx, outstanding, paymentCashFlow } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
@@ -97,12 +97,9 @@ function InvoicesPage() {
   const totalOverdue = invoices
     .filter((i) => i.status !== "Paid" && i.dueDate < new Date().toISOString().slice(0, 10))
     .reduce((s, i) => s + outstanding(i).functional, 0);
+  const currentMonth = new Date().toISOString().slice(0, 7);
   const totalPaid = invoices.reduce(
-    (s, i) =>
-      s +
-      (i.payments || [])
-        .filter((p) => p.date.startsWith(new Date().toISOString().slice(0, 7)))
-        .reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+    (s, i) => s + (i.payments || []).reduce((t, p) => t + paymentCashFlow(p, currentMonth), 0),
     0,
   );
 

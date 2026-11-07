@@ -1,8 +1,7 @@
 import {
-  earlyPaymentDiscount,
   normalizedFx,
   outstanding,
-  settlement,
+  settlementAmounts,
   closingAdjustment,
   nextDay,
   money,
@@ -208,7 +207,7 @@ export interface StagingRow {
   amount: number;
   suggestedAccount: string;
   classifiedAccount?: string | undefined;
-  status: "Pending" | "Classified";
+  status: "Pending" | "Classified" | "Excluded";
 }
 
 export interface TaxRecord {
@@ -1099,16 +1098,14 @@ export function createAccountingEngine(
           error: "Select a bank account of this vendor in the payment currency.",
         };
     }
-    let result: ReturnType<typeof settlement>;
+    let result: ReturnType<typeof settlementAmounts>;
     try {
-      result = settlement(doc, kind, amount, appliedRate, paymentDate);
+      result = settlementAmounts(doc, kind, amount, appliedRate, paymentDate);
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Invalid payment" };
     }
     const control = documentControlAccount(kind, id);
-    const discountAmount = earlyPaymentDiscount(doc, paymentDate, amount);
-    const discountFunctional = money(discountAmount * appliedRate);
-    const cashFunctionalAmount = money(result.functionalAmount - discountFunctional);
+    const { discountAmount, discountFunctional, cashFunctionalAmount } = result;
     const cash = resolveAccount(nextData.accounts, "10200", "1000");
     const lines = [
       {

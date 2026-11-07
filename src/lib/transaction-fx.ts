@@ -24,8 +24,17 @@ export const paymentSchema = z.object({
   realizedGain: z.number().finite(),
   bankAccountId: z.string().optional(),
   journalId: z.string(),
+  reversedAt: z.string().date().optional(),
+  reversalJournalId: z.string().optional(),
 });
 export type Payment = z.infer<typeof paymentSchema>;
+export function paymentCashFlow(payment: Payment, month?: string) {
+  const amount = payment.cashFunctionalAmount ?? payment.functionalAmount;
+  const paid = !month || payment.date.startsWith(month) ? amount : 0;
+  const reversed =
+    payment.reversedAt && (!month || payment.reversedAt.startsWith(month)) ? amount : 0;
+  return paid - reversed;
+}
 export interface TransactionFx {
   earlyDiscountPercentage?: number | undefined;
   discountDays?: number | undefined;
@@ -82,7 +91,9 @@ export function outstanding(
   const fx = normalizedFx(doc);
   if (doc.date > asOf) return { native: 0, functional: 0 };
   // Legacy paid documents are migrated with a payment row.
-  const payments = (doc.payments || []).filter((p) => p.date <= asOf);
+  const payments = (doc.payments || []).filter(
+    (p) => p.date <= asOf && (!p.reversedAt || p.reversedAt > asOf),
+  );
   return {
     native: Math.max(
       0,
@@ -103,7 +114,7 @@ export function settlement(
 ) {
   const fx = normalizedFx(doc),
     open = outstanding(doc);
-  if (date < doc.date || (doc.payments || []).some((p) => p.date > date))
+  if (date < doc.date || (doc.payments || []).some((p) => (p.reversedAt ?? p.date) > date))
     throw new Error("Payment dates must be chronological and on or after issue date.");
   if (!Number.isFinite(amount) || money(amount) <= 0 || money(amount) > open.native)
     throw new Error("Payment exceeds the outstanding transaction amount.");
@@ -139,6 +150,25 @@ export function earlyPaymentDiscount(
   const taxableRatio = doc.total && doc.subtotal != null ? doc.subtotal / doc.total : 1;
   return money((amount * taxableRatio * doc.earlyDiscountPercentage!) / 100);
 }
+export function settlementAmounts(
+  doc: Parameters<typeof outstanding>[0] & { subtotal?: number },
+  kind: "AP" | "AR",
+  amount: number,
+  rate: number,
+  date: string,
+) {
+  const result = settlement(doc, kind, amount, rate, date);
+  const discountAmount = earlyPaymentDiscount(doc, date, amount);
+  const discountFunctional = money(discountAmount * rate);
+  return {
+    ...result,
+    discountAmount,
+    discountFunctional,
+    cashFunctionalAmount: money(result.functionalAmount - discountFunctional),
+    cashAmount: money(amount - discountAmount),
+  };
+}
+
 export function nextDay(date: string) {
   const d = new Date(date + "T12:00:00Z");
   d.setUTCDate(d.getUTCDate() + 1);

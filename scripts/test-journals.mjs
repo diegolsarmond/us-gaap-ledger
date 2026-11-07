@@ -39,7 +39,7 @@ try {
   created = true;
   await client.query(`SET search_path TO "${schema}"`);
   for (const file of readdirSync(new URL("../database/", import.meta.url))
-    .filter((x) => x.endsWith(".sql") && !x.startsWith("000"))
+    .filter((x) => x.endsWith(".sql") && !/^(000|024)/.test(x))
     .sort())
     await client.query(readFileSync(new URL("../database/" + file, import.meta.url), "utf8"));
   globalThis.journalDb = {

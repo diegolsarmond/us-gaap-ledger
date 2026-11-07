@@ -298,6 +298,8 @@ export async function execute(
   const command = input.command as AccountingCommand;
   if (command === "postJournalEntry" || command === "reverseJournalEntry")
     throw new Error("Use the Journal Entries posting engine.");
+  if (command === "importStatement" || command === "classifyStagingRow")
+    throw new Error("Use the Bank Feed operations.");
   // Optional positional arguments omitted by JSON serialization still have stable tuple positions.
   const raw = [...input.args];
   const schema = commandArgs[command];
@@ -505,6 +507,7 @@ export async function execute(
     // Preserve posted journals; only the engine's explicit reversal may change their status.
     await client.query("DELETE FROM ledger_references WHERE company_id=$1", [input.companyId]);
     for (const domain of domains) {
+      if (domain === "statements" || domain === "stagingRows") continue;
       const values = next[domain] as unknown as Record<string, unknown>[];
       await replaceLedger(client, input.companyId, domain, values);
     }

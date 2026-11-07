@@ -1,4 +1,4 @@
-import { normalizedFx } from "@/lib/transaction-fx";
+import { normalizedFx, paymentCashFlow } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
@@ -72,7 +72,7 @@ function ProjectsPage() {
         (s, i) =>
           s +
           (i.payments || []).reduce(
-            (t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount),
+            (t, p) => t + paymentCashFlow(p),
             0,
           ),
         0,
@@ -81,7 +81,7 @@ function ProjectsPage() {
         (s, b) =>
           s +
           (b.payments || []).reduce(
-            (t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount),
+            (t, p) => t + paymentCashFlow(p),
             0,
           ),
         0,

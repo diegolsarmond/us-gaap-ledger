@@ -8,6 +8,7 @@ const modules = {
   reports: () => import("./reports.operations.server"),
   journals: () => import("./journals.operations.server"),
   "vendor-attachments": () => import("./vendor-attachments.operations.server"),
+  "bank-feed": () => import("./bank-feed.operations.server"),
 };
 
 export async function dispatchJson(

@@ -3,7 +3,7 @@ import { TradeSettlement } from "@/components/trade-settlement";
 import { TradeAging } from "@/components/trade-aging";
 import { TransactionRateFields } from "@/components/transaction-rate-fields";
 import { useTransactionQuote } from "@/lib/use-transaction-quote";
-import { money, outstanding } from "@/lib/transaction-fx";
+import { money, outstanding, paymentCashFlow } from "@/lib/transaction-fx";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DimensionFields, DimensionLabels } from "@/components/dimension-fields";
@@ -86,12 +86,9 @@ function PayablesPage() {
   const totalOpenAp = bills
     .filter((b) => b.status !== "Paid")
     .reduce((s, b) => s + outstanding(b).functional, 0);
+  const currentMonth = new Date().toISOString().slice(0, 7);
   const totalPaidAp = bills.reduce(
-    (s, b) =>
-      s +
-      (b.payments || [])
-        .filter((p) => p.date.startsWith(new Date().toISOString().slice(0, 7)))
-        .reduce((t, p) => t + (p.cashFunctionalAmount ?? p.functionalAmount), 0),
+    (s, b) => s + (b.payments || []).reduce((t, p) => t + paymentCashFlow(p, currentMonth), 0),
     0,
   );
 

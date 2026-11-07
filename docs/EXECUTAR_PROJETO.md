@@ -51,6 +51,14 @@ node --env-file=.env .output/server/index.mjs
 
 No Easypanel, configure DATABASE_URL nas variáveis do serviço e use o Dockerfile existente. Execute os scripts de banco e criação de usuário antes do primeiro acesso. Use HTTPS: em produção o cookie usa Secure. Os arquivos .env não devem entrar na imagem Docker.
 
+### Bank Feed
+
+Antes de publicar a versão com o Bank Feed, aplique `database/033_bank_feed.sql` após as migrações anteriores. A migração é reexecutável. Ela preserva os extratos existentes e recupera vínculos de postagens legadas quando a auditoria comprova a relação.
+
+Em **Bank Feed**, selecione a conta e a moeda do extrato, importe o CSV e revise as linhas em **Pending**. Use **Categorize** para postar contrapartidas, **Open bills / receivables** para liquidar títulos e **Recorded payments / receipts & journals** para conciliar movimentos já lançados. As regras de aprovação e os períodos fiscais são os mesmos da área de lançamentos.
+
+Para validar em um banco de teste, execute `npm run test:bank-feed`. O teste usa um esquema isolado e aceita o caminho do CSV do QuickBooks como argumento opcional.
+
 ## Escopo atual
 
 O PostgreSQL armazena usuários, hashes de senha scrypt, sessões (somente hash do token) e controle de tentativas de login (dez por e-mail a cada quinze minutos). Cookies são HttpOnly e SameSite=Lax, e as ações de login/logout usam a proteção CSRF do TanStack Start.
