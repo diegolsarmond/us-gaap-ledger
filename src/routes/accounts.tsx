@@ -16,6 +16,9 @@ import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { ArrowLeft, Plus, Search, Upload } from "lucide-react";
 
+const displayCode = (account: Account) => account.sourceAccount?.number ?? account.code;
+const codeOrder = new Intl.Collator("en", { numeric: true });
+
 export const Route = createFileRoute("/accounts")({
   head: () =>
     pageHead(
@@ -231,18 +234,25 @@ function AccountsPage() {
     "Other Expense",
   ];
 
-  const filteredAccounts = accounts.filter((a) => {
-    const matchesSearch =
-      a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.sourceAccount?.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.sourceAccount?.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (a.detailType || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "ALL" || a.type === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredAccounts = accounts
+    .filter((a) => {
+      const matchesSearch =
+        a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.sourceAccount?.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.sourceAccount?.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (a.subgroup || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (a.detailType || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === "ALL" || a.type === selectedCategory;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      const assetOrder = Number(b.type === "Asset") - Number(a.type === "Asset");
+      const left = displayCode(a);
+      const right = displayCode(b);
+      return assetOrder || Number(!left) - Number(!right) || codeOrder.compare(left, right);
+    });
 
   return (
     <div className="space-y-4">
@@ -383,7 +393,7 @@ function AccountsPage() {
                           className="border-b border-line/40 last:border-0 hover:bg-black/[0.01] transition-colors"
                         >
                           <Td className="font-mono text-[11.5px] font-semibold text-brand">
-                            {a.code}
+                            {displayCode(a) || "—"}
                           </Td>
                           <Td className="font-medium text-ink text-[12px]">
                             {a.name}

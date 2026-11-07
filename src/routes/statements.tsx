@@ -62,14 +62,13 @@ export const Route = createFileRoute("/statements")({
 
 const statuses = [
   { id: "Pending", name: "Pending" },
-  { id: "QuickBooksPosted", name: "Posted in QuickBooks" },
-  { id: "Classified", name: "Posted in LedgerX" },
+  { id: "Posted", name: "Posted" },
   { id: "Excluded", name: "Excluded" },
 ] as const;
 type BankTab = (typeof statuses)[number]["id"];
 function bankTab(row: BankRow): BankTab {
-  return row.status === "Pending" && row.sourceStatus === "Posted"
-    ? "QuickBooksPosted"
+  return row.status === "Classified" || (row.status === "Pending" && row.sourceStatus === "Posted")
+    ? "Posted"
     : row.status;
 }
 const optionalColumns = ["Files", "Party", "Source posting", "Status"] as const;
@@ -207,8 +206,8 @@ function CompanyFeed() {
   const status =
     selectedStatus ??
     (!rows.some((row) => bankTab(row) === "Pending") &&
-    rows.some((row) => bankTab(row) === "QuickBooksPosted")
-      ? "QuickBooksPosted"
+    rows.some((row) => bankTab(row) === "Posted")
+      ? "Posted"
       : "Pending");
   const filter = search.trim().toLowerCase();
   const filtered = rows
@@ -248,6 +247,8 @@ function CompanyFeed() {
   const selectableRows = pageRows.filter(canSelect);
   const selectedSet = new Set(selectedIds);
   const selectedRows = eligibleRows.filter((row) => selectedSet.has(row.id));
+  const selectedPending = selectedRows.filter((row) => row.status === "Pending");
+  const selectedToUndo = selectedRows.filter(canUndo);
   const checkedOnPage = selectableRows.filter((row) => selectedSet.has(row.id)).length;
   const allChecked = selectableRows.length > 0 && checkedOnPage === selectableRows.length;
   const clearSelection = () => {
@@ -338,10 +339,10 @@ function CompanyFeed() {
     const columnLabel = (column: GridColumn) => {
       if (column === "Description") return "Full bank description";
       if (column === "Party") return "From/To";
-      if (column === "Review")
-        return status === "Pending" || status === "QuickBooksPosted"
-          ? "Match / Categorize"
-          : "Posting";
+      if (column === "Review") {
+        if (status === "Pending") return "Match / Categorize";
+        return status === "Posted" ? "Review / Posting" : "Posting";
+      }
       return column;
     };
     const sortFields = { Date: "date", Description: "description", Amount: "amount" } as const;
@@ -604,16 +605,14 @@ function CompanyFeed() {
               ),
               Status: (
                 <Td>
-                  <Badge
-                    tone={
-                      row.status === "Classified" || bankTab(row) === "QuickBooksPosted"
-                        ? "up"
-                        : "neutral"
-                    }
-                  >
+                  <Badge tone={bankTab(row) === "Posted" ? "up" : "neutral"}>
                     {row.attemptState === "pending"
                       ? "In approval"
-                      : statuses.find((tab) => tab.id === bankTab(row))?.name}
+                      : bankTab(row) === "Posted"
+                        ? row.status === "Classified"
+                          ? "Posted in LedgerX"
+                          : "Posted in QuickBooks"
+                        : row.status}
                   </Badge>
                 </Td>
               ),
@@ -764,6 +763,23 @@ function CompanyFeed() {
       <div className="grid auto-cols-[minmax(13rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 print:hidden">
         {[...accountCodes].map((code) => {
           const balance = data.balances.find((b) => b.account === code);
+          const source = accounts.find((a) => a.code === code)?.sourceAccount;
+          const posted = data.posted.find((b) => b.account === code);
+          const displayedBalance = balance
+            ? {
+                amount: balance.amount,
+                currency: balance.currency,
+                label: `Bank balance as of ${balance.date}`,
+              }
+            : source?.balance != null
+              ? {
+                  amount: source.balance,
+                  currency: source.currency,
+                  label: "Balance reported by QuickBooks",
+                }
+              : posted
+                ? { amount: posted.amount, currency: "USD", label: "Posted LedgerX balance in USD" }
+                : undefined;
           const pending = data.rows.filter(
             (r) => r.account === code && bankTab(r) === "Pending",
           ).length;
@@ -781,11 +797,11 @@ function CompanyFeed() {
                 </span>
                 <Badge>{pending}</Badge>
               </div>
-              <div className="mt-2 text-sm">
-                Bank {balance ? bankMoney(balance.amount, balance.currency) : "—"}
-              </div>
-              <div className="text-xs text-ink3">
-                Posted {bankMoney(data.posted.find((b) => b.account === code)?.amount ?? "0")} USD
+              <div className="mt-2 text-sm" title={displayedBalance?.label}>
+                Balance{" "}
+                {displayedBalance
+                  ? bankMoney(displayedBalance.amount, displayedBalance.currency)
+                  : "—"}
               </div>
             </button>
           );
@@ -931,31 +947,33 @@ function CompanyFeed() {
                   <span className="font-semibold" role="status">
                     {selectedRows.length} selected
                   </span>
-                  {(status === "Pending" || status === "QuickBooksPosted") && (
+                  {selectedPending.length > 0 && (
                     <>
                       <Button
                         size="sm"
-                        onClick={() => setBatch({ operation: "categorize", rows: selectedRows })}
+                        onClick={() => setBatch({ operation: "categorize", rows: selectedPending })}
                       >
-                        {status === "QuickBooksPosted"
-                          ? "Post selected in LedgerX"
+                        {status === "Posted"
+                          ? `Post ${selectedPending.length} in LedgerX`
                           : "Post selected"}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setBatch({ operation: "exclude", rows: selectedRows })}
+                        onClick={() => setBatch({ operation: "exclude", rows: selectedPending })}
                       >
-                        Exclude selected
+                        {status === "Posted"
+                          ? `Exclude ${selectedPending.length}`
+                          : "Exclude selected"}
                       </Button>
                     </>
                   )}
-                  {status === "Classified" && (
+                  {selectedToUndo.length > 0 && (
                     <Button
                       size="sm"
-                      onClick={() => setBatch({ operation: "undo", rows: selectedRows })}
+                      onClick={() => setBatch({ operation: "undo", rows: selectedToUndo })}
                     >
-                      Undo selected
+                      Undo {selectedToUndo.length} in LedgerX
                     </Button>
                   )}
                   {status === "Excluded" && (
@@ -1030,7 +1048,7 @@ function CompanyFeed() {
           close={close}
           done={(code, count, postedInQuickBooks) => {
             setAccountChoice(code);
-            setStatus(postedInQuickBooks ? "QuickBooksPosted" : "Pending");
+            setStatus(postedInQuickBooks ? "Posted" : "Pending");
             goToPage(0);
             setNotice(
               `${count} transactions imported${postedInQuickBooks ? ` · ${postedInQuickBooks} posted in QuickBooks` : ""}.`,
