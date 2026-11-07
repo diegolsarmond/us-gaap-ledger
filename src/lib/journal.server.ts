@@ -283,7 +283,9 @@ export async function journalPostingAccess(c: PoolClient, companyId: string, act
     )
   ).rows[0] as { approve: boolean; post: boolean; reverse: boolean; soft: boolean };
   const policy = (
-    await c.query("SELECT * FROM accounting_policies WHERE company_id=$1", [companyId])
+    await c.query("SELECT *,opening_date::text FROM accounting_policies WHERE company_id=$1", [
+      companyId,
+    ])
   ).rows[0] ?? { approval_required: true, segregate_approval: true };
   return { tenant, grant, policy };
 }

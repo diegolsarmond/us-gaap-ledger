@@ -15,6 +15,7 @@ import { PageTitle, Panel, Badge } from "@/components/ui-kit";
 import { pageHead } from "@/lib/head";
 import { exportToCsv } from "@/lib/format";
 import { SearchableSelect } from "@/components/searchable-select";
+import { quickBooksOpening } from "@/lib/quickbooks-opening";
 export const Route = createFileRoute("/journals")({
   head: () =>
     pageHead(
@@ -70,7 +71,11 @@ interface Listing {
     reverse: boolean;
     soft: boolean;
   };
-  policy: { approval_required: boolean; segregate_approval: boolean };
+  policy: {
+    approval_required: boolean;
+    segregate_approval: boolean;
+    opening_date?: string | null;
+  };
 }
 const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";
 const button = "rounded-md border border-line px-3 py-2 text-sm font-medium disabled:opacity-40";
@@ -87,6 +92,88 @@ const blank = (): JournalInput => ({
     { accountCode: "", description: "", debit: "0", credit: "0" },
   ],
 });
+function QuickBooksOpeningLoader({
+  accounts,
+  openingDate,
+  currency,
+  onLoad,
+}: {
+  accounts: Parameters<typeof quickBooksOpening>[0];
+  openingDate: string | null;
+  currency: string;
+  onLoad: (lines: JournalInput["lines"], accountingDate: string | null) => void;
+}) {
+  const opening = quickBooksOpening(accounts, "USD");
+  const [loaded, setLoaded] = useState(false);
+  if (!opening.lines.length) return null;
+  const usd = (value: string) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+  const result = Number(opening.accumulatedResult);
+  return (
+    <div className="space-y-2 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">
+          QuickBooks Account List balances are available for{" "}
+          {opening.lines.length - (opening.retainedEarnings && result !== 0 ? 1 : 0)} analytical
+          accounts.
+        </p>
+        <button
+          type="button"
+          className={button}
+          disabled={currency !== "USD"}
+          onClick={() => {
+            onLoad(opening.lines, openingDate);
+            setLoaded(true);
+          }}
+        >
+          {loaded ? "Reload QuickBooks balances" : "Load QuickBooks balances"}
+        </button>
+      </div>
+      <ul className="list-disc space-y-1 pl-5 text-xs text-ink2">
+        <li>
+          Parent accounts are skipped: their QuickBooks total already includes their subaccounts.
+        </li>
+        <li>
+          The Account List has no income statement history.{" "}
+          {opening.retainedEarnings
+            ? `The ${result < 0 ? "accumulated loss" : "accumulated profit"} of ${usd(String(Math.abs(result)))} balances to ${opening.retainedEarnings}.`
+            : "Add a Retained Earnings equity account to balance the accumulated result."}
+        </li>
+        <li>
+          {openingDate ? (
+            <>The accounting date is the authorized opening date, {openingDate}.</>
+          ) : (
+            <>
+              Set the authorized opening date in{" "}
+              <Link to="/parameters" className="underline">
+                System Parameters → Journal settings
+              </Link>{" "}
+              to the date of the QuickBooks balances before posting.
+            </>
+          )}{" "}
+          Bank Feed lines QuickBooks had already posted up to that date are included in these
+          balances; post only the ones still pending.
+        </li>
+        {currency !== "USD" && <li className="text-amber-900">Use USD to load these balances.</li>}
+        {opening.foreign.map((a) => (
+          <li key={a.code} className="text-amber-900">
+            {a.code} · {a.name} reports {a.balance} in a {a.currency} account and is not loaded: add
+            its USD equivalent and adjust the {opening.retainedEarnings ?? "balancing"} line by the
+            same amount.
+          </li>
+        ))}
+        {opening.unbalancedParents.map((a) => (
+          <li key={a.code} className="text-amber-900">
+            {a.code} · {a.name} reports {a.residual} (debit-positive) that its subaccounts do not
+            explain, and journals cannot post to parent accounts. It is not loaded: add it on the
+            subaccount that holds it and adjust the {opening.retainedEarnings ?? "balancing"} line
+            by the same amount.
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 async function api<T>(companyId: string, path = "", method = "GET", body?: unknown): Promise<T> {
   const response = await fetch(`/api/journal-entries${path}?companyId=${companyId}`, {
     method,
@@ -439,6 +526,23 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
                 />
               </label>
             </div>
+            {form.journalType === "Opening" && !editId && (
+              <QuickBooksOpeningLoader
+                accounts={data?.accounts ?? []}
+                openingDate={listing.data?.policy.opening_date ?? null}
+                currency={form.currency}
+                onLoad={(lines, accountingDate) =>
+                  setForm({
+                    ...form,
+                    ...(accountingDate ? { accountingDate } : {}),
+                    description:
+                      form.description || "Opening balances migrated from QuickBooks Account List",
+                    reference: form.reference || "QuickBooks Account List",
+                    lines,
+                  })
+                }
+              />
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
