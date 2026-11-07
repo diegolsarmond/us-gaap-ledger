@@ -2,19 +2,18 @@ import { dateSchema } from "./cash-flow-model";
 import { currencyPrecision } from "./format";
 
 type SourceFormat = "ledgerx" | "quickbooks-posted" | "quickbooks-review";
-const formats = new Map<string, SourceFormat>([
-  ["date,description,amount", "ledgerx"],
-  ["date,bank description,amount,from/to,transaction posted", "quickbooks-posted"],
-  [
-    "date,check no.,bank description,spent,received,from/to,class,location,customer,match/categorize",
-    "quickbooks-review",
-  ],
-]);
+
+export function quickBooksAutoPost(posting: string) {
+  if (/\b(?:auto[- ]post\s*\(\s*match\s*\)|automatically matched\b|auto[- ]matched\b)/i.test(posting))
+    return "match" as const;
+  if (/\bauto[- ]post(?:\s*\(\s*rule\s*\)|\s*$)/i.test(posting)) return "rule" as const;
+  return null;
+}
 
 export function quickBooksSourceStatus(format: SourceFormat | null, posting: string) {
   if (format === "quickbooks-review") return "Pending" as const;
   // Older imports may have a posting label but no persisted source format.
-  if (format !== "ledgerx" && /^(?:(?:Added|Matched) to:\s*\S|Posted$)/i.test(posting))
+  if (format !== "ledgerx" && (/^(?:(?:Added|Matched) to:\s*\S|Posted$)/i.test(posting) || quickBooksAutoPost(posting)))
     return "Posted" as const;
   return null;
 }
@@ -65,33 +64,54 @@ export function parseStatementFile(content: string, currency = "USD") {
     throw new Error("Selecione um CSV de até 2 MB.");
   const source = content.replace(/^\uFEFF/, "");
   const firstLine = source.split(/\r?\n|\r/, 1)[0] ?? "";
-  const delimiter = firstLine.includes(";") ? ";" : ",";
+  const delimiter = firstLine.replace(/"(?:[^"]|"")*"/g, "").includes(";") ? ";" : ",";
   const rows = readCsvRows(source, delimiter);
-  const header = rows
-    .shift()
-    ?.map((v) => v.trim().toLowerCase())
-    .join(",");
-  const format = formats.get(header ?? "");
-  if (!format) throw new Error("Use o CSV do QuickBooks ou o modelo date,description,amount.");
+  const header =
+    rows.shift()?.map((value) => value.trim().toLowerCase().replace(/\s+/g, " ")) ?? [];
+  const columns = new Map(header.map((name, index) => [name, index]));
+  if (columns.size !== header.length) throw new Error("O CSV contém colunas duplicadas.");
+  const quickBooks = columns.has("bank description");
+  const review = columns.has("match/categorize");
+  const posted = columns.has("transaction posted");
+  const amountColumn = columns.has("amount");
+  const splitAmounts = columns.has("spent") && columns.has("received");
+  const hasSplitColumn = columns.has("spent") || columns.has("received");
+  if (
+    !columns.has("date") ||
+    (amountColumn ? hasSplitColumn : !splitAmounts) ||
+    (quickBooks
+      ? review && posted
+      : !columns.has("description") || !amountColumn || review || posted)
+  )
+    throw new Error("Use o CSV do QuickBooks ou o modelo date,description,amount.");
   if (!rows.length || rows.length > 5000)
     throw new Error("O CSV deve conter de 1 a 5.000 transações.");
+  const format: SourceFormat | null = !quickBooks
+    ? "ledgerx"
+    : review
+      ? "quickbooks-review"
+      : posted
+        ? "quickbooks-posted"
+        : null;
+  const read = (row: string[], column: string) => row[columns.get(column) ?? -1] ?? "";
   const precision = Math.min(currencyPrecision(currency), 4);
-  const quickBooks = format !== "ledgerx";
-  const review = format === "quickbooks-review";
   const transactions = rows.map((row, i) => {
-    const [rawDate = "", description = "", rawAmount = "", fromTo = "", externalPosting = ""] = row;
-    const spent = review ? row[3]?.trim() || "" : "";
-    const received = review ? row[4]?.trim() || "" : "";
-    const bankDescription = review ? rawAmount : description;
-    const party = review ? (row[5] ?? "") : fromTo;
-    const posting = review ? (row[9] ?? "") : externalPosting;
-    const checkNumber = review ? row[1]?.trim() || null : null;
-    const sourceClass = review ? row[6]?.trim() || null : null;
-    const sourceLocation = review ? row[7]?.trim() || null : null;
-    const sourceCustomer = review ? row[8]?.trim() || null : null;
-    const usDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(rawDate.trim());
-    const date = quickBooks && usDate ? `${usDate[3]}-${usDate[1]}-${usDate[2]}` : rawDate.trim();
-    const raw = review ? spent || received : rawAmount.trim();
+    const rawDate = read(row, "date").trim();
+    const spent = read(row, "spent").trim();
+    const received = read(row, "received").trim();
+    const bankDescription = read(row, quickBooks ? "bank description" : "description");
+    const party = read(row, "from/to");
+    const posting = read(row, review ? "match/categorize" : "transaction posted");
+    const checkNumber = read(row, "check no.").trim() || null;
+    const sourceClass = read(row, "class").trim() || null;
+    const sourceLocation = read(row, "location").trim() || null;
+    const sourceCustomer = read(row, "customer").trim() || null;
+    const usDate = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(rawDate);
+    const date =
+      quickBooks && usDate
+        ? `${usDate[3]}-${usDate[1]!.padStart(2, "0")}-${usDate[2]!.padStart(2, "0")}`
+        : rawDate;
+    const raw = splitAmounts ? spent || received : read(row, "amount").trim();
     const externalAmount = /^(-?)([A-Z]{3} |\$)?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?$/.exec(raw);
     const symbol = externalAmount?.[2]?.trim();
     const decimal =
@@ -100,8 +120,8 @@ export function parseStatementFile(content: string, currency = "USD") {
         : raw;
     const amount = Number(decimal);
     if (
-      row.length !== (review ? 10 : quickBooks ? 5 : 3) ||
-      (review && (Boolean(spent) === Boolean(received) || raw.startsWith("-"))) ||
+      row.length !== header.length ||
+      (splitAmounts && (Boolean(spent) === Boolean(received) || raw.startsWith("-"))) ||
       !dateSchema.safeParse(date).success ||
       !bankDescription.trim() ||
       bankDescription.length > 500 ||

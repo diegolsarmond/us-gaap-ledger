@@ -11,7 +11,7 @@ import {
 import { account as accountSchema } from "@/lib/accounting-model";
 import { Badge, Note, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { AccountListImport } from "@/components/account-list-import";
-import { usd, exportToCsv } from "@/lib/format";
+import { formatCurrency, exportToCsv } from "@/lib/format";
 import { pageHead } from "@/lib/head";
 import { useModal } from "@/components/modal-provider";
 import { ArrowLeft, Plus, Search, Upload } from "lucide-react";
@@ -367,7 +367,7 @@ function AccountsPage() {
                     <Th>Classification / Structure</Th>
                     <Th>Normal Bal</Th>
                     <Th>Accounting Scope</Th>
-                    <Th align="right">Current Net Balance</Th>
+                    <Th align="right">Balance</Th>
                     <Th>Cash flow / forecast links</Th>
                     {userPersona.canCreateJournals && <Th>Actions</Th>}
                   </tr>
@@ -386,7 +386,9 @@ function AccountsPage() {
                     </tr>
                   ) : (
                     filteredAccounts.map((a) => {
-                      const net = accountBalances[a.code]?.net || 0;
+                      const source = a.sourceAccount;
+                      const useSourceBalance = source?.balance != null;
+                      const balance = source?.balance ?? accountBalances[a.code]?.net ?? 0;
                       return (
                         <tr
                           key={a.code}
@@ -432,12 +434,7 @@ function AccountsPage() {
                             {a.description}
                           </Td>
                           <Td align="right" className="font-mono text-[12px] font-medium text-ink">
-                            {usd(net)}
-                            {a.sourceAccount && (
-                              <div className="text-[11px] font-normal text-ink3">
-                                QBO · {a.sourceAccount.currency} {a.sourceAccount.balance ?? "—"}
-                              </div>
-                            )}
+                            {formatCurrency(balance, useSourceBalance ? source.currency : "USD")}
                           </Td>
                           <Td>
                             {cashLinks.isPending
@@ -488,9 +485,9 @@ function AccountsPage() {
                 Account codes are defined by the company. The five-digit template uses 10000–19999
                 Assets, 20000–29999 Liabilities, 30000–39999 Equity, 40000–49999 Revenue,
                 50000–59999 COGS, 60000–79999 Operating Expenses, 80000–89999 Other Income and
-                90000–99999 Other Expenses. Balances are calculated from saved journal entries,
-                including reversals. Bank accounts and cash flow categories are managed separately
-                from this chart of accounts.
+                90000–99999 Other Expenses. The balance uses the imported amount when available,
+                otherwise it is calculated from saved journal entries, including reversals.
+                Bank accounts and cash flow categories are managed separately.
               </Note>
             </div>
           </Panel>

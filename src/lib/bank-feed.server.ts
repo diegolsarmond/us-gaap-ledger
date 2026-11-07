@@ -58,6 +58,10 @@ type BankRow = {
   attemptId: string | null;
   attemptKind: "category" | "settlement" | "match" | "legacy" | null;
   attemptState: "pending" | "posted" | null;
+  transactionType: string | null;
+  locationId: string | null;
+  allocationAccounts: string[];
+  classIds: string[];
   journalId: string | null;
   journalNumber: string | null;
   legacyJournalId: string | null;
@@ -86,12 +90,20 @@ const rowQuery = `
         AND lower(regexp_replace(d.description,'[[:space:]]+',' ','g'))=lower(regexp_replace(r.description,'[[:space:]]+',' ','g')))
      )) AS duplicate,
    a.id AS "attemptId",a.kind AS "attemptKind",a.state AS "attemptState",a.journal_id AS "journalId",
+   a.transaction_type AS "transactionType",a.location_id AS "locationId",
+   coalesce(allocation.accounts, ARRAY[]::text[]) AS "allocationAccounts",
+   coalesce(allocation.classes, ARRAY[]::text[]) AS "classIds",
    j.journal_number AS "journalNumber",a.legacy_journal_id AS "legacyJournalId",
    a.accounting_date::text AS "accountingDate",r.classified_account AS "classifiedAccount",
    coalesce(j.posted_at,a.created_at)::text AS "postedAt",
    coalesce(t.count,0) AS "attachmentCount"
  FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
  LEFT JOIN bank_feed_attempts a ON (a.company_id,a.row_id)=(r.company_id,r.id) AND a.state IN ('pending','posted')
+ LEFT JOIN LATERAL (
+   SELECT array_agg(DISTINCT p.account_code) FILTER (WHERE p.account_code IS NOT NULL) AS accounts,
+          array_agg(DISTINCT p.class_id) FILTER (WHERE p.class_id IS NOT NULL) AS classes
+   FROM bank_feed_allocations p WHERE p.attempt_id=a.id
+ ) allocation ON a.id IS NOT NULL
  LEFT JOIN journal_entries j ON j.id=a.journal_id
  CROSS JOIN LATERAL (SELECT CASE WHEN a.kind='category' THEN a.payee_id ELSE r.feed_payee_id END AS id) selected_party
  LEFT JOIN ledger_vendors v ON v.company_id=r.company_id AND v.id=selected_party.id AND r.amount<0
@@ -201,7 +213,11 @@ async function prepareImport(c: PoolClient, data: Import) {
           unitsAmount(bankAmount(row.amountText, data.currency)),
           row.fromTo,
           row.externalPosting,
-          ...(format === "quickbooks-review"
+          ...(format === "quickbooks-review" ||
+          row.checkNumber ||
+          row.sourceClass ||
+          row.sourceLocation ||
+          row.sourceCustomer
             ? [format, row.checkNumber, row.sourceClass, row.sourceLocation, row.sourceCustomer]
             : []),
         ]),

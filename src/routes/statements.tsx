@@ -1201,7 +1201,7 @@ function ImportDialog({
   return (
     <BankDialog
       title="Import bank or card CSV"
-      description="Supports QuickBooks exports with Spent and Received, QuickBooks posted transactions, and the LedgerX CSV template."
+      description="Supports QuickBooks bank and card exports with Amount or Spent and Received. Optional columns may vary. The LedgerX CSV template is also supported."
       close={close}
     >
       <form
@@ -1302,7 +1302,7 @@ function ImportDialog({
         {preview && (
           <div className="space-y-2 rounded-md border p-3 text-sm">
             {preview.format === "quickbooks-review" && (
-              <p>QuickBooks · Spent / Received. Source categories are saved for review.</p>
+              <p>QuickBooks · Source categories are saved for review.</p>
             )}
             <p>
               <strong>{preview.count} transactions</strong> · Net{" "}

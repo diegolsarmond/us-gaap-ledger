@@ -78,6 +78,23 @@ assert.deepEqual(
 );
 assert.equal(review.rows[0].sourceStatus, "Pending");
 assert.equal(review.rows[0].checkNumber, "000123");
+const cardReview = parseStatementFile(
+  "Date,Check No.,Bank description,Amount,From/To,Class,Location,Customer,Match/Categorize\n" +
+    '07/01/2026,000123,Card purchase,-$53.32,"Vendor, Inc.",Class A,Office,Buyer,6000 Fees\n' +
+    "07/02/2026,,Card refund,$5.00,Vendor,,,,6000 Fees",
+);
+assert.equal(cardReview.format, "quickbooks-review");
+assert.deepEqual(
+  cardReview.rows.map((row) => row.amountText),
+  ["-53.32", "5.00"],
+);
+assert.equal(cardReview.rows[0].sourceStatus, "Pending");
+assert.equal(cardReview.rows[0].checkNumber, "000123");
+assert.equal(cardReview.rows[0].fromTo, "Vendor, Inc.");
+assert.equal(cardReview.rows[0].sourceClass, "Class A");
+assert.equal(cardReview.rows[0].sourceLocation, "Office");
+assert.equal(cardReview.rows[0].sourceCustomer, "Buyer");
+assert.equal(cardReview.rows[0].externalPosting, "6000 Fees");
 const postedCsv =
   "date,Bank description,Amount,From/To,Transaction Posted\n" +
   "01/19/2026,QuickBooks categorized,-10.00,,Added to: Expense: 6000 Fees\n" +
@@ -86,6 +103,36 @@ const postedCsv =
 assert.deepEqual(
   parseStatementFile(postedCsv).rows.map((row) => row.sourceStatus),
   ["Posted", "Posted", null],
+);
+const postedWithDetailsCsv =
+  'Transaction Posted,Location,Amount,Customer,Date,Bank description,Check No.,"Extra; field"\n' +
+  'Matched to: Expense: 6000 Fees,Office,-$53.32,Buyer,7/1/2026,"Card, expense",000123,ignored';
+const postedWithDetails = parseStatementFile(postedWithDetailsCsv);
+assert.equal(postedWithDetails.format, "quickbooks-posted");
+assert.equal(postedWithDetails.rows[0].date, "2026-07-01");
+assert.equal(postedWithDetails.rows[0].amountText, "-53.32");
+assert.equal(postedWithDetails.rows[0].sourceStatus, "Posted");
+assert.equal(postedWithDetails.rows[0].checkNumber, "000123");
+assert.equal(postedWithDetails.rows[0].sourceLocation, "Office");
+assert.equal(postedWithDetails.rows[0].sourceCustomer, "Buyer");
+assert.equal(postedWithDetails.rows[0].sourceClass, null);
+assert.equal(
+  parseStatementFile(
+    "Date,Bank description,Amount,Match/Categorize\n07/01/2026,Card,-$53.32,6000 Fees",
+  ).rows[0].sourceStatus,
+  "Pending",
+);
+assert.equal(
+  parseStatementFile("Date,Bank description,Amount\n07/01/2026,Card,-$53.32").rows[0].sourceStatus,
+  null,
+);
+assert.throws(
+  () => parseStatementFile("Date,Bank description,Amount,Amount\n07/01/2026,Card,1,2"),
+  /colunas duplicadas/,
+);
+assert.throws(
+  () => parseStatementFile("Date,Bank description,Amount,Spent,Received\n07/01/2026,Card,1,,1"),
+  /Use o CSV/,
 );
 assert.throws(() => parseStatementFile(reviewCsv, "EUR"), /Linha 2/);
 assert.throws(
@@ -660,6 +707,13 @@ try {
     [companyId, postedImport.id],
   );
   assert.equal((await find("QuickBooks matched")).sourceStatus, "Posted");
+  const postedDetailsFile = importFile(postedWithDetailsCsv);
+  assert.equal((await feed.importBankFile(postedDetailsFile)).postedInQuickBooks, 1);
+  const postedDetailsRow = await find("Card, expense");
+  assert.equal(postedDetailsRow.checkNumber, "000123");
+  assert.equal(postedDetailsRow.sourceLocation, "Office");
+  assert.equal(postedDetailsRow.sourceCustomer, "Buyer");
+  assert.equal((await feed.previewBankImport(postedDetailsFile)).duplicateBatch, true);
   console.log(
     "PASS: import and concurrent deduplication, legacy Undo, multi-title AP/AR, existing Match, FX rounding, approval, authorization and GL balances.",
   );
