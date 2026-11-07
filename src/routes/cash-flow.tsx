@@ -683,8 +683,49 @@ function CompanyCashFlowPage() {
                                 : openingSource.openingDate
                                   ? `Prefilled from the QuickBooks balance imported with the Account List. QuickBooks had posted this account through ${openingSource.asOf}, so it opens the next day.`
                                   : "Prefilled from the QuickBooks balance imported with the Account List. No posted QuickBooks statement shows its date: enter the date that balance was exported."}{" "}
-                              Statement lines dated before the opening date are already in this
-                              balance. Confirm it against the bank before saving.
+                              Statement lines dated before the opening date do not enter actual
+                              cash. Confirm the balance against the bank before saving.
+                              {openingSource.unreviewed && (
+                                <span className="mt-2 block text-amber-900">
+                                  This is the QuickBooks book balance.{" "}
+                                  {openingSource.unreviewed.count} bank line
+                                  {openingSource.unreviewed.count === 1 ? " was" : "s were"} still
+                                  “For review” in QuickBooks
+                                  {openingSource.asOf
+                                    ? ` through ${openingSource.asOf}`
+                                    : ""} (net{" "}
+                                  {new Intl.NumberFormat("en-US", {
+                                    style: "currency",
+                                    currency: accountCurrency,
+                                  }).format(openingSource.unreviewed.net)}
+                                  ) and are not in it. If they cleared the bank, the bank balance is{" "}
+                                  {new Intl.NumberFormat("en-US", {
+                                    style: "currency",
+                                    currency: accountCurrency,
+                                  }).format(
+                                    (Math.round(openingSource.amount * 100) +
+                                      Math.round(openingSource.unreviewed.net * 100)) /
+                                      100,
+                                  )}
+                                  .{" "}
+                                  <button
+                                    type="button"
+                                    className="underline"
+                                    onClick={() => {
+                                      const unreviewed = openingSource.unreviewed!;
+                                      setOpeningBalanceCents(
+                                        String(
+                                          Math.round(openingSource.amount * 100) +
+                                            Math.round(unreviewed.net * 100),
+                                        ),
+                                      );
+                                      setOpeningSource({ ...openingSource, unreviewed: null });
+                                    }}
+                                  >
+                                    Use bank balance
+                                  </button>
+                                </span>
+                              )}
                             </p>
                           ) : (
                             <p className="text-xs text-ink3">

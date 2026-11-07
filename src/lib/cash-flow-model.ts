@@ -168,6 +168,11 @@ export type CashData = {
       openingDate: string | null;
       source: "bank-feed" | "quickbooks";
       asOf: string | null;
+      /**
+       * QuickBooks only: lines that were still "For review" in QuickBooks on or before `asOf`.
+       * They are real bank movements missing from the QuickBooks book balance.
+       */
+      unreviewed: { count: number; net: number } | null;
     } | null;
   }[];
   /** Bank Feed lines awaiting review. They are not actual cash until they are posted. */

@@ -96,6 +96,7 @@ async function readCashData(client: PoolClient, id: string): Promise<CashData> {
                 openingDate: nextDay(reported.date),
                 source: "bank-feed" as const,
                 asOf: reported.date,
+                unreviewed: null,
               }
             : quickBooks !== undefined
               ? {
@@ -103,6 +104,10 @@ async function readCashData(client: PoolClient, id: string): Promise<CashData> {
                   openingDate: quickBooksAsOf && nextDay(quickBooksAsOf),
                   source: "quickbooks" as const,
                   asOf: quickBooksAsOf,
+                  unreviewed: unreviewedThrough(
+                    balances.quickBooksReview.get(account.code) ?? [],
+                    quickBooksAsOf,
+                  ),
                 }
               : null,
       };
@@ -117,14 +122,21 @@ const nextDay = (date: string) => {
   return day.toISOString().slice(0, 10);
 };
 
+function unreviewedThrough(lines: { date: string; amount: number }[], asOf: string | null) {
+  const included = lines.filter((line) => !asOf || line.date <= asOf);
+  if (!included.length) return null;
+  const cents = included.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+  return { count: included.length, net: cents / 100 };
+}
+
 /**
  * Balances a bank account is already known to have. A Bank Feed statement balance is an
- * end-of-day bank figure. The QuickBooks Account List balance is the register balance at
- * export, which includes every line QuickBooks had posted, so it is dated by the last line
- * the imported "Transaction Posted" files show for that account.
+ * end-of-day bank figure. The QuickBooks Account List balance is the book register balance
+ * at export: it includes every line QuickBooks had posted, so it is dated by the last line
+ * the imported "Transaction Posted" files show, and excludes lines still "For review".
  */
 async function knownBankBalances(client: Pick<PoolClient, "query">, companyId: string) {
-  const [reported, posted] = await Promise.all([
+  const [reported, posted, review] = await Promise.all([
     client.query<{ account: string; date: string; amount: number }>(
       `SELECT DISTINCT ON (account_code) account_code AS account, balance_date::text AS date, amount::float8
        FROM bank_feed_balances WHERE company_id=$1 ORDER BY account_code, balance_date DESC`,
@@ -137,10 +149,20 @@ async function knownBankBalances(client: Pick<PoolClient, "query">, companyId: s
        GROUP BY f.account_code`,
       [companyId],
     ),
+    client.query<{ account: string; date: string; amount: number }>(
+      `SELECT f.account_code AS account, r.date::text, r.amount::float8
+       FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
+       WHERE r.company_id=$1 AND f.feed_source_format='quickbooks-review'`,
+      [companyId],
+    ),
   ]);
+  const quickBooksReview = new Map<string, { date: string; amount: number }[]>();
+  for (const row of review.rows)
+    quickBooksReview.set(row.account, [...(quickBooksReview.get(row.account) ?? []), row]);
   return {
     reported: new Map(reported.rows.map((row) => [row.account, row])),
     quickBooksPostedThrough: new Map(posted.rows.map((row) => [row.account, row.date])),
+    quickBooksReview,
   };
 }
 
