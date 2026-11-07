@@ -1629,9 +1629,21 @@ export async function bankFeedCommand({ companyId, input: raw }: Scope & { input
       if (input.date !== row.date) {
         await c.query(
           "UPDATE ledger_stagingrows SET date=$3,feed_fingerprint=coalesce(feed_fingerprint,$4) WHERE company_id=$1 AND id=$2",
-          [companyId, row.id, input.date, fingerprint(row.account, row.currency, { date: row.date, amountText: row.amount, description: row.description })],
+          [
+            companyId,
+            row.id,
+            input.date,
+            fingerprint(row.account, row.currency, {
+              date: row.date,
+              amountText: row.amount,
+              description: row.description,
+            }),
+          ],
         );
-        await audit(c, auth, "BANK_FEED_DATE", row.id, { previousDate: row.date, date: input.date });
+        await audit(c, auth, "BANK_FEED_DATE", row.id, {
+          previousDate: row.date,
+          date: input.date,
+        });
       }
       return { id: row.id, posted: false };
     }

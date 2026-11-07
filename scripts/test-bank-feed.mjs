@@ -723,6 +723,9 @@ try {
     matchesBankFilters(reviewFilters, { ...emptyBankFilters, location: "another location" }, ""),
     false,
   );
+  await action(reviewRow, { operation: "date", date: "2026-01-22" });
+  assert.equal((await find("Review fee, test")).date, "2026-01-22");
+  assert.equal((await feed.previewBankImport(reviewFile)).duplicates, 2);
   const postedFile = importFile(postedCsv);
   assert.equal((await feed.previewBankImport(postedFile)).postedInQuickBooks, 2);
   const postedImport = await feed.importBankFile(postedFile);
@@ -748,6 +751,10 @@ try {
   await category(reopened);
   const postedInLedger = await find("QuickBooks categorized");
   assert.equal(postedInLedger.status, "Classified");
+  await assert.rejects(
+    action(postedInLedger, { operation: "date", date: "2026-01-23" }),
+    /no longer available/,
+  );
   await undo(postedInLedger, postedInLedger.date);
   assert.equal((await find("QuickBooks categorized")).isSourcePosted, false);
   assert.equal((await find("QuickBooks categorized")).status, "Pending");

@@ -102,13 +102,13 @@ type SortField = "date" | "description" | "amount" | "spent" | "received";
 type ColumnWidths = Partial<Record<DisplayColumn, number>>;
 const columnWidthsDefault: Record<DisplayColumn, number> = {
   Date: 120,
-  Description: 240,
+  Description: 220,
   Amount: 115,
   Spent: 115,
   Received: 115,
-  Files: 65,
-  Party: 165,
-  Review: 215,
+  Files: 56,
+  Party: 150,
+  Review: 190,
   "Source posting": 175,
   Status: 155,
 };
@@ -139,7 +139,11 @@ function loadColumnWidths(key: string): ColumnWidths {
     const widths: ColumnWidths = {};
     for (const column of Object.keys(columnWidthsDefault) as DisplayColumn[]) {
       const width: unknown = stored?.[column];
-      if (typeof width === "number" && Number.isFinite(width) && width >= minimumColumnWidth[column]) {
+      if (
+        typeof width === "number" &&
+        Number.isFinite(width) &&
+        width >= minimumColumnWidth[column]
+      ) {
         widths[column] = width;
       }
     }
@@ -238,7 +242,12 @@ function CompanyFeed() {
     (column) =>
       !optionalColumns.some((item) => item === column) || columns.some((item) => item === column),
   );
-  const resizeColumn = (column: DisplayColumn, widths: ColumnWidths, delta: number, save: boolean) => {
+  const resizeColumn = (
+    column: DisplayColumn,
+    widths: ColumnWidths,
+    delta: number,
+    save: boolean,
+  ) => {
     const width = (widths[column] ?? columnWidthsDefault[column]) + delta;
     const next = { ...widths, [column]: Math.max(minimumColumnWidth[column], Math.round(width)) };
     setColumnWidths(next);
@@ -300,7 +309,9 @@ function CompanyFeed() {
   const tableColumns = visibleColumns.flatMap<DisplayColumn>((column) =>
     status === "Pending" && column === "Amount" ? ["Spent", "Received"] : [column],
   );
-  const sortField = tableColumns.some((column) => sortFields[column] === sort.field) ? sort.field : "date";
+  const sortField = tableColumns.some((column) => sortFields[column] === sort.field)
+    ? sort.field
+    : "date";
   const filter = search.trim().toLowerCase();
   const filterRows = rows.map((row) => ({
     row,
@@ -328,9 +339,10 @@ function CompanyFeed() {
     .sort((a, b) => {
       const first = sortValue(a, sortField);
       const second = sortValue(b, sortField);
-      const order = typeof first === "number" && typeof second === "number"
-        ? first - second
-        : String(first).localeCompare(String(second));
+      const order =
+        typeof first === "number" && typeof second === "number"
+          ? first - second
+          : String(first).localeCompare(String(second));
       return (sortField === sort.field ? sort.descending : true) ? -order : order;
     });
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -425,7 +437,11 @@ function CompanyFeed() {
   const sortHeading = (label: string, field: SortField, printable: boolean) => {
     if (printable) return label;
     const active = sortField === field;
-    const Icon = active ? (sortField !== sort.field || sort.descending ? ArrowDown : ArrowUp) : ArrowUpDown;
+    const Icon = active
+      ? sortField !== sort.field || sort.descending
+        ? ArrowDown
+        : ArrowUp
+      : ArrowUpDown;
     return (
       <button
         type="button"
@@ -442,14 +458,20 @@ function CompanyFeed() {
     const showSelection = data.canWrite && !printable;
     const columnCount = tableColumns.length + (printable ? 0 : 1) + (showSelection ? 1 : 0);
     const widthOf = (column: DisplayColumn) => columnWidths[column] ?? columnWidthsDefault[column];
-    const tableWidth = tableColumns.reduce((sum, column) => sum + widthOf(column), showSelection ? 120 : 88);
+    const tableWidth = tableColumns.reduce(
+      (sum, column) => sum + widthOf(column),
+      showSelection ? 120 : 88,
+    );
     const customized = tableColumns.some((column) => columnWidths[column] !== undefined);
     const measureWidths = (handle: HTMLButtonElement) => {
       const widths = { ...columnWidths };
-      handle.closest("tr")?.querySelectorAll("th[data-column]").forEach((header, index) => {
-        const column = tableColumns[index];
-        if (column) widths[column] = header.getBoundingClientRect().width;
-      });
+      handle
+        .closest("tr")
+        ?.querySelectorAll("th[data-column]")
+        .forEach((header, index) => {
+          const column = tableColumns[index];
+          if (column) widths[column] = header.getBoundingClientRect().width;
+        });
       return widths;
     };
     const columnLabel = (column: DisplayColumn) => {
@@ -466,12 +488,16 @@ function CompanyFeed() {
         className={
           printable ? "" : "table-fixed text-xs [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-2"
         }
-        style={printable ? {} : { minWidth: tableWidth, width: customized ? tableWidth : undefined }}
+        style={
+          printable ? {} : { minWidth: tableWidth, width: customized ? tableWidth : undefined }
+        }
       >
         {!printable && (
           <colgroup>
             {showSelection && <col style={{ width: 32 }} />}
-            {tableColumns.map((column) => <col key={column} style={{ width: widthOf(column) }} />)}
+            {tableColumns.map((column) => (
+              <col key={column} style={{ width: widthOf(column) }} />
+            ))}
             <col style={{ width: 88 }} />
           </colgroup>
         )}
@@ -520,9 +546,7 @@ function CompanyFeed() {
                     setDragColumn(undefined);
                   }}
                 >
-                  <div
-                    className={`flex items-center gap-1 ${numeric ? "justify-end" : ""}`}
-                  >
+                  <div className={`flex items-center gap-1 ${numeric ? "justify-end" : ""}`}>
                     {!printable && column !== "Received" && (
                       <button
                         type="button"
@@ -540,7 +564,10 @@ function CompanyFeed() {
                           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                           event.preventDefault();
                           const target =
-                            visibleColumns[visibleColumns.indexOf(orderColumn) + (event.key === "ArrowLeft" ? -1 : 1)];
+                            visibleColumns[
+                              visibleColumns.indexOf(orderColumn) +
+                                (event.key === "ArrowLeft" ? -1 : 1)
+                            ];
                           if (target) moveColumn(orderColumn, target);
                         }}
                       >
@@ -563,10 +590,14 @@ function CompanyFeed() {
                       type="button"
                       aria-label={`Resize ${label} column`}
                       title="Drag or use the arrow keys to resize"
-                      className="absolute inset-y-0 right-0 w-2 touch-none cursor-col-resize border-r-2 border-transparent hover:border-brand focus-visible:border-brand"
+                      className="absolute inset-y-0 right-0 w-2 touch-none cursor-col-resize border-r border-line/70 hover:border-brand focus-visible:border-brand"
                       onPointerDown={(event) => {
                         if (!event.isPrimary || event.button !== 0) return;
-                        resize.current = { start: event.clientX, widths: measureWidths(event.currentTarget), previous: columnWidths };
+                        resize.current = {
+                          start: event.clientX,
+                          widths: measureWidths(event.currentTarget),
+                          previous: columnWidths,
+                        };
                         event.currentTarget.setPointerCapture(event.pointerId);
                       }}
                       onPointerMove={(event) => {
@@ -577,7 +608,8 @@ function CompanyFeed() {
                       }}
                       onPointerUp={(event) => {
                         const drag = resize.current;
-                        if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                        if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId))
+                          return;
                         resize.current = null;
                         if (event.clientX === drag.start) setColumnWidths(drag.previous);
                         else resizeColumn(column, drag.widths, event.clientX - drag.start, true);
@@ -589,7 +621,12 @@ function CompanyFeed() {
                       onKeyDown={(event) => {
                         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                         event.preventDefault();
-                        resizeColumn(column, measureWidths(event.currentTarget), event.key === "ArrowLeft" ? -12 : 12, true);
+                        resizeColumn(
+                          column,
+                          measureWidths(event.currentTarget),
+                          event.key === "ArrowLeft" ? -12 : 12,
+                          true,
+                        );
                       }}
                     />
                   )}
@@ -618,9 +655,12 @@ function CompanyFeed() {
                         onSubmit={(event) => {
                           event.preventDefault();
                           void handle(async () => {
-                            await run({ operation: "date", rowId: row.id, date: editingDate.value });
+                            await run({
+                              operation: "date",
+                              rowId: row.id,
+                              date: editingDate.value,
+                            });
                             setEditingDate(undefined);
-                            setReview(undefined);
                             setNotice("Transaction date updated.");
                           });
                         }}
@@ -636,12 +676,29 @@ function CompanyFeed() {
                           autoFocus
                           disabled={busy}
                           value={editingDate.value}
-                          onChange={(event) => setEditingDate({ id: row.id, value: event.target.value })}
+                          onChange={(event) =>
+                            setEditingDate({ id: row.id, value: event.target.value })
+                          }
                         />
-                        <Button type="submit" variant="ghost" size="icon" className="size-6" disabled={busy} aria-label="Save date">
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={busy}
+                          aria-label="Save date"
+                        >
                           <Check className="size-3" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" className="size-6" disabled={busy} aria-label="Cancel date edit" onClick={() => setEditingDate(undefined)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={busy}
+                          aria-label="Cancel date edit"
+                          onClick={() => setEditingDate(undefined)}
+                        >
                           <X className="size-3" />
                         </Button>
                       </form>
@@ -660,11 +717,13 @@ function CompanyFeed() {
                         {row.date}
                       </button>
                     )
-                  ) : row.date}
+                  ) : (
+                    row.date
+                  )}
                 </Td>
               ),
               Description: (
-                <Td className="min-w-48 max-w-80">
+                <Td className="overflow-hidden">
                   {printable ? (
                     row.description
                   ) : (
@@ -693,8 +752,16 @@ function CompanyFeed() {
                   {bankMoney(row.amount, row.currency)}
                 </Td>
               ),
-              Spent: <Td align="right" className="whitespace-nowrap text-down">{spent && bankMoney(row.amount.slice(1), row.currency)}</Td>,
-              Received: <Td align="right" className="whitespace-nowrap text-up">{!spent && bankMoney(row.amount, row.currency)}</Td>,
+              Spent: (
+                <Td align="right" className="whitespace-nowrap text-down">
+                  {spent && bankMoney(row.amount.slice(1), row.currency)}
+                </Td>
+              ),
+              Received: (
+                <Td align="right" className="whitespace-nowrap text-up">
+                  {!spent && bankMoney(row.amount, row.currency)}
+                </Td>
+              ),
               Files: (
                 <Td align="center">
                   {printable ? (
@@ -718,7 +785,7 @@ function CompanyFeed() {
                 </Td>
               ),
               Party: (
-                <Td className="min-w-32 max-w-44">
+                <Td className="truncate">
                   {pending && !printable ? (
                     editingParty === row.id ? (
                       <SearchableSelect
@@ -726,11 +793,15 @@ function CompanyFeed() {
                         value={row.partyId ?? ""}
                         options={[
                           { value: "", label: "Clear party" },
-                          ...(spent ? vendors : customers).map((party) => ({
-                            value: party.id,
-                            label: party.sourceCurrency ? `${party.displayName} - ${party.sourceCurrency}` : party.displayName,
-                            detail: spent ? "Vendor" : "Customer",
-                          })).sort((first, second) => first.label.localeCompare(second.label)),
+                          ...(spent ? vendors : customers)
+                            .map((party) => ({
+                              value: party.id,
+                              label: party.sourceCurrency
+                                ? `${party.displayName} - ${party.sourceCurrency}`
+                                : party.displayName,
+                              detail: spent ? "Vendor" : "Customer",
+                            }))
+                            .sort((first, second) => first.label.localeCompare(second.label)),
                         ]}
                         action={
                           <Link
@@ -738,13 +809,17 @@ function CompanyFeed() {
                             search={{ create: true }}
                             target="_blank"
                             rel="noopener"
-                            aria-label={spent ? "Add new vendor (opens in a new tab)" : "Add new customer (opens in a new tab)"}
+                            aria-label={
+                              spent
+                                ? "Add new vendor (opens in a new tab)"
+                                : "Add new customer (opens in a new tab)"
+                            }
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-brand outline-none hover:bg-accent focus:bg-accent"
                           >
                             <Plus className="size-4" aria-hidden="true" /> Add new
                           </Link>
                         }
-                        popupClassName="w-[min(24rem,calc(100vw-1rem))]"
+                        popupClassName="w-96 max-w-[calc(100vw_-_1rem)]"
                         onOpenChange={(open) => {
                           if (!open) setEditingParty(undefined);
                         }}
@@ -789,7 +864,7 @@ function CompanyFeed() {
               Review: (
                 <Td>
                   {pending && !printable ? (
-                    <div className="flex min-w-52 flex-wrap items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {categoryLabel && (
                         <span
                           className="max-w-48 truncate text-brand"

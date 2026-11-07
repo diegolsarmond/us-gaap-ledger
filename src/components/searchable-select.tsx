@@ -156,7 +156,9 @@ export function SearchableSelect({
                   />
                   <span>{option.label}</span>
                   {option.detail && (
-                    <span className="ml-auto shrink-0 text-xs italic text-ink3">{option.detail}</span>
+                    <span className="ml-auto shrink-0 text-xs italic text-ink3">
+                      {option.detail}
+                    </span>
                   )}
                 </CommandItem>
               ))}

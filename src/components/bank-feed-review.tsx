@@ -90,24 +90,35 @@ export function BankReview({
     setView("details");
     setError(null);
   };
+  const bankMetadata = [
+    ["QuickBooks status", row.sourceStatus],
+    ["From/To", row.fromTo],
+    ["Check number", row.checkNumber],
+    ["QuickBooks class", row.sourceClass],
+    ["QuickBooks location", row.sourceLocation],
+    ["QuickBooks customer", row.sourceCustomer],
+    ["QuickBooks history", row.externalPosting],
+  ].filter(([, value]) => value);
 
   const content = (
     <>
-      <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
-        <p className="text-xs font-semibold uppercase text-ink3">Full bank description</p>
-        <p className="break-words">{row.description}</p>
-        {row.sourceStatus && <p className="text-ink2">QuickBooks status · {row.sourceStatus}</p>}
-        {row.fromTo && <p className="text-ink2">From/To · {row.fromTo}</p>}
-        {row.checkNumber && <p className="text-ink2">Check number · {row.checkNumber}</p>}
-        {row.sourceClass && <p className="text-ink2">QuickBooks class · {row.sourceClass}</p>}
-        {row.sourceLocation && (
-          <p className="text-ink2">QuickBooks location · {row.sourceLocation}</p>
-        )}
-        {row.sourceCustomer && (
-          <p className="text-ink2">QuickBooks customer · {row.sourceCustomer}</p>
-        )}
-        {row.externalPosting && (
-          <p className="text-ink3">QuickBooks history · {row.externalPosting}</p>
+      <div className="space-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+        <p className="break-words">
+          <span className="mr-2 font-semibold text-ink3">Bank description</span>
+          {row.description}
+        </p>
+        {bankMetadata.length > 0 && (
+          <details open={view !== "details" ? true : undefined}>
+            <summary className="cursor-pointer text-ink2">Bank and QuickBooks information</summary>
+            <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-ink2">
+              {bankMetadata.map(([label, value]) => (
+                <div key={label} className="flex min-w-0 gap-1">
+                  <dt className="shrink-0 font-medium">{label}</dt>
+                  <dd className="break-words">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         )}
       </div>
       <ErrorMessage error={error || detail.error} />
@@ -196,12 +207,32 @@ export function BankReview({
       )}
       {view === "details" && detail.data && (
         <>
-          {pending && data.canWrite && (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" aria-pressed>
-                Categorize
-              </Button>
+          <div
+            className="flex flex-wrap items-center gap-1 border-b pb-1"
+            aria-label="Transaction details sections"
+          >
+            <Button
+              size="sm"
+              className="h-7"
+              variant={tab === "details" ? "secondary" : "ghost"}
+              aria-pressed={tab === "details"}
+              onClick={() => setTab("details")}
+            >
+              {pending && data.canWrite ? "Categorize" : "Details"}
+            </Button>
+            <Button
+              size="sm"
+              className="h-7"
+              variant={tab === "policies" ? "secondary" : "ghost"}
+              aria-pressed={tab === "policies"}
+              onClick={() => setTab("policies")}
+            >
+              Policy Reviews
+            </Button>
+            {pending && data.canWrite && (
               <Button
+                size="sm"
+                className="h-7"
                 variant="outline"
                 onClick={() => {
                   setError(null);
@@ -210,25 +241,7 @@ export function BankReview({
               >
                 Match
               </Button>
-            </div>
-          )}
-          <div className="flex gap-2 border-b" aria-label="Transaction details sections">
-            <Button
-              size="sm"
-              variant={tab === "details" ? "secondary" : "ghost"}
-              aria-pressed={tab === "details"}
-              onClick={() => setTab("details")}
-            >
-              Details
-            </Button>
-            <Button
-              size="sm"
-              variant={tab === "policies" ? "secondary" : "ghost"}
-              aria-pressed={tab === "policies"}
-              onClick={() => setTab("policies")}
-            >
-              Policy Reviews
-            </Button>
+            )}
           </div>
           {pending && data.canWrite ? (
             <CategoryForm detail={detail.data} list={data} run={run} saved={saved} tab={tab} />
@@ -314,13 +327,14 @@ export function BankReview({
   );
   if (view === "details") {
     return (
-      <section className="space-y-3 px-4 py-3" aria-label="Review bank transaction">
+      <section className="space-y-2 px-2 py-1.5" aria-label="Review bank transaction">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Transaction details</h3>
           <Button
             type="button"
             size="icon"
             variant="ghost"
+            className="size-7"
             onClick={close}
             aria-label="Close transaction details"
           >
@@ -534,7 +548,8 @@ function CategoryForm({
   const party = out ? vendors : customers;
   const original = row.amount.replace(/^-/, "");
   const [type, setType] = useState<BankCategory["transactionType"]>(out ? "Expense" : "Deposit");
-  const [date, setDate] = useState(row.date);
+  const [dateOverride, setDateOverride] = useState<string>();
+  const date = dateOverride ?? row.date;
   const [memo, setMemo] = useState(row.description);
   const [payee, setPayee] = useState(
     (row.partyEdited
@@ -665,7 +680,7 @@ function CategoryForm({
     );
   return (
     <form
-      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.34fr)]"
+      className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.34fr)]"
       onSubmit={(e) => {
         e.preventDefault();
         setBusy(true);
@@ -675,15 +690,15 @@ function CategoryForm({
           .finally(() => setBusy(false));
       }}
     >
-      <div className="min-w-0 space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="min-w-0 space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <Field name="Accounting date">
             <input
               required
               className={fieldStyle}
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => setDateOverride(e.target.value)}
             />
           </Field>
           <SelectField
@@ -724,14 +739,14 @@ function CategoryForm({
         </div>
         <Field name="Memo">
           <textarea
-            className={fieldStyle + " h-auto py-2"}
-            rows={2}
+            className={fieldStyle + " h-auto py-1.5"}
+            rows={1}
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
           />
         </Field>
         {row.currency !== "USD" && (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Field name={`Exchange rate · USD per ${row.currency}`}>
               <input
                 required
@@ -754,7 +769,7 @@ function CategoryForm({
             )}
           </div>
         )}
-        <div className="space-y-2 rounded-md border p-3">
+        <div className="space-y-1.5 rounded-md border p-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">{split ? "Split allocations" : "Category"}</h3>
             {!split && (
@@ -775,7 +790,7 @@ function CategoryForm({
           {lines.map((line, index) => (
             <fieldset
               key={line.key}
-              className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4"
+              className="grid gap-1.5 rounded-md border p-2 sm:grid-cols-2 lg:grid-cols-4"
             >
               <legend className="px-1 text-xs text-ink3">Allocation {index + 1}</legend>
               <CategorySelect
@@ -952,7 +967,7 @@ function CategoryForm({
           {split ? "Split and post" : "Post"}
         </BankSubmit>
       </div>
-      <aside className="self-start space-y-2 rounded-md border bg-background p-3 text-sm">
+      <aside className="self-start space-y-1.5 rounded-md border bg-background p-2 text-xs">
         <h3 className="font-semibold">Suggestions</h3>
         <label className="flex gap-2">
           <input
@@ -1112,7 +1127,7 @@ function Attachments({
   return (
     <section
       aria-label="Files"
-      className="space-y-2 rounded-md border border-brand/25 bg-brand/5 p-3 text-sm"
+      className="space-y-1 rounded-md border border-brand/25 bg-brand/5 p-2 text-xs"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 font-semibold">
@@ -1124,7 +1139,7 @@ function Attachments({
             type="button"
             variant="outline"
             size="sm"
-            className="border-brand/35 text-brand hover:bg-brand/10 hover:text-brand"
+            className="h-7 border-brand/35 text-brand hover:bg-brand/10 hover:text-brand"
             disabled={busy}
             onClick={() => attachmentInput.current?.click()}
           >

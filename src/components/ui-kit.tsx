@@ -100,10 +100,20 @@ export function PageTitle({
   );
 }
 
-export function Table({ children, className = "", style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+export function Table({
+  children,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <div className="w-full overflow-x-auto [scrollbar-width:thin] overscroll-x-contain">
-      <table className={`w-full text-[13px] tabular-nums ${className}`} style={style}>{children}</table>
+      <table className={`w-full text-[13px] tabular-nums ${className}`} style={style}>
+        {children}
+      </table>
     </div>
   );
 }
