@@ -185,7 +185,13 @@ export function CashManagementReport({
       [
         ...body,
         row("reconciliation", "Beginning cash", "", "", totals.opening),
-        row("reconciliation", "Recorded account openings (not cash flows)", "", "", adjustments),
+        row(
+          "reconciliation",
+          "Opening balances and FX remeasurement (not cash flows)",
+          "",
+          "",
+          adjustments,
+        ),
         row("reconciliation", "Ending cash", "", "", closing),
         ...(glCheck.data
           ? [
@@ -356,16 +362,18 @@ export function CashManagementReport({
                 </strong>
               </p>
               <p>
-                Account opening balances added in period: <strong>{money(adjustments)}</strong>
+                Opening balances and FX remeasurement in period:{" "}
+                <strong>{money(adjustments)}</strong>
               </p>
               <p>
                 Ending cash & cash equivalents: <strong>{money(closing)}</strong>
               </p>
               <p className="text-xs text-ink3 sm:col-span-2">
-                Beginning cash + recorded account openings + net cash change = ending cash. Account
-                openings are setup balances, not operating, investing or financing flows. Scope
-                includes only selected cash accounts and currency; restricted cash and FX
-                reconciliation need accounting review where applicable.
+                Beginning cash + opening balances and FX remeasurement + net cash change = ending
+                cash. Opening journals and FX remeasurement change balances but are not operating,
+                investing or financing flows. Scope includes only selected cash accounts and
+                currency; restricted cash and FX reconciliation need accounting review where
+                applicable.
               </p>
             </div>
           </Panel>
@@ -417,10 +425,10 @@ export function CashManagementReport({
           }
         >
           <p className="px-4 py-3 text-xs text-ink3">
-            Actuals without an original plan appear as unplanned. Existing planned entries establish
-            their baseline when migration 010 runs. Future and current weeks are not final
-            variances. Cancelled plans remain in the baseline. Edit a transaction to record an
-            explanation; do not create a second entry when settling a forecast.
+            Actuals come from the General Ledger; forecasts keep the plan first saved. Future and
+            current weeks are not final variances. Cancelled and realized plans remain in the
+            baseline. Edit a forecast to record an explanation, and mark it realized once its cash
+            is posted.
           </p>
           <Table>
             <thead>
@@ -480,11 +488,7 @@ export function CashManagementReport({
             company-wide statement, select all cash accounts and use company-wide net income.
             Forecasts are management estimates, not recognized sales or expenses.
           </p>
-          {accountId && accounts.some((a) => a.id === accountId && a.ledger_only) ? (
-            <p className="p-4">
-              Set up this account in the Accounts tab to save its reconciliation.
-            </p>
-          ) : reconciliation.isPending ? (
+          {reconciliation.isPending ? (
             <p className="p-4">Loading reconciliation…</p>
           ) : reconciliation.isError ? (
             <p role="alert" className="p-4 text-red-700">

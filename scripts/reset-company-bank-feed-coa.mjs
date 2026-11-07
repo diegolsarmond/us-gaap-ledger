@@ -36,16 +36,8 @@ const affected = [
 const blockers = [
   ["Active Bank Feed reconciliation links", "bank_feed_links", "company_id=$1 AND active"],
   ["Legacy journal lines", "ledger_journals_lines", "company_id=$1"],
-  [
-    "Cash accounts linked to the CoA",
-    "cash_accounts",
-    "company_id=$1 AND gl_account_code IS NOT NULL",
-  ],
-  [
-    "Cash transactions linked to the CoA",
-    "cash_transactions",
-    "company_id=$1 AND gl_account_code IS NOT NULL",
-  ],
+  ["Cash forecasts linked to the CoA", "cash_forecasts", "company_id=$1"],
+  ["Cash flow mapping", "cash_flow_account_lines", "company_id=$1"],
   ["Automatic posting roles", "ledger_postingaccounts", "company_id=$1"],
   ["Journal account rules", "journal_account_rules", "company_id=$1"],
   [

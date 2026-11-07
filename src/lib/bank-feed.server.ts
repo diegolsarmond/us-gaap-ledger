@@ -190,7 +190,6 @@ async function validateSource(c: PoolClient, companyId: string, code: string, cu
       await c.query(
         `SELECT 1 FROM ledger_statements WHERE company_id=$1 AND account_code=$2 AND feed_currency<>$3
      UNION ALL SELECT 1 FROM bank_feed_balances WHERE company_id=$1 AND account_code=$2 AND currency<>$3
-     UNION ALL SELECT 1 FROM cash_accounts WHERE company_id=$1 AND gl_account_code=$2 AND currency<>$3
      LIMIT 1`,
         [companyId, code, currency],
       )
@@ -420,7 +419,7 @@ async function register(c: PoolClient, companyId: string, account?: string) {
 
 export async function bankFeedList({ companyId }: Scope) {
   return transaction(companyId, false, async (c, auth) => {
-    const [rows, files, balances, posted, rules, cashAccounts, access] = await Promise.all([
+    const [rows, files, balances, posted, rules, access] = await Promise.all([
       c.query<BankRow>(rowQuery + " ORDER BY r.date DESC,r.position,r.id", [companyId]),
       c.query<{
         id: string;
@@ -448,10 +447,6 @@ export async function bankFeedList({ companyId }: Scope) {
         "SELECT id,kind,pattern,account_code AS account FROM bank_feed_rules WHERE company_id=$1 ORDER BY kind,pattern",
         [companyId],
       ),
-      c.query<{ account: string; currency: string }>(
-        "SELECT DISTINCT gl_account_code AS account,currency FROM cash_accounts WHERE company_id=$1 AND gl_account_code IS NOT NULL",
-        [companyId],
-      ),
       journalPostingAccess(c, companyId, auth.user.id),
     ]);
     return {
@@ -460,7 +455,6 @@ export async function bankFeedList({ companyId }: Scope) {
       balances: balances.rows,
       posted: posted.rows,
       rules: rules.rows,
-      cashAccounts: cashAccounts.rows,
       canWrite: auth.permissions.write_accounting,
       canReverse: auth.permissions.write_accounting && access.grant.post && access.grant.reverse,
     };

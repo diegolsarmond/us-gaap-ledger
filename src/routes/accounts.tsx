@@ -461,8 +461,8 @@ function AccountsPage() {
                                     const usage = cashLinks.data?.find((l) => l.code === a.code);
                                     return usage ? (
                                       <Link to="/cash-flow" className="text-brand underline">
-                                        {usage.cashAccounts} bank · {usage.actual} actual ·{" "}
-                                        {usage.planned} forecast · {usage.cancelled} cancelled
+                                        {usage.planned} planned · {usage.realized} realized ·{" "}
+                                        {usage.cancelled} cancelled forecasts
                                       </Link>
                                     ) : (
                                       "No cash links"

@@ -305,7 +305,6 @@ function CompanyFeed() {
   const accountCurrency = (code: string) =>
     data.files.find((f) => f.account === code)?.currency ??
     data.balances.find((b) => b.account === code)?.currency ??
-    data.cashAccounts.find((a) => a.account === code)?.currency ??
     sourceAccounts.find((a) => a.code === code)?.sourceAccount?.currency;
   const rows = data.rows.filter((r) => r.account === account);
   const status =

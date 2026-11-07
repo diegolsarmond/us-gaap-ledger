@@ -38,7 +38,7 @@ import { Route as VendorsRouteImport } from './routes/vendors'
 import { Route as ApiJournalEntriesRouteImport } from './routes/api.journal-entries'
 import { Route as ApiTrialBalanceRouteImport } from './routes/api.trial-balance'
 import { Route as ParametersIndexRouteImport } from './routes/parameters/index'
-import { Route as ParametersCashCategoriesRouteImport } from './routes/parameters/cash-categories'
+import { Route as ParametersCashFlowMappingRouteImport } from './routes/parameters/cash-flow-mapping'
 import { Route as ParametersCostCentersRouteImport } from './routes/parameters/cost-centers'
 import { Route as ParametersCurrenciesRouteImport } from './routes/parameters/currencies'
 import { Route as ParametersExpenseCategoriesRouteImport } from './routes/parameters/expense-categories'
@@ -195,10 +195,10 @@ const ParametersIndexRoute = ParametersIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ParametersRoute,
 } as any)
-const ParametersCashCategoriesRoute =
-  ParametersCashCategoriesRouteImport.update({
-    id: '/cash-categories',
-    path: '/cash-categories',
+const ParametersCashFlowMappingRoute =
+  ParametersCashFlowMappingRouteImport.update({
+    id: '/cash-flow-mapping',
+    path: '/cash-flow-mapping',
     getParentRoute: () => ParametersRoute,
   } as any)
 const ParametersCostCentersRoute = ParametersCostCentersRouteImport.update({
@@ -283,7 +283,7 @@ export interface FileRoutesByFullPath {
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/api/trial-balance': typeof ApiTrialBalanceRoute
-  '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
+  '/parameters/cash-flow-mapping': typeof ParametersCashFlowMappingRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -324,7 +324,7 @@ export interface FileRoutesByTo {
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/api/trial-balance': typeof ApiTrialBalanceRoute
-  '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
+  '/parameters/cash-flow-mapping': typeof ParametersCashFlowMappingRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -367,7 +367,7 @@ export interface FileRoutesById {
   '/vendors': typeof VendorsRoute
   '/api/journal-entries': typeof ApiJournalEntriesRouteWithChildren
   '/api/trial-balance': typeof ApiTrialBalanceRoute
-  '/parameters/cash-categories': typeof ParametersCashCategoriesRoute
+  '/parameters/cash-flow-mapping': typeof ParametersCashFlowMappingRoute
   '/parameters/cost-centers': typeof ParametersCostCentersRoute
   '/parameters/currencies': typeof ParametersCurrenciesRoute
   '/parameters/expense-categories': typeof ParametersExpenseCategoriesRoute
@@ -411,7 +411,7 @@ export interface FileRouteTypes {
     | '/vendors'
     | '/api/journal-entries'
     | '/api/trial-balance'
-    | '/parameters/cash-categories'
+    | '/parameters/cash-flow-mapping'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -452,7 +452,7 @@ export interface FileRouteTypes {
     | '/vendors'
     | '/api/journal-entries'
     | '/api/trial-balance'
-    | '/parameters/cash-categories'
+    | '/parameters/cash-flow-mapping'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -494,7 +494,7 @@ export interface FileRouteTypes {
     | '/vendors'
     | '/api/journal-entries'
     | '/api/trial-balance'
-    | '/parameters/cash-categories'
+    | '/parameters/cash-flow-mapping'
     | '/parameters/cost-centers'
     | '/parameters/currencies'
     | '/parameters/expense-categories'
@@ -747,11 +747,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ParametersIndexRouteImport
       parentRoute: typeof ParametersRoute
     }
-    '/parameters/cash-categories': {
-      id: '/parameters/cash-categories'
-      path: '/cash-categories'
-      fullPath: '/parameters/cash-categories'
-      preLoaderRoute: typeof ParametersCashCategoriesRouteImport
+    '/parameters/cash-flow-mapping': {
+      id: '/parameters/cash-flow-mapping'
+      path: '/cash-flow-mapping'
+      fullPath: '/parameters/cash-flow-mapping'
+      preLoaderRoute: typeof ParametersCashFlowMappingRouteImport
       parentRoute: typeof ParametersRoute
     }
     '/parameters/cost-centers': {
@@ -828,7 +828,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface ParametersRouteChildren {
-  ParametersCashCategoriesRoute: typeof ParametersCashCategoriesRoute
+  ParametersCashFlowMappingRoute: typeof ParametersCashFlowMappingRoute
   ParametersCostCentersRoute: typeof ParametersCostCentersRoute
   ParametersCurrenciesRoute: typeof ParametersCurrenciesRoute
   ParametersExpenseCategoriesRoute: typeof ParametersExpenseCategoriesRoute
@@ -839,7 +839,7 @@ interface ParametersRouteChildren {
 }
 
 const ParametersRouteChildren: ParametersRouteChildren = {
-  ParametersCashCategoriesRoute: ParametersCashCategoriesRoute,
+  ParametersCashFlowMappingRoute: ParametersCashFlowMappingRoute,
   ParametersCostCentersRoute: ParametersCostCentersRoute,
   ParametersCurrenciesRoute: ParametersCurrenciesRoute,
   ParametersExpenseCategoriesRoute: ParametersExpenseCategoriesRoute,

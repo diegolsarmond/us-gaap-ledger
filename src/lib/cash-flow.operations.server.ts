@@ -1,43 +1,41 @@
 import { defineJsonOperation } from "./json-operation.server";
 import { z } from "zod";
 import {
-  accountSchema,
-  transactionSchema,
-  cashCategorySchema,
+  cashFlowLineSchema,
+  forecastSchema,
+  mappingSchema,
   reconciliationSchema,
   reconciliationScopeSchema,
 } from "./cash-flow-model";
+const company = z.object({ companyId: z.string().uuid() });
 export const loadCashData = defineJsonOperation({ method: "GET" })
-  .validator(z.object({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.load(data.companyId);
-  });
-export const saveCashAccount = defineJsonOperation({ method: "POST" })
-  .validator(accountSchema.extend({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.saveAccount(data);
-  });
-export const saveCashTransaction = defineJsonOperation({ method: "POST" })
-  .validator(z.intersection(transactionSchema, z.object({ companyId: z.string().uuid() })))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.saveTransaction(data);
-  });
-export const deleteCashTransaction = defineJsonOperation({ method: "POST" })
-  .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
-  .handler(async ({ data }) => {
-    const server = await import("./cash-flow.server");
-    return server.removeTransaction(data.id, data.companyId);
-  });
-
-export const saveCashCategory = defineJsonOperation({ method: "POST" })
-  .validator(cashCategorySchema.extend({ companyId: z.string().uuid() }))
-  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
-export const deleteCashCategory = defineJsonOperation({ method: "POST" })
-  .validator(z.object({ id: z.string().uuid(), companyId: z.string().uuid() }))
-  .handler(async ({ data }) => (await import("./cash-flow.server")).writeCategory(data));
+  .validator(company)
+  .handler(async ({ data }) => (await import("./cash-flow.server")).load(data.companyId));
+export const saveCashForecast = defineJsonOperation({ method: "POST" })
+  .validator(z.intersection(forecastSchema, company))
+  .handler(async ({ data }) => (await import("./cash-flow.server")).saveForecast(data));
+export const saveCashFlowMapping = defineJsonOperation({ method: "POST" })
+  .validator(
+    z.union([
+      mappingSchema.extend(company.shape),
+      company.extend({
+        account_code: mappingSchema.shape.account_code,
+        inflow_line: z.null(),
+        outflow_line: z.null(),
+      }),
+    ]),
+  )
+  .handler(async ({ data }) => (await import("./cash-flow.server")).saveMapping(data));
+export const saveCashFlowOverride = defineJsonOperation({ method: "POST" })
+  .validator(
+    company.extend({
+      journal_id: z.string().min(1).max(200),
+      line_sequence: z.number().int().nonnegative(),
+      counterpart_code: z.string().trim().min(1).max(120),
+      cash_flow_line: cashFlowLineSchema.nullable(),
+    }),
+  )
+  .handler(async ({ data }) => (await import("./cash-flow.server")).saveOverride(data));
 
 export const loadCashReconciliation = defineJsonOperation({ method: "GET" })
   .validator(reconciliationScopeSchema)

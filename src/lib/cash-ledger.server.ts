@@ -1,14 +1,19 @@
-import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { CompanyState } from "./accounting-engine";
 import { bankSourceAccount } from "./bank-feed-model";
-import type { CashAccount, CashTransaction } from "./cash-flow-model";
+import { classifyCashMovement } from "./cash-flow-classification";
+import type {
+  CashAccount,
+  CashFlowLine,
+  CashFlowMapping,
+  CashTransaction,
+} from "./cash-flow-model";
 import { postedLedgerLines } from "./posted-ledger.server";
 
-type CashLine = {
+type LedgerLine = {
   id: string;
+  number: string | null;
   sequence: number;
-  line_count: number;
   account_code: string;
   date: string;
   description: string;
@@ -21,17 +26,40 @@ type CashLine = {
   payment_currency: string | null;
   payment_amount: number | null;
 };
+export type CashOverride = {
+  journal_id: string;
+  line_sequence: number;
+  counterpart_code: string;
+  cash_flow_line: CashFlowLine;
+};
 
-// An account discovered in the ledger can be selected in reports before it has a
-// Cash Flow configuration. Its identifier is stable across reads.
-function ledgerAccountId(companyId: string, code: string, currency: string) {
-  const hash = createHash("sha256")
-    .update(JSON.stringify([companyId, code, currency]))
-    .digest("hex");
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+/** The bank and cash accounts of the Chart of Accounts, the only accounts Cash Flow reports. */
+export function cashGlAccounts(chart: CompanyState["accounts"]) {
+  return chart.filter((a) => a.type === "Asset" && bankSourceAccount(a, chart));
 }
 
-function cashAmount(line: CashLine, currency: string) {
+/** Cash accounts with their currency: the bank setup, else the single statement currency. */
+export async function readCashAccounts(
+  client: Pick<PoolClient, "query">,
+  companyId: string,
+  chart: CompanyState["accounts"],
+): Promise<CashAccount[]> {
+  const statementCurrencies = await client.query<{ account: string; currency: string }>(
+    `SELECT account_code AS account, min(feed_currency) AS currency
+     FROM ledger_statements WHERE company_id=$1 GROUP BY account_code
+     HAVING count(DISTINCT feed_currency)=1`,
+    [companyId],
+  );
+  const feedCurrency = new Map(statementCurrencies.rows.map((r) => [r.account, r.currency]));
+  return cashGlAccounts(chart).map((a) => ({
+    id: a.code,
+    name: a.name,
+    currency: a.sourceAccount?.currency ?? feedCurrency.get(a.code) ?? "USD",
+    first_posting: null,
+  }));
+}
+
+function cashAmount(line: LedgerLine, currency: string) {
   if (currency === "USD") return line.base;
   if (line.legacy_currency === null && line.currency === currency) return line.native;
   if (line.payment_currency === currency && line.payment_amount !== null)
@@ -39,25 +67,44 @@ function cashAmount(line: CashLine, currency: string) {
   return 0;
 }
 
+/** Splits `total` cents across weights; the last share takes the rounding remainder. */
+function allocate(total: number, weights: number[]) {
+  const sum = weights.reduce((s, w) => s + w, 0);
+  let left = total;
+  return weights.map((weight, i) => {
+    if (i === weights.length - 1) return left;
+    const share = Math.round((total * weight) / sum);
+    left -= share;
+    return share;
+  });
+}
+
+/**
+ * Actual cash read from the General Ledger.
+ *
+ * Every posted line on a bank or cash account is a cash movement. Its counterparts are the
+ * other lines of the journal moving the opposite way (or all other lines when none does);
+ * the cash amount is split across them in proportion to their amounts, so a journal paying
+ * several expenses yields one classified movement per expense. A counterpart that is another
+ * cash account makes the movement an internal transfer. Opening journals and FX remeasurement
+ * change the balance without being cash flows.
+ */
 export async function cashFromLedger(
   client: Pick<PoolClient, "query">,
   companyId: string,
   chart: CompanyState["accounts"],
-  configured: CashAccount[],
-  manual: CashTransaction[],
+  mappings: CashFlowMapping[],
+  overrides: CashOverride[],
 ) {
-  const codes = new Set(configured.flatMap((a) => (a.gl_account_code ? [a.gl_account_code] : [])));
-  for (const account of chart)
-    if (account.type === "Asset" && bankSourceAccount(account, chart)) codes.add(account.code);
-
-  const [postings, statementCurrencies] = await Promise.all([
-    client.query<CashLine>(
-      `WITH posted AS (
-         SELECT *, count(*) OVER (PARTITION BY id)::int AS line_count
-         FROM (${postedLedgerLines}) ledger
-       )
-       SELECT p.id,sequence,account_code,p.date::text,coalesce(nullif(line_description,''),description) AS description,
-              opening,source_type,currency,line_count,(debit-credit)::float8 AS base,
+  const accounts = await readCashAccounts(client, companyId, chart);
+  const codes = accounts.map((a) => a.id);
+  const [postings] = await Promise.all([
+    client.query<LedgerLine>(
+      `WITH posted AS (${postedLedgerLines}),
+       cash_journals AS (SELECT DISTINCT id FROM posted WHERE account_code=ANY($2::text[]))
+       SELECT p.id,p.number::text AS number,sequence,account_code,p.date::text,
+              coalesce(nullif(line_description,''),description) AS description,
+              opening,source_type,currency,(debit-credit)::float8 AS base,
               (original_debit-original_credit)::float8 AS native,legacy_currency,
               payment.transaction_currency AS payment_currency,payment.amount::float8 AS payment_amount
        FROM posted p
@@ -74,118 +121,89 @@ export async function cashFromLedger(
            AND coalesce(cash_functional_amount,functional_amount)=abs(p.debit-p.credit)
          LIMIT 1
        ) payment ON true
-       WHERE p.account_code=ANY($2::text[])
+       WHERE p.id IN (SELECT id FROM cash_journals)
        ORDER BY p.date,p.id,p.sequence`,
-      [companyId, [...codes]],
-    ),
-    client.query<{ account: string; currency: string }>(
-      `SELECT account_code AS account, min(feed_currency) AS currency
-       FROM ledger_statements WHERE company_id=$1 GROUP BY account_code
-       HAVING count(DISTINCT feed_currency)=1`,
-      [companyId],
+      [companyId, codes],
     ),
   ]);
-  const bankCurrencies = new Map(
-    statementCurrencies.rows.map((row) => [row.account, row.currency]),
+  const accountByCode = new Map(accounts.map((a) => [a.id, a]));
+  const chartByCode = new Map(chart.map((a) => [a.code, a]));
+  const mappingByCode = new Map(mappings.map((m) => [m.account_code, m]));
+  const overrideByKey = new Map(
+    overrides.map((o) => [`${o.journal_id}|${o.line_sequence}|${o.counterpart_code}`, o]),
   );
-  const linesByAccount = new Map<string, CashLine[]>();
-  for (const line of postings.rows) {
-    const lines = linesByAccount.get(line.account_code) ?? [];
-    lines.push(line);
-    linesByAccount.set(line.account_code, lines);
-  }
-  const accounts = configured.map((a) => ({ ...a }));
-  const active = new Map<string, CashAccount>();
-  for (const item of chart) {
-    if (!codes.has(item.code) || item.type !== "Asset") continue;
-    const links = accounts.filter((a) => a.gl_account_code === item.code);
-    const currency =
-      item.sourceAccount?.currency ?? bankCurrencies.get(item.code) ?? links[0]?.currency ?? "USD";
-    const matching = links.filter((a) => a.currency === currency);
-    const first = linesByAccount.get(item.code)?.find((line) => cashAmount(line, currency) !== 0);
-    if (!first) continue;
-    // A journal line cannot be allocated across several management accounts without an explicit split.
-    const account: CashAccount =
-      matching.length === 1
-        ? matching[0]!
-        : {
-            id: ledgerAccountId(companyId, item.code, currency),
-            name: item.name,
-            currency,
-            opening_date: first.date,
-            opening_balance: 0,
-            gl_account_code: item.code,
-            ledger_only: true,
-          };
-    if (account.ledger_only) accounts.push(account);
-    for (const linked of [...matching, account]) linked.ledger_opening_date = first.date;
-    active.set(item.code, account);
-  }
 
-  const actuals: CashTransaction[] = [];
-  const journalCash = new Map<string, CashTransaction[]>();
-  for (const line of postings.rows) {
-    const account = active.get(line.account_code);
-    if (!account) continue;
-    const amount = cashAmount(line, account.currency);
-    if (!amount) continue;
-    const adjustment =
-      line.opening || line.source_type === "FXRevaluation" || line.source_type === "FXReversal";
-    const entry: CashTransaction = {
-      id: `ledger:${line.id}:${line.sequence}`,
-      account_id: account.id,
-      description: line.description,
-      category: adjustment ? "Ledger balance adjustment" : "General Ledger",
-      direction: amount > 0 ? "in" : "out",
-      amount: Math.abs(amount),
-      due_date: line.date,
-      paid_date: line.date,
-      status: "paid",
-      cash_flow_line: "unclassified",
-      variance_note: "",
-      gl_account_code: account.gl_account_code,
-      transfer_account_id: null,
-      ledger_posted: true,
-      ...(adjustment ? { balance_adjustment: true } : {}),
-    };
-    actuals.push(entry);
-    if (!adjustment && line.line_count === 2) {
-      const legs = journalCash.get(line.id) ?? [];
-      legs.push(entry);
-      journalCash.set(line.id, legs);
+  const journals = new Map<string, LedgerLine[]>();
+  for (const line of postings.rows) journals.set(line.id, [...(journals.get(line.id) ?? []), line]);
+
+  const transactions: CashTransaction[] = [];
+  for (const lines of journals.values())
+    for (const line of lines) {
+      const account = accountByCode.get(line.account_code);
+      if (!account) continue;
+      const amount = cashAmount(line, account.currency);
+      if (!amount) continue;
+      if (!account.first_posting || line.date < account.first_posting)
+        account.first_posting = line.date;
+      const direction = amount > 0 ? "in" : "out";
+      const base = {
+        source: "ledger" as const,
+        account_id: account.id,
+        description: line.description,
+        direction,
+        due_date: line.date,
+        paid_date: line.date,
+        status: "paid" as const,
+        variance_note: "",
+        journal: { id: line.id, number: line.number, sequence: line.sequence },
+      } satisfies Partial<CashTransaction>;
+      const adjustment =
+        line.opening || line.source_type === "FXRevaluation" || line.source_type === "FXReversal";
+      // Counterpart weights by account: lines moving the opposite way, else every other line.
+      const others = lines.filter((l) => l !== line && l.base !== 0);
+      const opposite = others.filter((l) => Math.sign(l.base) !== Math.sign(line.base));
+      const weights = new Map<string, number>();
+      for (const l of opposite.length ? opposite : others)
+        weights.set(l.account_code, (weights.get(l.account_code) ?? 0) + Math.abs(l.base));
+      if (adjustment || !weights.size) {
+        transactions.push({
+          ...base,
+          id: `ledger:${line.id}:${line.sequence}`,
+          counterpart_code: null,
+          amount: Math.abs(amount),
+          cash_flow_line: "unclassified",
+          classified_by: "default",
+          transfer_account_id: null,
+          ...(adjustment ? { balance_adjustment: true as const } : {}),
+        });
+        continue;
+      }
+      const counterparts = [...weights.keys()];
+      const shares = allocate(
+        Math.round(Math.abs(amount) * 100),
+        counterparts.map((c) => weights.get(c)!),
+      );
+      counterparts.forEach((counterpart, i) => {
+        if (!shares[i]) return;
+        const transfer = accountByCode.has(counterpart);
+        const override = overrideByKey.get(`${line.id}|${line.sequence}|${counterpart}`);
+        const classified = transfer
+          ? { line: "internal_transfer" as const, by: "default" as const }
+          : classifyCashMovement(
+              direction,
+              chartByCode.get(counterpart),
+              mappingByCode.get(counterpart),
+            );
+        transactions.push({
+          ...base,
+          id: `ledger:${line.id}:${line.sequence}:${counterpart}`,
+          counterpart_code: counterpart,
+          amount: shares[i]! / 100,
+          cash_flow_line: override && !transfer ? override.cash_flow_line : classified.line,
+          classified_by: override && !transfer ? "override" : classified.by,
+          transfer_account_id: transfer ? counterpart : null,
+        });
+      });
     }
-  }
-  const accountById = new Map(accounts.map((a) => [a.id, a]));
-  for (const legs of journalCash.values()) {
-    const [a, b] = legs;
-    if (
-      legs.length !== 2 ||
-      !a ||
-      !b ||
-      a.account_id === b.account_id ||
-      a.direction === b.direction ||
-      a.amount !== b.amount ||
-      accountById.get(a.account_id)?.currency !== accountById.get(b.account_id)?.currency
-    )
-      continue;
-    a.cash_flow_line = b.cash_flow_line = "internal_transfer";
-    a.transfer_account_id = b.account_id;
-    b.transfer_account_id = a.account_id;
-  }
-
-  // Keep manual records and their forecast baseline, while using one source for actuals.
-  const transactions = manual.map((t): CashTransaction => {
-    const account = accountById.get(t.account_id);
-    const ledgerAccount = account?.gl_account_code && active.get(account.gl_account_code);
-    return t.status === "paid" && ledgerAccount && ledgerAccount.currency === account?.currency
-      ? { ...t, reference_only: true }
-      : t;
-  });
-  return {
-    accounts,
-    transactions: [...transactions, ...actuals].sort((a, b) =>
-      b.due_date.localeCompare(a.due_date),
-    ),
-    statementCurrencies: bankCurrencies,
-  };
+  return { accounts, transactions };
 }

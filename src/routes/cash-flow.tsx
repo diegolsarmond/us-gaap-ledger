@@ -1,37 +1,21 @@
 import { loadParameters } from "@/lib/parameters";
-import { useModal } from "@/components/modal-provider";
 import { useCompanies } from "@/components/company-context";
 import { CashManagementReport } from "@/components/cash-management-report";
-import { SearchableSelect } from "@/components/searchable-select";
+import { CashForecastForm } from "@/components/cash-forecast-form";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  loadCashData,
-  saveCashAccount,
-  saveCashTransaction,
-  deleteCashTransaction,
-} from "@/lib/cash-flow";
+import { loadCashData, saveCashFlowOverride } from "@/lib/cash-flow";
 import {
   summarize,
   overduePlanned,
   cashFlowLines,
-  transactionSchema,
   type CashFlowLine,
-  type CashAccount,
-  type CashData,
   type CashTransaction,
   type Interval,
 } from "@/lib/cash-flow-model";
 import { PageTitle, Panel, Kpi, Table, Th, Td } from "@/components/ui-kit";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { exportToCsv } from "@/lib/format";
 export const Route = createFileRoute("/cash-flow")({
   head: () => ({ meta: [{ title: "Cash flow · World Business" }] }),
@@ -46,60 +30,28 @@ const relativeDate = (days: number) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
+const displayDate = (date: string) => date.split("-").reverse().join("/");
 const control = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 const button = "rounded-md bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
-const statusLabels = { planned: "Planned", paid: "Actual", cancelled: "Cancelled" };
-function Field({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
+const tabTrigger =
+  "data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium";
+const forecastStatus = {
+  planned: "Forecast",
+  realized: "Forecast · realized",
+  cancelled: "Forecast · cancelled",
+};
+const classifiedBy = {
+  override: "changed for this movement",
+  mapping: "from cash flow mapping",
+  default: "default for the account type",
+  forecast: "forecast",
+};
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className={`block space-y-1 text-xs text-ink2 ${className}`}>
+    <label className="block space-y-1 text-xs text-ink2">
       <span>{label}</span>
       {children}
     </label>
-  );
-}
-function EntryFormAccountiner({
-  modal,
-  title,
-  companyName,
-  onClose,
-  children,
-}: {
-  modal: boolean;
-  title: string;
-  companyName: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  if (!modal) return <Panel title={title}>{children}</Panel>;
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto overscroll-contain"
-        style={{ width: "96vw", maxWidth: "1600px" }}
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2">
-            <span className="block text-xs font-medium text-ink2">Company</span>
-            <span className="block text-lg font-bold text-brand">{companyName}</span>
-          </DialogDescription>
-        </DialogHeader>
-        {children}
-      </DialogContent>
-    </Dialog>
   );
 }
 function CashFlowPage() {
@@ -122,14 +74,12 @@ function CompanyCashFlowPage() {
     queryKey: ["parameters", companyId],
     queryFn: () => loadParameters({ data: { companyId } }),
   });
-  const activeCurrencies =
-    parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ?? [];
   const currencyOptions = useMemo(
     () => [
       ...new Set([
+        ...(query.data?.accounts.map((a) => a.currency) ?? []),
         ...(parameters.data?.currencies.filter((c) => c.status === "Active").map((c) => c.code) ??
           []),
-        ...(query.data?.accounts.map((a) => a.currency) ?? []),
       ]),
     ],
     [parameters.data?.currencies, query.data?.accounts],
@@ -147,110 +97,23 @@ function CompanyCashFlowPage() {
     }
   }, [currencyOptions, currency]);
   const [activeTab, setActiveTab] = useState("over-time");
-  const [form, setForm] = useState<"account" | "transaction" | null>(null);
-  const [direction, setDirection] = useState<"in" | "out">("in");
-  const [cashFlowLine, setCashFlowLine] = useState<CashFlowLine | "">("");
-  const [entryAccount, setEntryAccount] = useState("");
-  const [transferAccount, setTransferAccount] = useState("");
-  const [amountCents, setAmountCents] = useState("");
-  const [openingBalanceCents, setOpeningBalanceCents] = useState("0");
-  const [accountCurrency, setAccountCurrency] = useState("USD");
-  const [accountName, setAccountName] = useState("");
-  const [accountGl, setAccountGl] = useState("");
-  const [openingDate, setOpeningDate] = useState(today);
-  /** Where the prefilled opening balance came from; cleared once the user edits it. */
-  const [openingSource, setOpeningSource] = useState<NonNullable<
-    CashData["glAccounts"][number]["knownBalance"]
-  > | null>(null);
-  const [keepOpen, setKeepOpen] = useState(false);
-  const entryFormRef = useRef<HTMLFormElement>(null);
-  const continueEntryRef = useRef(false);
-  const focusEntryRef = useRef(false);
-  const [editing, setEditing] = useState<CashTransaction | null>(null);
-  const [editingAccount, setEditingAccount] = useState<CashAccount | null>(null);
-  const [status, setStatus] = useState<CashTransaction["status"]>("planned");
+  const [form, setForm] = useState<{ editing: CashTransaction | null } | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const modal = useModal();
-  const accounts = query.data?.accounts ?? [];
-  const forecastAccounts = accounts.filter((a) => !a.ledger_only);
-  const categories = query.data?.categories ?? [];
-  const glAccounts = query.data?.glAccounts ?? [];
-  const statementPending = query.data?.statementPending ?? [];
-  const pendingFor = (code: string | null) =>
-    code ? statementPending.find((p) => p.account === code) : undefined;
-  /** Ledger history for a GL account: the auto-discovered or configured account that holds it. */
-  const ledgerHistory = (code: string) =>
-    accounts.find((a) => a.gl_account_code === code && a.ledger_opening_date);
-  const configuredOn = (code: string) =>
-    accounts.filter((a) => !a.ledger_only && a.gl_account_code === code);
-  const cashGlOptions = glAccounts
-    .filter((a) => a.type === "Asset")
-    .sort((a, b) => Number(b.cash) - Number(a.cash) || a.code.localeCompare(b.code))
-    .map((a) => {
-      const setUp = configuredOn(a.code).filter((c) => c.id !== editingAccount?.id);
-      return {
-        value: a.code,
-        label: `${a.code} · ${a.name}`,
-        detail: setUp.length
-          ? `Already set up: ${setUp.map((c) => `${c.name} (${c.currency})`).join(", ")}`
-          : a.cash
-            ? `Bank / cash${a.currency ? ` · ${a.currency}` : ""}`
-            : "Other asset",
-      };
-    });
-  const selectedHistory = accountGl ? ledgerHistory(accountGl) : undefined;
-  function openAccountForm(account: CashAccount | null) {
-    setEditingAccount(account);
-    setOpeningBalanceCents(account ? String(Math.round(account.opening_balance * 100)) : "0");
-    setAccountCurrency(account?.currency ?? currency);
-    setAccountName(account?.name ?? "");
-    setAccountGl(account?.gl_account_code ?? "");
-    setOpeningDate(account && !account.ledger_only ? account.opening_date : today());
-    setOpeningSource(null);
-    setForm("account");
-    setError("");
-  }
-  function chooseAccountGl(code: string) {
-    setAccountGl(code);
-    if (editingAccount && !editingAccount.ledger_only) return;
-    const gl = glAccounts.find((a) => a.code === code);
-    const history = ledgerHistory(code);
-    const known = history?.currency ?? gl?.currency;
-    if (known) setAccountCurrency(known);
-    if (gl && !accountName.trim()) setAccountName(gl.name);
-    // Without ledger history, open from the balance Bank Feed or QuickBooks already reported.
-    const balance = history ? null : (gl?.knownBalance ?? null);
-    setOpeningSource(balance);
-    if (balance) {
-      setOpeningBalanceCents(String(Math.round(balance.amount * 100)));
-      if (balance.openingDate) setOpeningDate(balance.openingDate);
-    }
-  }
-  const selectedCurrency =
-    accounts.find((a) => a.id === entryAccount)?.currency ?? filteredCurrency();
-  function filteredCurrency() {
-    return (
-      accounts.find((a) => a.id === accountId)?.currency ??
-      accounts.find((a) => a.currency === currency)?.currency ??
-      accounts[0]?.currency ??
-      currency
-    );
-  }
-  const formattedAmount = amountCents
-    ? new Intl.NumberFormat("en-US", { style: "currency", currency: selectedCurrency }).format(
-        Number(amountCents) / 100,
-      )
-    : "";
-  const transactions = query.data?.transactions ?? [];
+
+  const data = query.data;
+  const accounts = data?.accounts ?? [];
+  const glAccounts = data?.glAccounts ?? [];
+  const glName = (code: string | null) =>
+    code ? `${code} · ${glAccounts.find((a) => a.code === code)?.name ?? ""}` : "—";
+  const accountName = (code: string | null) =>
+    accounts.find((a) => a.id === code)?.name ?? code ?? "—";
+  const pendingFor = (code: string) => data?.statementPending.find((p) => p.account === code);
+  const transactions = data?.transactions ?? [];
   const filteredAccounts = accounts.filter(
     (a) => a.currency === currency && (!accountId || a.id === accountId),
   );
-  const defaultEntryAccount =
-    forecastAccounts.find((a) => a.id === accountId) ??
-    forecastAccounts.find((a) => a.currency === currency) ??
-    forecastAccounts[0];
   const ids = new Set(filteredAccounts.map((a) => a.id));
   const filteredTransactions = transactions.filter((t) => ids.has(t.account_id));
   const validRange =
@@ -267,12 +130,16 @@ function CompanyCashFlowPage() {
     projected,
     today(),
   );
+  const balances = new Map(
+    accounts.map((a) => [
+      a.id,
+      summarize([a], transactions, today(), today(), "daily", false).periods.at(-1)?.balance ?? 0,
+    ]),
+  );
   const overdue = overduePlanned(filteredAccounts, filteredTransactions, today());
-  const scopeLabel = accountId
-    ? (accounts.find((a) => a.id === accountId)?.name ?? "Selected account")
-    : `All ${currency} accounts`;
-  const money = (n: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+  const scopeLabel = accountId ? accountName(accountId) : `All ${currency} accounts`;
+  const money = (n: number, unit = currency) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: unit }).format(n);
   const totalIn = report.periods.reduce((s, p) => s + p.inflows, 0);
   const totalOut = report.periods.reduce((s, p) => s + p.outflows, 0);
   const listed = filteredTransactions.filter((t) => {
@@ -283,116 +150,43 @@ function CompanyCashFlowPage() {
     listed
       .filter((t) => t.status === "planned" && t.direction === "out")
       .reduce((sum, t) => sum + Math.round(t.amount * 100), 0) / 100;
-  async function mutate(action: () => Promise<unknown>, message: string) {
-    if (pending) return;
-    continueEntryRef.current = form === "transaction" && !editing && keepOpen;
+  const unclassified = listed.filter(
+    (t) => t.source === "ledger" && !t.balance_adjustment && t.cash_flow_line === "unclassified",
+  ).length;
+  const waiting = filteredAccounts.flatMap((a) => pendingFor(a.id) ?? []);
+  const withoutHistory = filteredAccounts.filter((a) => !a.first_posting);
+
+  async function refresh() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["cash-flow"] }),
+      queryClient.invalidateQueries({ queryKey: ["cash-flow-links"] }),
+      queryClient.invalidateQueries({ queryKey: ["cash-gl-check"] }),
+    ]);
+  }
+  async function reclassify(t: CashTransaction, value: string) {
+    if (!t.journal || !t.counterpart_code || pending) return;
     setPending(true);
     setError("");
     setNotice("");
     try {
-      await action();
-      await queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
-      await queryClient.invalidateQueries({ queryKey: ["cash-flow-links"] });
-      await queryClient.invalidateQueries({ queryKey: ["cash-gl-check"] });
-      if (continueEntryRef.current) {
-        const entryForm = entryFormRef.current;
-        entryForm?.reset();
-        setStatus("planned");
-        setDirection("in");
-        setCashFlowLine("");
-        setAmountCents("");
-        setEntryAccount("");
-        setTransferAccount("");
-        focusEntryRef.current = true;
-      } else {
-        setForm(null);
-        setEditing(null);
-        setEditingAccount(null);
-      }
-      setNotice(message);
+      await saveCashFlowOverride({
+        data: {
+          companyId,
+          journal_id: t.journal.id,
+          line_sequence: t.journal.sequence,
+          counterpart_code: t.counterpart_code,
+          cash_flow_line: value === "" ? null : (value as CashFlowLine),
+        },
+      });
+      await refresh();
+      setNotice(
+        value === "" ? "Classification returned to the account mapping." : "Movement reclassified.",
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save. Please try again.");
+      setError(e instanceof Error ? e.message : "Unable to reclassify. Please try again.");
     } finally {
       setPending(false);
-      if (focusEntryRef.current) {
-        focusEntryRef.current = false;
-        requestAnimationFrame(() =>
-          entryFormRef.current?.querySelector<HTMLTextAreaElement>('[name="description"]')?.focus(),
-        );
-      }
     }
-  }
-  function submitAccount(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const configured = editingAccount && !editingAccount.ledger_only ? editingAccount : null;
-    // With posted history the General Ledger supplies opening balance and actuals; the stored
-    // opening only anchors forecasts, so keep the saved one or start forecasting today.
-    const opening = selectedHistory
-      ? configured
-        ? { opening_date: configured.opening_date, opening_balance: configured.opening_balance }
-        : { opening_date: today(), opening_balance: 0 }
-      : {
-          opening_date: openingDate,
-          opening_balance: Number(openingBalanceCents) / 100,
-        };
-    void mutate(
-      () =>
-        saveCashAccount({
-          data: {
-            companyId,
-            ...(configured ? { id: configured.id } : {}),
-            name: accountName,
-            currency: accountCurrency,
-            ...opening,
-            gl_account_code: accountGl || null,
-          },
-        }),
-      editingAccount && !editingAccount.ledger_only ? "Account updated." : "Account created.",
-    );
-  }
-  function submitTransaction(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    if (!cashFlowLine) {
-      setError("Select a cash flow classification for this transaction type.");
-      return;
-    }
-    const parsed = transactionSchema.safeParse({
-      ...(editing ? { id: editing.id } : {}),
-      account_id: String(f.get("account_id")),
-      description: String(f.get("description")),
-      category: String(f.get("category")),
-      direction,
-      amount: Number(amountCents) / 100,
-      due_date: String(f.get("due_date")),
-      paid_date: status === "paid" ? String(f.get("paid_date")) : null,
-      status,
-      cash_flow_line: cashFlowLine,
-      variance_note: String(f.get("variance_note") ?? ""),
-      gl_account_code: String(f.get("gl_account_code") ?? "") || null,
-      transfer_account_id: cashFlowLine === "internal_transfer" ? transferAccount || null : null,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues.map((issue) => issue.message).join(" "));
-      return;
-    }
-    void mutate(
-      () => saveCashTransaction({ data: { companyId, ...parsed.data } }),
-      "Transaction saved.",
-    );
-  }
-  function startEdit(t: CashTransaction) {
-    setEditing(t);
-    setDirection(t.direction);
-    setCashFlowLine(t.cash_flow_line ?? "unclassified");
-    setEntryAccount(t.account_id);
-    setTransferAccount(t.transfer_account_id ?? "");
-    setAmountCents(String(Math.round(t.amount * 100)));
-    setStatus(t.status);
-    setForm("transaction");
-    setError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function exportReport() {
     exportToCsv(
@@ -402,7 +196,7 @@ function CompanyCashFlowPage() {
         "Previous balance",
         "Inflows",
         "Outflows",
-        "Recorded opening balances",
+        "Opening balances and FX remeasurement",
         "Net cash flow",
         "Closing balance",
         "Currency",
@@ -423,66 +217,49 @@ function CompanyCashFlowPage() {
       ]),
     );
   }
+  const reportProps = {
+    accounts: filteredAccounts,
+    transactions: filteredTransactions,
+    start,
+    end,
+    projected,
+    currency,
+    companyId,
+    accountId,
+    asOf: today(),
+  };
+  const invalidRange = (
+    <p role="alert" className="text-red-700">
+      Enter a valid period of up to five years.
+    </p>
+  );
   return (
     <div className="space-y-5">
       <PageTitle
         title="Cash flow"
-        description="US GAAP cash flow management · operating, investing and financing · weekly forecast vs. actual."
+        description="US GAAP cash flow management · actuals from the General Ledger · weekly forecast vs. actual."
         actions={
           <>
-            <Link to="/accounts" className={button}>
-              Chart of Accounts
+            <Link to="/statements" className={button}>
+              Bank Feed
             </Link>
-            <Link to="/parameters/cash-categories" className={button}>
-              Categories
+            <Link to="/parameters/cash-flow-mapping" className={button}>
+              Cash flow mapping
             </Link>
             <button
               className={button}
-              disabled={!query.isSuccess || !activeCurrencies.length || pending}
+              disabled={!accounts.length || pending}
               onClick={() => {
-                openAccountForm(null);
-                setActiveTab("accounts");
-              }}
-            >
-              New account
-            </button>
-            <button
-              className={button}
-              disabled={!forecastAccounts.length || pending}
-              onClick={() => {
-                setEditing(null);
-                setDirection("in");
-                setCashFlowLine("");
-                setAmountCents("");
-                setEntryAccount("");
-                setTransferAccount("");
-                setStatus("planned");
-                setForm("transaction");
+                setForm({ editing: null });
                 setError("");
+                setNotice("");
               }}
             >
-              New transaction
+              New forecast
             </button>
           </>
         }
       />
-      {parameters.isError && (
-        <p role="alert">
-          Unable to load company currencies.{" "}
-          <button className="underline" onClick={() => void parameters.refetch()}>
-            Try again
-          </button>
-        </p>
-      )}
-      {parameters.data && !activeCurrencies.length && (
-        <p className="rounded border border-line p-3 text-sm">
-          Add an active company currency in{" "}
-          <Link className="underline" to="/parameters/currencies">
-            Currencies & FX Rates
-          </Link>{" "}
-          before creating a cash account.
-        </p>
-      )}
       {query.isPending && <p role="status">Loading data…</p>}
       {query.isError && (
         <div
@@ -490,7 +267,7 @@ function CompanyCashFlowPage() {
           className="rounded border border-red-300 bg-red-50 p-4 text-sm text-red-800"
         >
           Unable to load cash flow. Check your connection and confirm that
-          database/002_cash_flow.sql has been run.
+          database/037_cash_flow_ledger_only.sql has been run.
           <button className="ml-3 underline" onClick={() => void query.refetch()}>
             Try again
           </button>
@@ -506,494 +283,34 @@ function CompanyCashFlowPage() {
           {notice}
         </p>
       )}
-      {query.isSuccess && (
+      {data && form && (
+        <CashForecastForm
+          companyId={companyId}
+          companyName={activeCompany!.name}
+          data={data}
+          editing={form.editing}
+          defaultAccount={accountId || filteredAccounts[0]?.id || accounts[0]?.id || ""}
+          today={today()}
+          onClose={() => setForm(null)}
+          onSaved={async (message) => {
+            await refresh();
+            if (message) {
+              setForm(null);
+              setNotice(message);
+            }
+          }}
+        />
+      )}
+      {data && (
         <>
-          {form && (
-            <EntryFormAccountiner
-              modal={form === "transaction"}
-              companyName={activeCompany!.name}
-              onClose={() => {
-                if (!pending) {
-                  setForm(null);
-                  setError("");
-                }
-              }}
-              title={
-                form === "account"
-                  ? editingAccount
-                    ? editingAccount.ledger_only
-                      ? "Set up forecasts for this account"
-                      : "Edit cash / bank account"
-                    : "Add cash / bank account"
-                  : editing
-                    ? "Edit transaction"
-                    : "Add transaction"
-              }
-            >
-              <form
-                key={
-                  form +
-                  (form === "account" ? (editingAccount?.id ?? "new") : (editing?.id ?? "new"))
-                }
-                ref={entryFormRef}
-                onSubmit={form === "account" ? submitAccount : submitTransaction}
-                className="p-4"
-              >
-                {error && (
-                  <p role="alert" className="mb-3 text-sm text-red-800">
-                    {error}
-                  </p>
-                )}
-                {form === "transaction" && notice && (
-                  <p role="status" className="mb-3 text-sm text-green-800">
-                    {notice}
-                  </p>
-                )}
-                <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {form === "account" ? (
-                    <>
-                      <Field label="Bank / cash account from Chart of Accounts">
-                        <SearchableSelect
-                          label="Cash GL account"
-                          name="gl_account_code"
-                          value={accountGl}
-                          onChange={chooseAccountGl}
-                          required
-                          autoFocus={!editingAccount}
-                          placeholder="Select a bank or cash account"
-                          options={cashGlOptions}
-                        />
-                        <Link to="/accounts" className="text-brand underline">
-                          Manage Chart of Accounts
-                        </Link>
-                      </Field>
-                      <Field label="Account name">
-                        <input
-                          name="name"
-                          value={accountName}
-                          onChange={(e) => setAccountName(e.target.value)}
-                          required
-                          maxLength={120}
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Currency">
-                        <select
-                          name="currency"
-                          value={accountCurrency}
-                          onChange={(e) => setAccountCurrency(e.target.value)}
-                          disabled={!!selectedHistory}
-                          className={control}
-                        >
-                          {[
-                            ...new Set([
-                              ...activeCurrencies,
-                              accountCurrency,
-                              ...(editingAccount ? [editingAccount.currency] : []),
-                            ]),
-                          ].map((c) => (
-                            <option key={c}>{c}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      {selectedHistory ? (
-                        <div className="rounded-md border border-brand/20 bg-brand/5 p-3 text-sm sm:col-span-2 lg:col-span-3">
-                          <p className="font-medium text-ink">
-                            Opening balance and actual transactions come from the General Ledger.
-                          </p>
-                          <p className="mt-1 text-xs text-ink2">
-                            First posting on {selectedHistory.ledger_opening_date} in{" "}
-                            {selectedHistory.currency}. Posted Bank Feed lines, payments and journal
-                            entries for this account appear here automatically; this setup only adds
-                            forecasts.
-                          </p>
-                          {(() => {
-                            const waiting = pendingFor(accountGl);
-                            return waiting ? (
-                              <p className="mt-1 text-xs text-amber-900">
-                                {waiting.count} statement line{waiting.count === 1 ? "" : "s"}{" "}
-                                (since {waiting.oldest}) still await review in{" "}
-                                <Link
-                                  to="/statements"
-                                  search={{ account: accountGl }}
-                                  className="underline"
-                                >
-                                  Bank Feed
-                                </Link>
-                                .
-                              </p>
-                            ) : null;
-                          })()}
-                        </div>
-                      ) : (
-                        <>
-                          <Field label="Opening balance date">
-                            <input
-                              name="opening_date"
-                              type="date"
-                              value={openingDate}
-                              onChange={(e) => {
-                                setOpeningDate(e.target.value);
-                                setOpeningSource(null);
-                              }}
-                              required
-                              className={control}
-                            />
-                          </Field>
-                          <Field label="Opening balance (may be negative)">
-                            <input
-                              name="opening_balance"
-                              type="text"
-                              inputMode="text"
-                              placeholder={new Intl.NumberFormat("en-US", {
-                                style: "currency",
-                                currency: accountCurrency,
-                              }).format(0)}
-                              value={
-                                openingBalanceCents === ""
-                                  ? ""
-                                  : new Intl.NumberFormat("en-US", {
-                                      style: "currency",
-                                      currency: accountCurrency,
-                                    }).format(Number(openingBalanceCents) / 100)
-                              }
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const digits = raw
-                                  .replace(/\D/g, "")
-                                  .replace(/^0+/, "")
-                                  .slice(0, 14);
-                                setOpeningBalanceCents(
-                                  raw === ""
-                                    ? ""
-                                    : `${raw.includes("-") ? "-" : ""}${digits || "0"}`,
-                                );
-                                setOpeningSource(null);
-                              }}
-                              required
-                              className={control}
-                            />
-                          </Field>
-                          {openingSource ? (
-                            <p
-                              className={`rounded-md border p-3 text-xs sm:col-span-2 lg:col-span-3 ${openingSource.openingDate ? "border-brand/20 bg-brand/5 text-ink2" : "border-amber-200 bg-amber-50 text-amber-900"}`}
-                            >
-                              {openingSource.source === "bank-feed"
-                                ? `Prefilled from the bank statement balance recorded in Bank Feed as of ${openingSource.asOf}; it opens the next day.`
-                                : openingSource.openingDate
-                                  ? `Prefilled from the QuickBooks balance imported with the Account List. QuickBooks had posted this account through ${openingSource.asOf}, so it opens the next day.`
-                                  : "Prefilled from the QuickBooks balance imported with the Account List. No posted QuickBooks statement shows its date: enter the date that balance was exported."}{" "}
-                              Statement lines dated before the opening date do not enter actual
-                              cash. Confirm the balance against the bank before saving.
-                              {openingSource.unreviewed && (
-                                <span className="mt-2 block text-amber-900">
-                                  This is the QuickBooks book balance.{" "}
-                                  {openingSource.unreviewed.count} bank line
-                                  {openingSource.unreviewed.count === 1 ? " was" : "s were"} still
-                                  “For review” in QuickBooks
-                                  {openingSource.asOf
-                                    ? ` through ${openingSource.asOf}`
-                                    : ""} (net{" "}
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: accountCurrency,
-                                  }).format(openingSource.unreviewed.net)}
-                                  ) and are not in it. If they cleared the bank, the bank balance is{" "}
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: accountCurrency,
-                                  }).format(
-                                    (Math.round(openingSource.amount * 100) +
-                                      Math.round(openingSource.unreviewed.net * 100)) /
-                                      100,
-                                  )}
-                                  .{" "}
-                                  <button
-                                    type="button"
-                                    className="underline"
-                                    onClick={() => {
-                                      const unreviewed = openingSource.unreviewed!;
-                                      setOpeningBalanceCents(
-                                        String(
-                                          Math.round(openingSource.amount * 100) +
-                                            Math.round(unreviewed.net * 100),
-                                        ),
-                                      );
-                                      setOpeningSource({ ...openingSource, unreviewed: null });
-                                    }}
-                                  >
-                                    Use bank balance
-                                  </button>
-                                </span>
-                              )}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-ink3">
-                              No posted activity or known bank balance for this GL account. The
-                              opening balance is the balance at the start of this date, before the
-                              transactions for the day.
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <Field label="Account">
-                        <SearchableSelect
-                          label="Account"
-                          autoFocus
-                          name="account_id"
-                          required
-                          defaultValue={editing?.account_id ?? defaultEntryAccount?.id ?? ""}
-                          onChange={setEntryAccount}
-                          options={forecastAccounts.map((a) => ({
-                            value: a.id,
-                            label: `${a.name} · ${a.currency}`,
-                          }))}
-                        />
-                      </Field>
-                      <Field label="Type">
-                        <SearchableSelect
-                          label="Type"
-                          name="direction"
-                          value={direction}
-                          onChange={(value) => {
-                            const nextDirection = value as "in" | "out";
-                            setDirection(nextDirection);
-                            if (
-                              cashFlowLine &&
-                              cashFlowLines[cashFlowLine].direction !== null &&
-                              cashFlowLines[cashFlowLine].direction !== nextDirection
-                            ) {
-                              setCashFlowLine("");
-                            }
-                            setError("");
-                          }}
-                          options={[
-                            { value: "in", label: "Inflow" },
-                            { value: "out", label: "Outflow" },
-                          ]}
-                        />
-                      </Field>
-                      <Field
-                        label={
-                          direction === "in" ? "Expected receipt date" : "Expected payment date"
-                        }
-                      >
-                        <input
-                          name="due_date"
-                          type="date"
-                          defaultValue={editing?.due_date ?? today()}
-                          required
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Description" className="sm:col-span-2 lg:col-span-3">
-                        <textarea
-                          rows={3}
-                          name="description"
-                          defaultValue={editing?.description}
-                          required
-                          maxLength={240}
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="Category">
-                        <SearchableSelect
-                          label="Category"
-                          name="category"
-                          defaultValue={editing?.category ?? ""}
-                          required
-                          placeholder="Select a category"
-                          options={Array.from(new Set(categories.map((c) => c.name))).map(
-                            (name) => ({ value: name, label: name }),
-                          )}
-                        />
-                        {!categories.length && <span>Add a category in System Parameters.</span>}
-                      </Field>
-                      {cashFlowLine === "internal_transfer" ? (
-                        <Field
-                          label={
-                            direction === "out" ? "Destination cash account" : "Source cash account"
-                          }
-                        >
-                          {editing ? (
-                            <span className={control + " block"}>
-                              {accounts.find((a) => a.id === transferAccount)?.name ?? "—"}
-                            </span>
-                          ) : (
-                            <SearchableSelect
-                              label="Counterpart cash account"
-                              value={transferAccount}
-                              onChange={setTransferAccount}
-                              required
-                              placeholder="Select the other cash account"
-                              options={forecastAccounts
-                                .filter(
-                                  (a) =>
-                                    a.currency === selectedCurrency &&
-                                    a.id !== (entryAccount || defaultEntryAccount?.id),
-                                )
-                                .map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))}
-                            />
-                          )}
-                          <span>
-                            Both legs are recorded together with the same amount and dates. They are
-                            excluded from activities when both accounts are in the selected scope.
-                          </span>
-                        </Field>
-                      ) : (
-                        <Field label="GL counterpart account · actual / forecast">
-                          <SearchableSelect
-                            label="GL counterpart account"
-                            name="gl_account_code"
-                            defaultValue={editing?.gl_account_code ?? ""}
-                            required
-                            placeholder="Select an accounting account"
-                            options={glAccounts.map((a) => ({
-                              value: a.code,
-                              label: `${a.code} · ${a.name} · ${a.type}`,
-                            }))}
-                          />
-                          <span>
-                            Account associated with this receipt/payment or forecast. Forecasts do
-                            not post journal entries.
-                          </span>
-                          {!glAccounts.length && (
-                            <Link to="/accounts" className="block text-brand underline">
-                              Create your Chart of Accounts first
-                            </Link>
-                          )}
-                        </Field>
-                      )}
-                      <Field label="Amount in account currency">
-                        <input
-                          name="amount"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder={new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: selectedCurrency,
-                          }).format(0)}
-                          value={formattedAmount}
-                          onChange={(e) =>
-                            setAmountCents(
-                              e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14),
-                            )
-                          }
-                          required
-                          className={control}
-                        />
-                      </Field>
-                      <Field label="US GAAP cash flow classification">
-                        <SearchableSelect
-                          label="Cash flow classification"
-                          name="cash_flow_line"
-                          value={cashFlowLine}
-                          onChange={(value) => {
-                            setCashFlowLine(value as CashFlowLine);
-                            setError("");
-                          }}
-                          required
-                          placeholder="Select a cash flow line"
-                          options={Object.entries(cashFlowLines)
-                            .filter(
-                              ([, line]) => line.direction === null || line.direction === direction,
-                            )
-                            .map(([key, line]) => ({
-                              value: key,
-                              label: `${line.activity} · ${line.label}`,
-                              disabled: line.direction !== null && line.direction !== direction,
-                            }))}
-                        />
-                      </Field>
-                      <Field
-                        label="Forecast variance explanation"
-                        className="sm:col-span-2 lg:col-span-3"
-                      >
-                        <textarea
-                          name="variance_note"
-                          rows={2}
-                          maxLength={1000}
-                          defaultValue={editing?.variance_note ?? ""}
-                          className={control}
-                          placeholder="Explain amount changes, receipt/payment delays, cancelled sales or unexpected costs."
-                        />
-                        <span>
-                          Planned inflows include future sales; planned outflows include fixed
-                          costs, logistics and supplier payments. The first saved plan is preserved
-                          when this entry is revised or settled.
-                        </span>
-                        {editing?.forecast_amount != null && (
-                          <span className="block">
-                            Original plan: {editing.forecast_direction === "out" ? "−" : "+"}
-                            {new Intl.NumberFormat("en-US", {
-                              style: "currency",
-                              currency: selectedCurrency,
-                            }).format(editing.forecast_amount)}{" "}
-                            on {editing.forecast_date}. To preserve history, cancel this entry
-                            instead of deleting it.
-                          </span>
-                        )}
-                      </Field>
-                      <Field label="Status">
-                        <SearchableSelect
-                          label="Status"
-                          value={status}
-                          onChange={(value) => setStatus(value as typeof status)}
-                          options={Object.entries(statusLabels).map(([value, label]) => ({
-                            value,
-                            label,
-                          }))}
-                        />
-                      </Field>
-                      {status === "paid" && (
-                        <Field label="Receipt / payment date">
-                          <input
-                            name="paid_date"
-                            type="date"
-                            defaultValue={editing?.paid_date ?? today()}
-                            required
-                            className={control}
-                          />
-                        </Field>
-                      )}
-                    </>
-                  )}
-                  {form === "transaction" && !editing && (
-                    <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-3">
-                      <input
-                        type="checkbox"
-                        checked={keepOpen}
-                        onChange={(e) => setKeepOpen(e.target.checked)}
-                        className="h-4 w-4 accent-brand"
-                      />
-                      Continue adding transactions (keep this window open after saving)
-                    </label>
-                  )}
-                  <div className="flex items-end gap-3">
-                    <button className={button}>{pending ? "Saving…" : "Save"}</button>
-                    <button
-                      type="button"
-                      className="text-sm underline"
-                      onClick={() => {
-                        setForm(null);
-                        setError("");
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </fieldset>
-              </form>
-            </EntryFormAccountiner>
-          )}
           {!accounts.length && (
-            <Panel title="No cash accounts or posted cash movements">
+            <Panel title="No bank or cash accounts">
               <p className="p-4 text-sm text-ink3">
-                Post transactions for a bank account in the General Ledger to see them here, or add
-                an account to enter forecasts.
+                Cash Flow reports the bank and cash accounts of the{" "}
+                <Link to="/accounts" className="text-brand underline">
+                  Chart of Accounts
+                </Link>
+                . Add one (an Asset account of the Bank type) to see its cash here.
               </p>
             </Panel>
           )}
@@ -1059,7 +376,7 @@ function CompanyCashFlowPage() {
                     .filter((a) => a.currency === currency)
                     .map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name}
+                        {a.id} · {a.name}
                       </option>
                     ))}
                 </select>
@@ -1076,76 +393,54 @@ function CompanyCashFlowPage() {
               </Field>
             </div>
             <p className="px-4 pb-4 text-xs text-ink3">
-              Weeks start on Monday. Actual transactions use the payment date; planned transactions
-              use the due date. Amounts are separated by currency without conversion. Cancelled
-              transactions do not affect balances.
+              Actuals are posted General Ledger movements on bank and cash accounts, by posting
+              date; forecasts use their expected date. Weeks start on Monday. Amounts are separated
+              by currency without conversion.
             </p>
           </Panel>
-          {filteredAccounts.some((a) => a.ledger_opening_date) && (
-            <p className="rounded-md border border-line p-3 text-sm">
-              Accounts with posted activity use the General Ledger for actual balances and
-              transactions. Existing manual actuals on these accounts remain visible as reference.
-            </p>
-          )}
-          {(() => {
-            // Accounts with only unposted statements have no ledger activity yet; show them
-            // in the currency scope so imported banks never look empty without explanation.
-            const unlinked = accountId
-              ? []
-              : statementPending
-                  .filter((p) => {
-                    // Credit cards are liabilities, not cash; they stay out of this report.
-                    const gl = glAccounts.find((a) => a.code === p.account);
-                    return (
-                      !!gl?.cash &&
-                      !accounts.some((a) => a.gl_account_code === p.account) &&
-                      (gl.currency ?? "USD") === currency
-                    );
-                  })
-                  .map((p) => p.account);
-            const codes = [
-              ...new Set([
-                ...filteredAccounts.flatMap((a) => (a.gl_account_code ? [a.gl_account_code] : [])),
-                ...unlinked,
-              ]),
-            ];
-            const waiting = codes.flatMap((code) => pendingFor(code) ?? []);
-            if (!waiting.length) return null;
-            const total = waiting.reduce((s, p) => s + p.count, 0);
-            return (
-              <div
-                role="status"
-                className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-              >
-                {total} bank statement line{total === 1 ? "" : "s"} still await review and are not
-                in actual cash yet. Review them in Bank Feed:{" "}
-                {waiting.map((p, i) => (
-                  <span key={p.account}>
-                    {i > 0 && ", "}
-                    <Link to="/statements" search={{ account: p.account }} className="underline">
-                      {p.account} · {glAccounts.find((gl) => gl.code === p.account)?.name ?? ""} (
-                      {p.count})
-                    </Link>
-                  </span>
-                ))}
-                .
-              </div>
-            );
-          })()}
-          {(filteredAccounts.some((a) => !a.gl_account_code) ||
-            filteredTransactions.some((t) => !t.gl_account_code)) && (
-            <p
+          {waiting.length > 0 && (
+            <div
               role="status"
               className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
             >
-              Some existing cash accounts or transactions are not linked to Chart of Accounts. Edit
-              them to select the correct GL account; no historical mapping has been assumed.
+              {waiting.reduce((s, p) => s + p.count, 0)} bank statement lines still await review and
+              are not actual cash yet. Review them in Bank Feed:{" "}
+              {waiting.map((p, i) => (
+                <span key={p.account}>
+                  {i > 0 && ", "}
+                  <Link to="/statements" search={{ account: p.account }} className="underline">
+                    {glName(p.account)} ({p.count})
+                  </Link>
+                </span>
+              ))}
+              .
+            </div>
+          )}
+          {withoutHistory.length > 0 && (
+            <p className="rounded-md border border-line p-3 text-sm">
+              {withoutHistory.length === 1
+                ? `${glName(withoutHistory[0]!.id)} has`
+                : `${withoutHistory.length} accounts have`}{" "}
+              no posted General Ledger activity, so their balance starts at zero. Post their opening
+              balance in{" "}
+              <Link to="/journals" className="text-brand underline">
+                Journal Entries
+              </Link>{" "}
+              (type Opening) to start from the real balance.
+            </p>
+          )}
+          {unclassified > 0 && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {unclassified} posted movement{unclassified === 1 ? " is" : "s are"} unclassified in
+              this period. Map their counterpart accounts in{" "}
+              <Link to="/parameters/cash-flow-mapping" className="underline">
+                Cash flow mapping
+              </Link>{" "}
+              or reclassify them in Transactions during period.
             </p>
           )}
           {!validRange ? (
-            <p role="alert" className="text-red-700">
-              Enter a valid period of up to five years.
-            </p>
+            invalidRange
           ) : (
             <>
               {!projected && plannedOutflows > 0 && (
@@ -1153,18 +448,17 @@ function CompanyCashFlowPage() {
                   role="status"
                   className="rounded border border-line bg-white p-3 text-sm text-ink2"
                 >
-                  There are {money(plannedOutflows)} in planned expenses for this period. These are
-                  included in the projected balance; the Actual view includes only completed
-                  payments.{" "}
+                  There are {money(plannedOutflows)} in planned payments for this period. They are
+                  included in the projected balance; the Actual view includes only posted cash.{" "}
                   <button className="text-brand underline" onClick={() => setProjected(true)}>
-                    Include planned transactions
+                    Include forecasts
                   </button>
                 </p>
               )}
               {overdue.length > 0 && (
                 <Panel
-                  title={`Overdue planned items · ${overdue.length}`}
-                  subtitle={`Expected before ${today()} and not settled. They are excluded from the forecast until settled, rescheduled or cancelled.`}
+                  title={`Overdue forecasts · ${overdue.length}`}
+                  subtitle={`Expected before ${today()} and still planned. They are excluded from the projection until realized, rescheduled or cancelled.`}
                 >
                   <Table>
                     <thead>
@@ -1179,9 +473,9 @@ function CompanyCashFlowPage() {
                     <tbody>
                       {overdue.map((t) => (
                         <tr key={t.id} className="border-t border-line">
-                          <Td>{t.due_date.split("-").reverse().join("/")}</Td>
+                          <Td>{displayDate(t.due_date)}</Td>
                           <Td>{t.description}</Td>
-                          <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
+                          <Td>{accountName(t.account_id)}</Td>
                           <Td
                             align="right"
                             className={t.direction === "out" ? "text-red-700" : "text-blue-700"}
@@ -1193,9 +487,9 @@ function CompanyCashFlowPage() {
                             <button
                               disabled={pending}
                               className="text-brand underline"
-                              onClick={() => startEdit(t)}
+                              onClick={() => setForm({ editing: t })}
                             >
-                              Settle or reschedule
+                              Mark realized or reschedule
                             </button>
                           </Td>
                         </tr>
@@ -1214,8 +508,8 @@ function CompanyCashFlowPage() {
                   value={money(report.opening)}
                   hint={
                     projected && start > today()
-                      ? "Actual cash plus planned items expected from today until the period starts. Overdue items are excluded."
-                      : "Only realized cash; overdue planned items are not included."
+                      ? "Posted cash plus forecasts expected from today until the period starts. Overdue forecasts are excluded."
+                      : "Posted cash only; overdue forecasts are not included."
                   }
                 />
                 <Kpi label="Inflows during period" value={money(totalIn)} tone="up" />
@@ -1229,43 +523,25 @@ function CompanyCashFlowPage() {
           )}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
             <TabsList className="frost h-auto w-full flex-wrap justify-start gap-1.5 p-1.5 border border-line/70">
-              <TabsTrigger
-                value="over-time"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="over-time" className={tabTrigger}>
                 Cash flow over time
               </TabsTrigger>
-              <TabsTrigger
-                value="statement"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="statement" className={tabTrigger}>
                 Statement of Cash Flows
               </TabsTrigger>
-              <TabsTrigger
-                value="weekly"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="weekly" className={tabTrigger}>
                 Weekly forecast vs. actual
               </TabsTrigger>
-              <TabsTrigger
-                value="reconciliation"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="reconciliation" className={tabTrigger}>
                 <span className="hidden sm:inline">
                   Supplemental accounting reconciliation · actual · manual inputs
                 </span>
                 <span className="sm:hidden">Supplemental reconciliation</span>
               </TabsTrigger>
-              <TabsTrigger
-                value="transactions"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="transactions" className={tabTrigger}>
                 Transactions during period
               </TabsTrigger>
-              <TabsTrigger
-                value="accounts"
-                className="data-[state=active]:bg-white data-[state=active]:text-brand data-[state=active]:shadow-xs text-ink2 hover:text-ink py-2 px-3.5 text-xs sm:text-sm font-medium"
-              >
+              <TabsTrigger value="accounts" className={tabTrigger}>
                 Accounts
               </TabsTrigger>
             </TabsList>
@@ -1276,16 +552,14 @@ function CompanyCashFlowPage() {
               className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
             >
               {!validRange ? (
-                <p role="alert" className="text-red-700">
-                  Enter a valid period of up to five years.
-                </p>
+                invalidRange
               ) : (
                 <Panel
                   title="Cash flow over time"
                   subtitle={
                     projected
-                      ? "Projection based only on recorded transactions, without automatic estimates."
-                      : "Transactions actually received or paid."
+                      ? "Posted cash plus recorded forecasts, without automatic estimates."
+                      : "Cash posted in the General Ledger."
                   }
                   aside={
                     <button onClick={exportReport} className={button}>
@@ -1294,9 +568,8 @@ function CompanyCashFlowPage() {
                   }
                 >
                   <p className="px-4 py-3 text-xs text-ink3">
-                    Closing balance = previous balance + recorded opening balances + inflows −
-                    outflows. Recorded opening balances are included on each account opening date.
-                    Net cash flow equals inflows minus outflows.
+                    Closing balance = previous balance + opening balances and FX remeasurement +
+                    inflows − outflows. Opening journals and FX remeasurement are not cash flows.
                   </p>
                   <Table>
                     <thead>
@@ -1305,7 +578,7 @@ function CompanyCashFlowPage() {
                         <Th align="right">Previous balance</Th>
                         <Th align="right">Inflows</Th>
                         <Th align="right">Outflows</Th>
-                        <Th align="right">Recorded opening balances</Th>
+                        <Th align="right">Opening balances / FX</Th>
                         <Th align="right">Net cash flow</Th>
                         <Th align="right">Closing balance</Th>
                       </tr>
@@ -1331,83 +604,24 @@ function CompanyCashFlowPage() {
               )}
             </TabsContent>
 
-            <TabsContent
-              value="statement"
-              forceMount
-              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
-            >
-              {!validRange ? (
-                <p role="alert" className="text-red-700">
-                  Enter a valid period of up to five years.
-                </p>
-              ) : (
-                <CashManagementReport
-                  key={`statement-${companyId}-${currency}-${accountId}-${start}-${end}`}
-                  accounts={filteredAccounts}
-                  transactions={filteredTransactions}
-                  start={start}
-                  end={end}
-                  projected={projected}
-                  currency={currency as string}
-                  companyId={companyId}
-                  accountId={accountId}
-                  asOf={today()}
-                  section="statement"
-                />
-              )}
-            </TabsContent>
-
-            <TabsContent
-              value="weekly"
-              forceMount
-              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
-            >
-              {!validRange ? (
-                <p role="alert" className="text-red-700">
-                  Enter a valid period of up to five years.
-                </p>
-              ) : (
-                <CashManagementReport
-                  key={`weekly-${companyId}-${currency}-${accountId}-${start}-${end}`}
-                  accounts={filteredAccounts}
-                  transactions={filteredTransactions}
-                  start={start}
-                  end={end}
-                  projected={projected}
-                  currency={currency as string}
-                  companyId={companyId}
-                  accountId={accountId}
-                  asOf={today()}
-                  section="weekly"
-                />
-              )}
-            </TabsContent>
-
-            <TabsContent
-              value="reconciliation"
-              forceMount
-              className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
-            >
-              {!validRange ? (
-                <p role="alert" className="text-red-700">
-                  Enter a valid period of up to five years.
-                </p>
-              ) : (
-                <CashManagementReport
-                  key={`reconciliation-${companyId}-${currency}-${accountId}-${start}-${end}`}
-                  accounts={filteredAccounts}
-                  transactions={filteredTransactions}
-                  start={start}
-                  end={end}
-                  projected={projected}
-                  currency={currency as string}
-                  companyId={companyId}
-                  accountId={accountId}
-                  asOf={today()}
-                  section="reconciliation"
-                />
-              )}
-            </TabsContent>
+            {(["statement", "weekly", "reconciliation"] as const).map((section) => (
+              <TabsContent
+                key={section}
+                value={section}
+                forceMount
+                className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
+              >
+                {!validRange ? (
+                  invalidRange
+                ) : (
+                  <CashManagementReport
+                    key={`${section}-${companyId}-${currency}-${accountId}-${start}-${end}`}
+                    {...reportProps}
+                    section={section}
+                  />
+                )}
+              </TabsContent>
+            ))}
 
             <TabsContent
               value="transactions"
@@ -1415,26 +629,24 @@ function CompanyCashFlowPage() {
               className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
             >
               {!validRange ? (
-                <p role="alert" className="text-red-700">
-                  Enter a valid period of up to five years.
-                </p>
+                invalidRange
               ) : (
                 <Panel
                   title="Transactions during period"
                   subtitle={
                     projected
-                      ? "Planned and actual transactions affect totals. Cancelled transactions do not affect balances."
-                      : "Only actual transactions affect totals. Planned and cancelled transactions are shown for reference."
+                      ? "Posted cash and planned forecasts affect totals. Realized and cancelled forecasts are shown for reference."
+                      : "Only posted cash affects totals. Forecasts are shown for reference."
                   }
                 >
                   <Table>
                     <thead>
                       <tr>
-                        <Th>Due date</Th>
-                        <Th>Payment / receipt</Th>
-                        <Th>Description / category</Th>
+                        <Th>Date</Th>
+                        <Th>Description · category</Th>
                         <Th>Account</Th>
-                        <Th>Status</Th>
+                        <Th>Source</Th>
+                        <Th>Classification</Th>
                         <Th align="right">Amount</Th>
                         <Th>Actions</Th>
                       </tr>
@@ -1447,38 +659,70 @@ function CompanyCashFlowPage() {
                       )}
                       {listed.map((t) => (
                         <tr key={t.id} className="border-t border-line">
-                          <Td>{t.due_date.split("-").reverse().join("/")}</Td>
-                          <Td>{t.paid_date ? t.paid_date.split("-").reverse().join("/") : "—"}</Td>
+                          <Td>{displayDate(t.paid_date ?? t.due_date)}</Td>
                           <Td>
                             {t.description}
                             <br />
-                            <span className="text-xs text-ink3">{t.category}</span>
-                            <br />
                             <span className="text-xs text-ink3">
-                              GL:{" "}
-                              {t.gl_account_code
-                                ? `${t.gl_account_code} · ${glAccounts.find((a) => a.code === t.gl_account_code)?.name ?? ""}`
-                                : "Not linked"}
-                            </span>
-                            <br />
-                            <span className="text-xs text-ink3">
-                              {cashFlowLines[t.cash_flow_line ?? "unclassified"].label}
-                              {t.transfer_account_id &&
-                                ` · ${t.direction === "out" ? "to" : "from"} ${accounts.find((a) => a.id === t.transfer_account_id)?.name ?? "another account"}`}
+                              {t.balance_adjustment
+                                ? "Opening balance / FX remeasurement"
+                                : t.transfer_account_id
+                                  ? `Transfer ${t.direction === "out" ? "to" : "from"} ${accountName(t.transfer_account_id)}`
+                                  : glName(t.counterpart_code)}
                             </span>
                             {t.variance_note && (
                               <p className="text-xs text-ink2">{t.variance_note}</p>
                             )}
                           </Td>
-                          <Td>{accounts.find((a) => a.id === t.account_id)?.name}</Td>
+                          <Td>{accountName(t.account_id)}</Td>
                           <Td>
-                            {t.balance_adjustment
-                              ? "Ledger adjustment"
-                              : t.ledger_posted
-                                ? "Actual · General Ledger"
-                                : t.reference_only
-                                  ? "Manual · reference only"
-                                  : statusLabels[t.status]}
+                            {t.source === "ledger" ? (
+                              <Link to="/journals" className="text-brand underline">
+                                {t.journal?.number
+                                  ? `Journal ${t.journal.number}`
+                                  : "General Ledger"}
+                              </Link>
+                            ) : (
+                              forecastStatus[t.status as keyof typeof forecastStatus]
+                            )}
+                          </Td>
+                          <Td>
+                            {t.source === "ledger" &&
+                            !t.balance_adjustment &&
+                            !t.transfer_account_id &&
+                            t.counterpart_code ? (
+                              <select
+                                aria-label="Cash flow classification"
+                                disabled={pending}
+                                value={t.classified_by === "override" ? t.cash_flow_line : ""}
+                                onChange={(e) => void reclassify(t, e.target.value)}
+                                className="max-w-64 rounded border border-line bg-white p-1 text-xs"
+                              >
+                                <option value="">
+                                  {t.classified_by === "override"
+                                    ? "Use the account mapping again"
+                                    : `${cashFlowLines[t.cash_flow_line].label} · ${classifiedBy[t.classified_by]}`}
+                                </option>
+                                {Object.entries(cashFlowLines)
+                                  .filter(([key]) => key !== "internal_transfer")
+                                  .map(([key, l]) => (
+                                    <option key={key} value={key}>
+                                      {l.activity} · {l.label}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs">
+                                {t.balance_adjustment
+                                  ? "Not a cash flow"
+                                  : cashFlowLines[t.cash_flow_line].label}
+                              </span>
+                            )}
+                            {t.classified_by === "override" && (
+                              <span className="block text-xs text-ink3">
+                                {classifiedBy.override}
+                              </span>
+                            )}
                           </Td>
                           <Td
                             align="right"
@@ -1488,47 +732,18 @@ function CompanyCashFlowPage() {
                             {money(t.amount)}
                           </Td>
                           <Td>
-                            {t.ledger_posted ? (
-                              <Link to="/journals" className="text-brand underline">
-                                Journal Entries
-                              </Link>
-                            ) : (
-                              <div className="flex gap-3">
-                                <button
-                                  disabled={pending}
-                                  className="text-brand underline"
-                                  onClick={() => startEdit(t)}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  disabled={pending || t.forecast_amount != null}
-                                  title={
-                                    t.forecast_amount != null
-                                      ? "Cancel this transaction to preserve forecast history"
-                                      : "Delete transaction"
-                                  }
-                                  className="text-red-700 underline"
-                                  onClick={async () => {
-                                    const confirmed = await modal.showConfirm({
-                                      title: "Delete transaction?",
-                                      message: `Permanently delete this transaction? This action cannot be undone.`,
-                                      tone: "error",
-                                      confirmText: "Delete",
-                                      cancelText: "Cancel",
-                                    });
-                                    if (confirmed) {
-                                      void mutate(
-                                        () =>
-                                          deleteCashTransaction({ data: { id: t.id, companyId } }),
-                                        "Transaction deleted.",
-                                      );
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                            {t.source === "forecast" && (
+                              <button
+                                disabled={pending}
+                                className="text-brand underline"
+                                onClick={() => {
+                                  setForm({ editing: t });
+                                  setError("");
+                                  setNotice("");
+                                }}
+                              >
+                                Edit
+                              </button>
                             )}
                           </Td>
                         </tr>
@@ -1544,73 +759,58 @@ function CompanyCashFlowPage() {
               forceMount
               className="data-[state=inactive]:hidden space-y-4 focus-visible:outline-none"
             >
-              <Panel title="Accounts">
+              <Panel
+                title="Bank and cash accounts"
+                subtitle="From the Chart of Accounts. Balances are posted General Ledger balances as of today."
+                aside={
+                  <Link to="/accounts" className={button}>
+                    Chart of Accounts
+                  </Link>
+                }
+              >
                 <Table>
                   <thead>
                     <tr>
                       <Th>Account</Th>
                       <Th>Currency</Th>
-                      <Th>Linked GL account</Th>
-                      <Th>Opening date</Th>
-                      <Th align="right">Opening balance</Th>
+                      <Th>First posting</Th>
+                      <Th align="right">Balance</Th>
                       <Th>Bank Feed</Th>
-                      <Th>Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts.map((a) => (
-                      <tr key={a.id} className="border-t border-line">
-                        <Td>{a.name}</Td>
-                        <Td>{a.currency}</Td>
-                        <Td>
-                          {a.gl_account_code
-                            ? `${a.gl_account_code} · ${glAccounts.find((gl) => gl.code === a.gl_account_code)?.name ?? ""}`
-                            : "Not linked"}
-                        </Td>
-                        <Td>{a.ledger_opening_date ?? a.opening_date}</Td>
-                        <Td align="right">
-                          {a.ledger_opening_date
-                            ? "From General Ledger"
-                            : new Intl.NumberFormat("en-US", {
-                                style: "currency",
-                                currency: a.currency,
-                              }).format(a.opening_balance)}
-                        </Td>
-                        <Td>
-                          {(() => {
-                            const waiting = pendingFor(a.gl_account_code);
-                            return waiting ? (
-                              <Link
-                                to="/statements"
-                                search={{ account: a.gl_account_code! }}
-                                className="text-amber-800 underline"
-                              >
-                                {waiting.count} to review
-                              </Link>
-                            ) : a.gl_account_code &&
-                              glAccounts.find((gl) => gl.code === a.gl_account_code)?.cash ? (
-                              <span className="text-ink3">Up to date</span>
+                    {accounts.map((a) => {
+                      const review = pendingFor(a.id);
+                      return (
+                        <tr key={a.id} className="border-t border-line">
+                          <Td>
+                            {a.id} · {a.name}
+                          </Td>
+                          <Td>{a.currency}</Td>
+                          <Td>
+                            {a.first_posting ? (
+                              displayDate(a.first_posting)
                             ) : (
-                              <span className="text-ink3">—</span>
-                            );
-                          })()}
-                        </Td>
-                        <Td>
-                          <button
-                            type="button"
-                            disabled={pending}
-                            className="text-brand underline"
-                            onClick={() => {
-                              openAccountForm(a);
-                              setNotice("");
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                          >
-                            {a.ledger_only ? "Set up forecasts" : "Edit"}
-                          </button>
-                        </Td>
-                      </tr>
-                    ))}
+                              <Link to="/journals" className="text-brand underline">
+                                Post opening balance
+                              </Link>
+                            )}
+                          </Td>
+                          <Td align="right">{money(balances.get(a.id) ?? 0, a.currency)}</Td>
+                          <Td>
+                            <Link
+                              to="/statements"
+                              search={{ account: a.id }}
+                              className={
+                                review ? "text-amber-800 underline" : "text-brand underline"
+                              }
+                            >
+                              {review ? `${review.count} to review` : "Open"}
+                            </Link>
+                          </Td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </Table>
               </Panel>

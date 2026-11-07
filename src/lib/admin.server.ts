@@ -45,6 +45,9 @@ const referenceLabels: Record<string, string> = {
   journal_events: "journal event",
   cash_accounts: "cash account",
   cash_transactions: "cash transaction",
+  cash_forecasts: "cash forecast",
+  cash_flow_account_lines: "cash flow mapping",
+  cash_flow_line_overrides: "cash flow reclassification",
   cash_flow_reconciliations: "cash reconciliation",
 };
 /**

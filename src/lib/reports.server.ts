@@ -92,9 +92,9 @@ export async function loadSources(companyId: string): Promise<Source[]> {
         );
     }
   }
-  add("cashTransactions", "Cash flow · transactions", cash.transactions);
-  add("cashAccounts", "Bank accounts", cash.accounts);
-  add("cashCategories", "Cash categories", cash.categories);
+  add("cashTransactions", "Cash flow · actuals and forecasts", cash.transactions);
+  add("cashAccounts", "Bank and cash accounts", cash.accounts);
+  add("cashMappings", "Cash flow mapping", cash.mappings);
   add("company", "Active company", [ledger.company]);
   return sources;
 }

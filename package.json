@@ -16,6 +16,7 @@
     "test:structured-storage": "node --env-file-if-exists=.env scripts/test-structured-storage.mjs",
     "test:journals": "node --env-file-if-exists=.env scripts/test-journals.mjs",
     "test:bank-feed": "node --env-file-if-exists=.env scripts/test-bank-feed.mjs",
+    "test:cash-flow": "node --env-file-if-exists=.env scripts/test-cash-flow-ledger-db.mjs",
     "test:trial-balance": "node --env-file-if-exists=.env scripts/test-trial-balance.mjs",
     "migrate:journals": "node --env-file-if-exists=.env scripts/migrate-journals.mjs",
     "migrate:dimensions": "node --env-file-if-exists=.env scripts/migrate-dimensions.mjs",

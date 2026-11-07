@@ -1,25 +1,32 @@
+import type { PoolClient } from "pg";
 import { db } from "./db.server";
 import { authorizeCompany } from "./companies.server";
-import type { PoolClient } from "pg";
-import { summarize } from "./cash-flow-model";
-import { cashFromLedger } from "./cash-ledger.server";
 import { readLedger } from "./ledger-storage.server";
 import { postedLedgerLines } from "./posted-ledger.server";
 import type { CompanyState } from "./accounting-engine";
-import { bankSourceAccount } from "./bank-feed-model";
 import { quickBooksSourceStatus } from "./statement-csv";
-import type {
-  CashAccount,
-  CashTransaction,
-  CashData,
-  CashReconciliation,
-  GlCashCheck,
+import {
+  cashFromLedger,
+  cashGlAccounts,
+  readCashAccounts,
+  type CashOverride,
+} from "./cash-ledger.server";
+import { defaultCashFlowLines } from "./cash-flow-classification";
+import {
+  summarize,
+  type CashData,
+  type CashFlowLine,
+  type CashFlowMapping,
+  type CashForecast,
+  type CashReconciliation,
+  type CashTransaction,
+  type GlCashCheck,
 } from "./cash-flow-model";
 
 /**
- * Cash records dated in a closed fiscal period are frozen. Locked periods must be reopened
- * in Fiscal Periods (close_periods permission); soft-closed periods accept changes only from
- * users holding that permission.
+ * Records dated in a closed fiscal period are frozen. Locked periods must be reopened in
+ * Fiscal Periods (close_periods permission); soft-closed periods accept changes only from users
+ * holding that permission.
  */
 async function assertOpenPeriods(
   client: Pick<PoolClient, "query">,
@@ -47,122 +54,88 @@ async function assertOpenPeriods(
       );
   }
 }
-/** Only realized cash has an accounting date; plans and cancellations do not. */
-const accountingDate = (t: { status: string; paid_date: string | null }) =>
-  t.status === "paid" ? t.paid_date : null;
 
-async function readCashData(client: PoolClient, id: string): Promise<CashData> {
-  const [accounts, transactions, categories, chart] = await Promise.all([
-    client.query<CashAccount>(
-      "SELECT id, name, currency, opening_date::text, opening_balance::float8, gl_account_code FROM cash_accounts WHERE company_id=$1 ORDER BY name",
-      [id],
-    ),
-    client.query<CashTransaction>(
-      "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status, cash_flow_line, variance_note, forecast_amount::float8, forecast_date::text, forecast_direction, gl_account_code, transfer_id, transfer_account_id FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
-      [id],
-    ),
-    client.query(
-      "SELECT id,name,company_id FROM cash_categories WHERE company_id IS NULL OR company_id=$1 ORDER BY name",
-      [id],
-    ),
-    readLedger(client, id, "accounts") as unknown as Promise<CompanyState["accounts"]>,
-  ]);
-  const [ledger, statementPending, balances] = await Promise.all([
-    cashFromLedger(client, id, chart, accounts.rows, transactions.rows),
-    pendingStatementLines(client, id),
-    knownBankBalances(client, id),
-  ]);
-  const { statementCurrencies, ...cash } = ledger;
-  return {
-    ...cash,
-    categories: categories.rows,
-    glAccounts: chart.map((account) => {
-      const isCash = account.type === "Asset" && bankSourceAccount(account, chart);
-      const reported = balances.reported.get(account.code);
-      const quickBooks = account.sourceAccount?.balance;
-      const quickBooksAsOf = balances.quickBooksPostedThrough.get(account.code) ?? null;
-      return {
-        code: account.code,
-        name: account.name,
-        type: account.type,
-        balanceType: account.balanceType,
-        cash: isCash,
-        currency: account.sourceAccount?.currency ?? statementCurrencies.get(account.code) ?? null,
-        knownBalance: !isCash
-          ? null
-          : reported
-            ? {
-                amount: reported.amount,
-                openingDate: nextDay(reported.date),
-                source: "bank-feed" as const,
-                asOf: reported.date,
-                unreviewed: null,
-              }
-            : quickBooks !== undefined
-              ? {
-                  amount: quickBooks,
-                  openingDate: quickBooksAsOf && nextDay(quickBooksAsOf),
-                  source: "quickbooks" as const,
-                  asOf: quickBooksAsOf,
-                  unreviewed: unreviewedThrough(
-                    balances.quickBooksReview.get(account.code) ?? [],
-                    quickBooksAsOf,
-                  ),
-                }
-              : null,
-      };
-    }),
-    statementPending,
-  };
-}
-
-const nextDay = (date: string) => {
-  const day = new Date(date + "T12:00:00Z");
-  day.setUTCDate(day.getUTCDate() + 1);
-  return day.toISOString().slice(0, 10);
+type ForecastRow = {
+  id: string;
+  account_code: string;
+  counterpart_code: string;
+  description: string;
+  direction: "in" | "out";
+  amount: number;
+  expected_date: string;
+  status: "planned" | "realized" | "cancelled";
+  cash_flow_line: CashFlowLine;
+  variance_note: string;
+  forecast_amount: number;
+  forecast_date: string;
+  forecast_direction: "in" | "out";
+  transfer_id: string | null;
+  transfer_account_code: string | null;
 };
+const forecastColumns = `id,account_code,counterpart_code,description,direction,amount::float8,
+  expected_date::text,status,cash_flow_line,variance_note,forecast_amount::float8,
+  forecast_date::text,forecast_direction,transfer_id,transfer_account_code`;
 
-function unreviewedThrough(lines: { date: string; amount: number }[], asOf: string | null) {
-  const included = lines.filter((line) => !asOf || line.date <= asOf);
-  if (!included.length) return null;
-  const cents = included.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
-  return { count: included.length, net: cents / 100 };
-}
+const forecastTransaction = (f: ForecastRow): CashTransaction => ({
+  id: f.id,
+  source: "forecast",
+  account_id: f.account_code,
+  description: f.description,
+  counterpart_code: f.counterpart_code,
+  direction: f.direction,
+  amount: f.amount,
+  due_date: f.expected_date,
+  paid_date: null,
+  status: f.status,
+  cash_flow_line: f.cash_flow_line,
+  classified_by: "forecast",
+  variance_note: f.variance_note,
+  transfer_account_id: f.transfer_account_code,
+  transfer_id: f.transfer_id,
+  forecast_amount: f.forecast_amount,
+  forecast_date: f.forecast_date,
+  forecast_direction: f.forecast_direction,
+});
 
-/**
- * Balances a bank account is already known to have. A Bank Feed statement balance is an
- * end-of-day bank figure. The QuickBooks Account List balance is the book register balance
- * at export: it includes every line QuickBooks had posted, so it is dated by the last line
- * the imported "Transaction Posted" files show, and excludes lines still "For review".
- */
-async function knownBankBalances(client: Pick<PoolClient, "query">, companyId: string) {
-  const [reported, posted, review] = await Promise.all([
-    client.query<{ account: string; date: string; amount: number }>(
-      `SELECT DISTINCT ON (account_code) account_code AS account, balance_date::text AS date, amount::float8
-       FROM bank_feed_balances WHERE company_id=$1 ORDER BY account_code, balance_date DESC`,
+const readChart = (client: Pick<PoolClient, "query">, companyId: string) =>
+  readLedger(client as PoolClient, companyId, "accounts") as unknown as Promise<
+    CompanyState["accounts"]
+  >;
+
+async function readCashData(client: PoolClient, companyId: string): Promise<CashData> {
+  const [chart, mappings, overrides, forecasts, statementPending] = await Promise.all([
+    readChart(client, companyId),
+    client.query<CashFlowMapping>(
+      "SELECT account_code,inflow_line,outflow_line FROM cash_flow_account_lines WHERE company_id=$1",
       [companyId],
     ),
-    client.query<{ account: string; date: string }>(
-      `SELECT f.account_code AS account, max(r.date)::text AS date
-       FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
-       WHERE r.company_id=$1 AND f.feed_source_format='quickbooks-posted'
-       GROUP BY f.account_code`,
+    client.query<CashOverride>(
+      "SELECT journal_id,line_sequence,counterpart_code,cash_flow_line FROM cash_flow_line_overrides WHERE company_id=$1",
       [companyId],
     ),
-    client.query<{ account: string; date: string; amount: number }>(
-      `SELECT f.account_code AS account, r.date::text, r.amount::float8
-       FROM ledger_stagingrows r JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
-       WHERE r.company_id=$1 AND f.feed_source_format='quickbooks-review'`,
+    client.query<ForecastRow>(
+      `SELECT ${forecastColumns} FROM cash_forecasts WHERE company_id=$1 ORDER BY expected_date DESC, created_at DESC`,
       [companyId],
     ),
+    pendingStatementLines(client, companyId),
   ]);
-  const quickBooksReview = new Map<string, { date: string; amount: number }[]>();
-  for (const row of review.rows)
-    quickBooksReview.set(row.account, [...(quickBooksReview.get(row.account) ?? []), row]);
+  const ledger = await cashFromLedger(client, companyId, chart, mappings.rows, overrides.rows);
+  const cashCodes = new Set(cashGlAccounts(chart).map((a) => a.code));
   return {
-    reported: new Map(reported.rows.map((row) => [row.account, row])),
-    quickBooksPostedThrough: new Map(posted.rows.map((row) => [row.account, row.date])),
-    quickBooksReview,
+    accounts: ledger.accounts,
+    transactions: [...forecasts.rows.map(forecastTransaction), ...ledger.transactions].sort(
+      (a, b) => (b.paid_date ?? b.due_date).localeCompare(a.paid_date ?? a.due_date),
+    ),
+    mappings: mappings.rows,
+    glAccounts: chart.map((account) => ({
+      code: account.code,
+      name: account.name,
+      type: account.type,
+      balanceType: account.balanceType,
+      cash: cashCodes.has(account.code),
+      defaultLines: defaultCashFlowLines(account),
+    })),
+    statementPending,
   };
 }
 
@@ -219,6 +192,28 @@ export async function load(companyId: string): Promise<CashData> {
   }
 }
 
+/** Runs a cash write in one transaction with the actor recorded for the audit trail. */
+async function write<T>(
+  companyId: string,
+  work: (client: PoolClient, auth: Awaited<ReturnType<typeof authorizeCompany>>) => Promise<T>,
+) {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(803003)");
+    const auth = await authorizeCompany(companyId, "write_cash", client);
+    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+    const result = await work(client, auth);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 type ReconciliationScope = Pick<
   CashReconciliation,
   "companyId" | "start" | "end" | "currency" | "accountId"
@@ -228,18 +223,19 @@ export async function readReconciliation(
 ): Promise<CashReconciliation | null> {
   await authorizeCompany(data.companyId);
   const result = await db().query(
-    `SELECT company_id AS "companyId",period_start::text AS start,period_end::text AS end,currency,account_id AS "accountId",
+    `SELECT company_id AS "companyId",period_start::text AS start,period_end::text AS end,currency,account_code AS "accountId",
      net_income::float8,depreciation::float8,receivables::float8,inventory::float8,payables::float8,taxes_payable::float8,
      other_adjustments::float8,balance_sheet_cash::float8,explanation FROM cash_flow_reconciliations
-     WHERE company_id=$1 AND period_start=$2 AND period_end=$3 AND currency=$4 AND account_id IS NOT DISTINCT FROM $5::uuid`,
+     WHERE company_id=$1 AND period_start=$2 AND period_end=$3 AND currency=$4 AND account_code IS NOT DISTINCT FROM $5`,
     [data.companyId, data.start, data.end, data.currency, data.accountId],
   );
   return result.rows[0] ?? null;
 }
+
 /**
- * Compares actual ending cash with the posted GL balance of the linked cash accounts.
- * Proof is only possible when the scope owns its GL accounts exclusively and is in USD,
- * the currency journal amounts are recorded in.
+ * Proves actual ending cash against posted GL balances. Actuals are read from the ledger, so a
+ * difference points to a posting this report could not convert into the account currency.
+ * Proof is possible only in USD, the currency journal amounts are recorded in.
  */
 export async function checkGlCash(data: ReconciliationScope): Promise<GlCashCheck> {
   const client = await db().connect();
@@ -263,18 +259,7 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       (a) => a.currency === data.currency && (!data.accountId || a.id === data.accountId),
     );
     if (!accounts.length) return unavailable("No cash accounts in this scope.");
-    if (accounts.some((a) => !a.gl_account_code))
-      return unavailable("Every cash account in scope must be linked to a GL account.");
-    const codes = [...new Set(accounts.map((a) => a.gl_account_code!))];
-    const ids = new Set(accounts.map((a) => a.id));
-    if (
-      cash.accounts.some(
-        (a) => !ids.has(a.id) && a.gl_account_code && codes.includes(a.gl_account_code),
-      )
-    )
-      return unavailable(
-        "A linked GL account is shared with cash accounts outside this scope. Select all accounts that share it.",
-      );
+    const codes = accounts.map((a) => a.id);
     const gl = await client.query(
       `SELECT coalesce(sum(debit-credit),0)::float8 AS balance
        FROM (${postedLedgerLines}) posted WHERE date <= $2::date AND account_code = ANY($3::text[])`,
@@ -289,7 +274,7 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       reason:
         difference === 0
           ? "Actual ending cash agrees with posted GL balances."
-          : "Actual ending cash differs from posted GL balances. Cash movements recorded here do not post journal entries; review AR/AP settlements and bank postings.",
+          : "Actual ending cash differs from posted GL balances. Review foreign-currency postings on these accounts.",
       glBalance,
       cashBalance,
       difference,
@@ -301,25 +286,19 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
     client.release();
   }
 }
+
 export async function writeReconciliation(data: CashReconciliation) {
-  const client = await db().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(803003)");
-    const auth = await authorizeCompany(data.companyId, "write_cash", client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
+  return write(data.companyId, async (client, auth) => {
     await assertOpenPeriods(client, data.companyId, [data.end], auth.permissions.close_periods);
     if (data.accountId) {
-      const account = await client.query(
-        "SELECT 1 FROM cash_accounts WHERE id=$1 AND company_id=$2 AND currency=$3",
-        [data.accountId, data.companyId, data.currency],
-      );
-      if (!account.rowCount) throw new Error("Select an account in this company and currency.");
+      const cash = cashGlAccounts(await readChart(client, data.companyId));
+      if (!cash.some((a) => a.code === data.accountId))
+        throw new Error("Select a bank or cash account of this company.");
     }
     await client.query(
-      `INSERT INTO cash_flow_reconciliations(company_id,period_start,period_end,currency,account_id,
+      `INSERT INTO cash_flow_reconciliations(company_id,period_start,period_end,currency,account_code,
        net_income,depreciation,receivables,inventory,payables,taxes_payable,other_adjustments,balance_sheet_cash,explanation,updated_by)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(company_id,period_start,period_end,currency,account_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT ON CONSTRAINT cash_flow_reconciliations_scope_key
       DO UPDATE SET net_income=EXCLUDED.net_income,depreciation=EXCLUDED.depreciation,receivables=EXCLUDED.receivables,
       inventory=EXCLUDED.inventory,payables=EXCLUDED.payables,taxes_payable=EXCLUDED.taxes_payable,
       other_adjustments=EXCLUDED.other_adjustments,balance_sheet_cash=EXCLUDED.balance_sheet_cash,
@@ -342,379 +321,179 @@ export async function writeReconciliation(data: CashReconciliation) {
         auth.user.id,
       ],
     );
-    await client.query("COMMIT");
     return { ok: true };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
 }
-export async function saveAccount(
-  data: Omit<CashAccount, "id"> & { id?: string | undefined; companyId: string },
-) {
-  const auth = await authorizeCompany(data.companyId, "write_cash");
-  const id = data.companyId;
-  const client = await db().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(803003)");
-    await authorizeCompany(id, "write_cash", client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
-    const configuredCurrency = await client.query(
-      "SELECT 1 FROM ledger_currencies WHERE company_id=$1 AND code=$2 AND status='Active'",
-      [id, data.currency],
+
+/**
+ * Saves a forecast. A forecast against another cash account is an internal transfer and is
+ * stored as two legs that change together. Forecasts never post journal entries.
+ */
+export async function saveForecast(data: CashForecast & { companyId: string }) {
+  return write(data.companyId, async (client, auth) => {
+    const chart = await readChart(client, data.companyId);
+    const cash = new Map(
+      (await readCashAccounts(client, data.companyId, chart)).map((a) => [a.id, a]),
     );
-    const historicalCurrency = data.id
-      ? await client.query(
-          "SELECT 1 FROM cash_accounts WHERE company_id=$1 AND id=$2 AND currency=$3",
-          [id, data.id, data.currency],
-        )
-      : null;
-    if (!configuredCurrency.rowCount && !historicalCurrency?.rowCount)
-      throw new Error("Select an active company currency in System Parameters.");
-    if (!data.id && !data.gl_account_code)
-      throw new Error("Link this cash account to an Asset account in Chart of Accounts.");
-    if (data.gl_account_code) {
-      const gl = await client.query(
-        "SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2 AND type='Asset'",
-        [id, data.gl_account_code],
+    const account = cash.get(data.account_code);
+    if (!account) throw new Error("Select a bank or cash account from the Chart of Accounts.");
+    if (!chart.some((a) => a.code === data.counterpart_code))
+      throw new Error("Select a counterpart account from this company's Chart of Accounts.");
+    const counterpartCash = cash.get(data.counterpart_code);
+    const transfer = data.cash_flow_line === "internal_transfer";
+    if (transfer !== !!counterpartCash)
+      throw new Error(
+        transfer
+          ? "A transfer needs another bank or cash account as counterpart."
+          : "A forecast against another bank or cash account is a transfer: classify it as a transfer between own cash accounts.",
       );
-      if (!gl.rowCount)
-        throw new Error("Select an Asset account from this company's Chart of Accounts.");
-      // Two accounts on one GL account and currency make the ledger actuals ambiguous:
-      // neither would receive them. Existing duplicates may still be edited in place.
-      const duplicate = await client.query<{ name: string }>(
-        `SELECT c.name FROM cash_accounts c
-         WHERE c.company_id=$1 AND c.gl_account_code=$2 AND c.currency=$3
-           AND c.id IS DISTINCT FROM $4::uuid
-           AND NOT EXISTS (SELECT 1 FROM cash_accounts s WHERE s.id=$4::uuid AND s.company_id=$1
-                           AND s.gl_account_code=$2 AND s.currency=$3)
-         LIMIT 1`,
-        [id, data.gl_account_code, data.currency, data.id ?? null],
+    if (counterpartCash && counterpartCash.currency !== account.currency)
+      throw new Error(
+        "Transfers between currencies need FX handling and are not supported. Forecast each side separately.",
       );
-      if (duplicate.rowCount)
-        throw new Error(
-          `GL account ${data.gl_account_code} in ${data.currency} is already set up as "${duplicate.rows[0]!.name}". Edit that account instead.`,
-        );
-    }
-    if (data.id) {
-      const account = await client.query(
-        "SELECT currency,gl_account_code,opening_date::text,opening_balance::float8 FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE",
-        [data.id, id],
-      );
-      if (!account.rowCount) throw new Error("Account not found.");
-      const previous = account.rows[0];
-      if (
-        previous.opening_date !== data.opening_date ||
-        Math.round(previous.opening_balance * 100) !== Math.round(data.opening_balance * 100)
-      )
-        await assertOpenPeriods(
-          client,
-          id,
-          [previous.opening_date, data.opening_date],
-          auth.permissions.close_periods,
-        );
-      const movements = await client.query(
-        "SELECT count(*)::int AS count, min(least(due_date, paid_date, forecast_date))::text AS first_date FROM cash_transactions WHERE account_id=$1 AND company_id=$2",
-        [data.id, id],
-      );
-      const history = movements.rows[0];
-      if (
-        history.count > 0 &&
-        account.rows[0].gl_account_code &&
-        account.rows[0].gl_account_code !== data.gl_account_code
-      )
-        throw new Error("The linked GL account cannot change after cash movements are recorded.");
-      if (history.count > 0 && data.currency !== account.rows[0].currency)
-        throw new Error("The currency cannot be changed for an account with transactions.");
-      if (history.first_date && data.opening_date > history.first_date)
-        throw new Error("The opening date cannot be later than existing transactions.");
-      await client.query(
-        "UPDATE cash_accounts SET name=$3,currency=$4,opening_date=$5,opening_balance=$6,gl_account_code=$7 WHERE id=$1 AND company_id=$2",
-        [
-          data.id,
-          id,
-          data.name,
-          data.currency,
-          data.opening_date,
-          data.opening_balance,
-          data.gl_account_code,
-        ],
-      );
-    } else {
-      await assertOpenPeriods(client, id, [data.opening_date], auth.permissions.close_periods);
-      await client.query(
-        "INSERT INTO cash_accounts(company_id,name,currency,opening_date,opening_balance,user_id,gl_account_code) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-        [
-          id,
-          data.name,
-          data.currency,
-          data.opening_date,
-          data.opening_balance,
-          auth.user.id,
-          data.gl_account_code,
-        ],
-      );
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    if ((error as { code?: string }).code === "23505")
-      throw new Error("An account with this name already exists.");
-    throw error;
-  } finally {
-    client.release();
-  }
-  return { ok: true };
-}
-export async function saveTransaction(
-  data: Omit<CashTransaction, "id"> & { id?: string | undefined; companyId: string },
-) {
-  const client = await db().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(803003)");
-    const auth = await authorizeCompany(data.companyId, "write_cash", client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
-    const selectAccount =
-      "SELECT opening_date::text, currency, gl_account_code FROM cash_accounts WHERE id=$1 AND company_id=$2 FOR UPDATE";
-    const account = await client.query(selectAccount, [data.account_id, data.companyId]);
-    if (!account.rowCount) throw new Error("The account does not belong to this company.");
     const previous = data.id
       ? (
-          await client.query(
-            "SELECT account_id, status, paid_date::text, transfer_id, transfer_account_id FROM cash_transactions WHERE id=$1 AND company_id=$2 FOR UPDATE",
+          await client.query<ForecastRow>(
+            `SELECT ${forecastColumns} FROM cash_forecasts WHERE id=$1 AND company_id=$2 FOR UPDATE`,
             [data.id, data.companyId],
           )
         ).rows[0]
-      : null;
-    if (data.id && !previous) throw new Error("Transaction not found.");
-    const transfer = data.cash_flow_line === "internal_transfer";
+      : undefined;
+    if (data.id && !previous) throw new Error("Forecast not found.");
     if (previous && !!previous.transfer_id !== transfer)
       throw new Error(
-        "A transfer cannot be reclassified, and a transaction cannot become a transfer. Cancel it and create a new entry.",
+        "A transfer cannot become a regular forecast, or the reverse. Cancel it and create a new one.",
       );
     if (
       previous?.transfer_id &&
-      (previous.account_id !== data.account_id ||
-        previous.transfer_account_id !== data.transfer_account_id)
+      (previous.account_code !== data.account_code ||
+        previous.transfer_account_code !== data.counterpart_code)
     )
-      throw new Error(
-        "The accounts of a transfer cannot change. Cancel it and create a new transfer.",
-      );
-    let counterpart: { opening_date: string; currency: string; gl_account_code: string } | null =
-      null;
-    if (transfer) {
-      counterpart = (await client.query(selectAccount, [data.transfer_account_id, data.companyId]))
-        .rows[0];
-      if (!counterpart)
-        throw new Error("The counterpart cash account does not belong to this company.");
-      if (counterpart.currency !== account.rows[0].currency)
-        throw new Error(
-          "Transfers between currencies need FX handling and are not supported yet. Record them as separate classified movements.",
-        );
-      if (!account.rows[0].gl_account_code || !counterpart.gl_account_code)
-        throw new Error(
-          "Link both cash accounts to Chart of Accounts before recording a transfer.",
-        );
-      if (
-        data.due_date < counterpart.opening_date ||
-        (data.paid_date && data.paid_date < counterpart.opening_date)
-      )
-        throw new Error("Dates must be on or after both accounts' opening dates.");
-      // Each leg's counterpart is the other cash account's GL account.
-      data.gl_account_code = counterpart.gl_account_code;
-    }
-    await assertOpenPeriods(
-      client,
+      throw new Error("The accounts of a transfer cannot change. Cancel it and create a new one.");
+    const leg = (accountCode: string, counterpart: string, direction: "in" | "out"): unknown[] => [
       data.companyId,
-      [previous && accountingDate(previous), accountingDate(data)],
-      auth.permissions.close_periods,
-    );
-    if (!data.id && !data.gl_account_code)
-      throw new Error(
-        "Select a counterpart account from Chart of Accounts for this transaction or forecast.",
-      );
-    if (data.gl_account_code) {
-      const gl = await client.query("SELECT 1 FROM ledger_accounts WHERE company_id=$1 AND id=$2", [
-        data.companyId,
-        data.gl_account_code,
-      ]);
-      if (!gl.rowCount)
-        throw new Error("The counterpart GL account does not belong to this company.");
-    }
-    if (
-      data.due_date < account.rows[0].opening_date ||
-      (data.paid_date && data.paid_date < account.rows[0].opening_date)
-    )
-      throw new Error("Dates must be on or after the account opening date.");
-    const category = await client.query(
-      "SELECT 1 FROM cash_categories WHERE name=$1 AND (company_id IS NULL OR company_id=$2)",
-      [data.category, data.companyId],
-    );
-    if (!category.rowCount) throw new Error("Select a category available for this company.");
-    const values = [
-      data.companyId,
-      data.account_id,
+      accountCode,
+      counterpart,
       data.description,
-      data.category,
-      data.direction,
+      direction,
       data.amount,
-      data.due_date,
-      data.paid_date,
+      data.expected_date,
       data.status,
       data.cash_flow_line,
       data.variance_note,
-      data.gl_account_code,
     ];
-    // The mirror leg moves the same amount the other way on the same dates.
-    const mirror = transfer
-      ? [
-          data.companyId,
-          data.transfer_account_id,
-          data.description,
-          data.category,
-          data.direction === "in" ? "out" : "in",
-          data.amount,
-          data.due_date,
-          data.paid_date,
-          data.status,
-          data.cash_flow_line,
-          data.variance_note,
-          account.rows[0].gl_account_code,
-        ]
-      : null;
-    const update =
-      "UPDATE cash_transactions SET account_id=$2,description=$3,category=$4,direction=$5,amount=$6,due_date=$7,paid_date=$8,status=$9,cash_flow_line=$10,variance_note=$11,gl_account_code=$12";
-    const insert =
-      "INSERT INTO cash_transactions(company_id,account_id,description,category,direction,amount,due_date,paid_date,status,cash_flow_line,variance_note,gl_account_code,user_id,transfer_id,transfer_account_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)";
-    if (data.id) {
-      const r = await client.query(update + " WHERE company_id=$1 AND id=$13", [
-        ...values,
-        data.id,
+    const mirrorDirection = data.direction === "in" ? "out" : "in";
+    if (previous) {
+      const update = `UPDATE cash_forecasts SET account_code=$2,counterpart_code=$3,description=$4,direction=$5,
+        amount=$6,expected_date=$7,status=$8,cash_flow_line=$9,variance_note=$10 WHERE company_id=$1`;
+      await client.query(update + " AND id=$11", [
+        ...leg(data.account_code, data.counterpart_code, data.direction),
+        previous.id,
       ]);
-      if (!r.rowCount) throw new Error("Transaction not found.");
-      if (mirror) {
-        const other = await client.query(
-          update + " WHERE company_id=$1 AND transfer_id=$13 AND id<>$14",
-          [...mirror, previous.transfer_id, data.id],
-        );
+      if (previous.transfer_id) {
+        const other = await client.query(update + " AND transfer_id=$11 AND id<>$12", [
+          ...leg(data.counterpart_code, data.account_code, mirrorDirection),
+          previous.transfer_id,
+          previous.id,
+        ]);
         if (other.rowCount !== 1) throw new Error("The other leg of this transfer is missing.");
       }
     } else {
-      const transferId = mirror ? crypto.randomUUID() : null;
-      await client.query(insert, [...values, auth.user.id, transferId, data.transfer_account_id]);
-      if (mirror)
-        await client.query(insert, [...mirror, auth.user.id, transferId, data.account_id]);
+      const transferId = transfer ? crypto.randomUUID() : null;
+      const insert = `INSERT INTO cash_forecasts(company_id,account_code,counterpart_code,description,direction,amount,
+        expected_date,status,cash_flow_line,variance_note,created_by,transfer_id,transfer_account_code,
+        forecast_amount,forecast_date,forecast_direction)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$6,$7,$5)`;
+      await client.query(insert, [
+        ...leg(data.account_code, data.counterpart_code, data.direction),
+        auth.user.id,
+        transferId,
+        transfer ? data.counterpart_code : null,
+      ]);
+      if (transfer)
+        await client.query(insert, [
+          ...leg(data.counterpart_code, data.account_code, mirrorDirection),
+          auth.user.id,
+          transferId,
+          data.account_code,
+        ]);
     }
-    await client.query("COMMIT");
     return { ok: true };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
-}
-export async function removeTransaction(transactionId: string, companyId: string) {
-  const client = await db().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(803003)");
-    const auth = await authorizeCompany(companyId, "write_cash", client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
-    // A transfer is deleted as a pair, so both legs are checked.
-    const legs = await client.query(
-      `SELECT id, status, paid_date::text, forecast_amount FROM cash_transactions t WHERE company_id=$2
-      AND (id=$1 OR transfer_id=(SELECT transfer_id FROM cash_transactions WHERE id=$1 AND company_id=$2)) FOR UPDATE`,
-      [transactionId, companyId],
-    );
-    if (!legs.rowCount) throw new Error("Transaction not found.");
-    if (legs.rows.some((t) => t.forecast_amount !== null))
-      throw new Error(
-        "Cancel forecasted transactions instead of deleting them to preserve variance history.",
-      );
-    await assertOpenPeriods(
-      client,
-      companyId,
-      legs.rows.map(accountingDate),
-      auth.permissions.close_periods,
-    );
-    await client.query(
-      "DELETE FROM cash_transactions WHERE company_id=$1 AND id = ANY($2::uuid[])",
-      [companyId, legs.rows.map((t) => t.id)],
-    );
-    await client.query("COMMIT");
-    return { ok: true };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+  });
 }
 
-export async function writeCategory(data: {
-  id?: string | undefined;
-  companyId: string;
-  name?: string;
-  company_id?: string | null;
-}) {
-  const client = await db().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(803003)");
-    const auth = await authorizeCompany(data.companyId, "write_cash", client);
-    await client.query("SELECT set_config('app.actor_id',$1,true)", [auth.user.id]);
-    const old = data.id
-      ? (await client.query("SELECT * FROM cash_categories WHERE id=$1 FOR UPDATE", [data.id]))
-          .rows[0]
-      : null;
-    if (data.id && !old) throw new Error("Category not found.");
-    const scopes = [old?.company_id, data.name === undefined ? undefined : data.company_id].filter(
-      (v) => v !== undefined,
-    );
-    if (scopes.includes(null)) {
-      const companies = await client.query("SELECT id FROM companies WHERE active");
-      for (const c of companies.rows) await authorizeCompany(c.id, "write_cash", client);
-    }
-    for (const id of scopes) if (id) await authorizeCompany(id, "write_cash", client);
-    if (old) {
-      const used = await client.query(
-        "SELECT 1 FROM cash_transactions WHERE category=$1 AND ($2::uuid IS NULL OR company_id=$2) LIMIT 1",
-        [old.name, old.company_id],
+/** Maps a GL account to cash flow lines, or with `null` lines returns it to the default rule. */
+export async function saveMapping(
+  data: { companyId: string; account_code: string } & (
+    | { inflow_line: CashFlowLine; outflow_line: CashFlowLine }
+    | { inflow_line: null; outflow_line: null }
+  ),
+) {
+  return write(data.companyId, async (client) => {
+    const chart = await readChart(client, data.companyId);
+    if (!chart.some((a) => a.code === data.account_code))
+      throw new Error("Select an account from this company's Chart of Accounts.");
+    if (cashGlAccounts(chart).some((a) => a.code === data.account_code))
+      throw new Error("Movements between bank or cash accounts are always internal transfers.");
+    if (data.inflow_line === null)
+      await client.query(
+        "DELETE FROM cash_flow_account_lines WHERE company_id=$1 AND account_code=$2",
+        [data.companyId, data.account_code],
       );
-      if (
-        used.rowCount &&
-        (data.name === undefined || data.company_id !== old.company_id || data.name !== old.name)
-      )
-        throw new Error(
-          "A category used in transactions cannot be deleted or changed. Create a new category.",
-        );
-    }
-    if (data.name === undefined)
-      await client.query("DELETE FROM cash_categories WHERE id=$1", [data.id]);
-    else if (data.id)
-      await client.query("UPDATE cash_categories SET name=$2,company_id=$3 WHERE id=$1", [
-        data.id,
-        data.name,
-        data.company_id,
-      ]);
     else
-      await client.query("INSERT INTO cash_categories(name,company_id) VALUES($1,$2)", [
-        data.name,
-        data.company_id,
-      ]);
-    await client.query("COMMIT");
+      await client.query(
+        `INSERT INTO cash_flow_account_lines(company_id,account_code,inflow_line,outflow_line) VALUES($1,$2,$3,$4)
+         ON CONFLICT(company_id,account_code) DO UPDATE SET inflow_line=EXCLUDED.inflow_line,outflow_line=EXCLUDED.outflow_line`,
+        [data.companyId, data.account_code, data.inflow_line, data.outflow_line],
+      );
     return { ok: true };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    if ((e as { code?: string }).code === "23505")
-      throw new Error("A category with this name already exists in this scope.");
-    throw e;
-  } finally {
-    client.release();
-  }
+  });
+}
+
+/**
+ * Reclassifies one posted cash movement, or with `null` returns it to its account mapping.
+ * The statement of cash flows of a closed period does not change.
+ */
+export async function saveOverride(data: {
+  companyId: string;
+  journal_id: string;
+  line_sequence: number;
+  counterpart_code: string;
+  cash_flow_line: CashFlowLine | null;
+}) {
+  return write(data.companyId, async (client, auth) => {
+    const cash = cashGlAccounts(await readChart(client, data.companyId)).map((a) => a.code);
+    const line = (
+      await client.query<{ date: string }>(
+        `WITH posted AS (${postedLedgerLines})
+         SELECT c.date::text FROM posted c
+         WHERE c.id=$2 AND c.sequence=$3 AND c.account_code=ANY($4::text[])
+           AND EXISTS (SELECT 1 FROM posted o WHERE o.id=c.id AND o.account_code=$5)`,
+        [data.companyId, data.journal_id, data.line_sequence, cash, data.counterpart_code],
+      )
+    ).rows[0];
+    if (!line) throw new Error("Posted cash movement not found.");
+    if (cash.includes(data.counterpart_code))
+      throw new Error("Movements between bank or cash accounts are always internal transfers.");
+    await assertOpenPeriods(client, data.companyId, [line.date], auth.permissions.close_periods);
+    if (data.cash_flow_line === null)
+      await client.query(
+        "DELETE FROM cash_flow_line_overrides WHERE company_id=$1 AND journal_id=$2 AND line_sequence=$3 AND counterpart_code=$4",
+        [data.companyId, data.journal_id, data.line_sequence, data.counterpart_code],
+      );
+    else
+      await client.query(
+        `INSERT INTO cash_flow_line_overrides(company_id,journal_id,line_sequence,counterpart_code,cash_flow_line)
+         VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,journal_id,line_sequence,counterpart_code)
+         DO UPDATE SET cash_flow_line=EXCLUDED.cash_flow_line`,
+        [
+          data.companyId,
+          data.journal_id,
+          data.line_sequence,
+          data.counterpart_code,
+          data.cash_flow_line,
+        ],
+      );
+    return { ok: true };
+  });
 }
