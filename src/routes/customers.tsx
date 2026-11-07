@@ -29,6 +29,8 @@ import {
   usePagination,
 } from "@/components/data-list";
 export const Route = createFileRoute("/customers")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   component: () => (
     <AccountingProvider>
       <CustomersPage />
@@ -53,6 +55,7 @@ function initial(): CustomerInput {
   };
 }
 function CustomersPage() {
+  const { create } = Route.useSearch();
   const {
     customers,
     addCustomer,
@@ -65,7 +68,9 @@ function CustomersPage() {
     taxJurisdictions,
     userPersona,
   } = useAccounting();
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(
+    create && userPersona.canCreateJournals ? "new" : null,
+  );
   const [form, setForm] = useState<CustomerInput>(initial);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");

@@ -20,6 +20,8 @@ const displayCode = (account: Account) => account.sourceAccount?.number ?? accou
 const codeOrder = new Intl.Collator("en", { numeric: true });
 
 export const Route = createFileRoute("/accounts")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
       "Chart of Accounts · LedgerX",
@@ -27,6 +29,12 @@ export const Route = createFileRoute("/accounts")({
     ),
   component: AccountsRoute,
 });
+
+const newAccountDetails = {
+  maturity: "Not Applicable",
+  isContra: false,
+  track1099: false,
+} as const;
 
 function AccountsRoute() {
   return (
@@ -37,6 +45,7 @@ function AccountsRoute() {
 }
 
 function AccountsPage() {
+  const { create } = Route.useSearch();
   const modal = useModal();
   const {
     activeCompany,
@@ -56,7 +65,9 @@ function AccountsPage() {
   });
 
   // Screen View Mode: "list" | "create"
-  const [view, setView] = useState<"list" | "create">("list");
+  const [view, setView] = useState<"list" | "create">(
+    create && userPersona.canCreateJournals ? "create" : "list",
+  );
   const [showImport, setShowImport] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
@@ -68,9 +79,13 @@ function AccountsPage() {
   const [newBalanceType, setNewBalanceType] = useState<"Debit" | "Credit">("Debit");
   const [newDescription, setNewDescription] = useState("");
 
-  const [details, setDetails] = useState<
-    Pick<Account, "subgroup" | "detailType" | "maturity" | "isContra" | "track1099" | "parentCode">
-  >({});
+  const [details, setDetails] =
+    useState<
+      Pick<
+        Account,
+        "subgroup" | "detailType" | "maturity" | "isContra" | "track1099" | "parentCode"
+      >
+    >(newAccountDetails);
   async function installTemplate() {
     setError("");
     try {
@@ -90,7 +105,7 @@ function AccountsPage() {
             track1099: existing.track1099,
             parentCode: existing.parentCode,
           }
-        : { maturity: "Not Applicable", isContra: false, track1099: false },
+        : newAccountDetails,
     );
     setEditingCode(existing?.code ?? null);
     setNewCode(existing?.code ?? "");
@@ -387,7 +402,7 @@ function AccountsPage() {
                   ) : (
                     filteredAccounts.map((a) => {
                       const source = a.sourceAccount;
-                      const useSourceBalance = source?.balance != null;
+                      const currency = source?.balance != null ? source.currency : "USD";
                       const balance = source?.balance ?? accountBalances[a.code]?.net ?? 0;
                       return (
                         <tr
@@ -434,7 +449,8 @@ function AccountsPage() {
                             {a.description}
                           </Td>
                           <Td align="right" className="font-mono text-[12px] font-medium text-ink">
-                            {formatCurrency(balance, useSourceBalance ? source.currency : "USD")}
+                            {formatCurrency(balance, currency)}
+                            {currency !== "USD" && ` ${currency}`}
                           </Td>
                           <Td>
                             {cashLinks.isPending
@@ -486,8 +502,8 @@ function AccountsPage() {
                 Assets, 20000–29999 Liabilities, 30000–39999 Equity, 40000–49999 Revenue,
                 50000–59999 COGS, 60000–79999 Operating Expenses, 80000–89999 Other Income and
                 90000–99999 Other Expenses. The balance uses the imported amount when available,
-                otherwise it is calculated from saved journal entries, including reversals.
-                Bank accounts and cash flow categories are managed separately.
+                otherwise it is calculated from saved journal entries, including reversals. Bank
+                accounts and cash flow categories are managed separately.
               </Note>
             </div>
           </Panel>

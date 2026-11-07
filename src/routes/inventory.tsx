@@ -8,9 +8,11 @@ import { useModal } from "@/components/modal-provider";
 import { ArrowLeft, Plus, Search, SlidersHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/inventory")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
-      "Inventory Catalog & Valuation · LedgerX",
+      "Products & services · LedgerX",
       "Perpetual inventory tracking with FIFO and Weighted Average cost lots and periodic count variance adjustments.",
     ),
   component: () => (
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/inventory")({
 });
 
 function InventoryPage() {
+  const { create } = Route.useSearch();
   const modal = useModal();
   const {
     activeCompany,
@@ -35,7 +38,9 @@ function InventoryPage() {
   } = useAccounting();
 
   // Screen View Mode: "list" | "create" | "adjust"
-  const [view, setView] = useState<"list" | "create" | "adjust">("list");
+  const [view, setView] = useState<"list" | "create" | "adjust">(
+    create && userPersona.canCreateJournals ? "create" : "list",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
 
@@ -166,7 +171,7 @@ function InventoryPage() {
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3">
             <PageTitle
-              title="Inventory Catalog & Cost Valuation"
+              title="Products & services"
               description={`Perpetual inventory tracking and COGS valuation for ${activeCompany.name} · US GAAP Standard`}
             />
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">

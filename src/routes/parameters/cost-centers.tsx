@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/parameters/cost-centers")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
       "Cost Centers & Units · LedgerX",
@@ -31,23 +33,30 @@ export const Route = createFileRoute("/parameters/cost-centers")({
 });
 
 function CostCentersPage() {
+  const { create } = Route.useSearch();
   const modal = useModal();
   const parameterScope = useParameterScope();
-  const { activeCompany, costCenters, addCostCenter, updateCostCenter, deleteCostCenter } =
-    useAccounting();
+  const {
+    activeCompany,
+    costCenters,
+    addCostCenter,
+    updateCostCenter,
+    deleteCostCenter,
+    canWrite,
+  } = useAccounting();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // Modal State
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(create === true && canWrite);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form State
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [manager, setManager] = useState("");
-  const [annualBudget, setAnnualBudget] = useState("0");
+  const [annualBudget, setAnnualBudget] = useState("150000");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive">("Active");
 

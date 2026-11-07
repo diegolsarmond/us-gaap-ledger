@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
@@ -26,6 +26,7 @@ export function SearchableSelect({
   fitViewport = false,
   initiallyOpen = false,
   onOpenChange,
+  action,
 }: {
   options: Option[];
   name?: string;
@@ -39,6 +40,7 @@ export function SearchableSelect({
   fitViewport?: boolean;
   initiallyOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  action?: ReactNode;
 }) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(initiallyOpen);
@@ -110,11 +112,24 @@ export function SearchableSelect({
             aria-label={`Search ${label}`}
             placeholder={`Search ${label.toLowerCase()}…`}
           />
+          {action && (
+            <div
+              className="border-b p-1"
+              onKeyDown={(event) => {
+                // Enter on the link should activate it instead of selecting a search result.
+                if (event.key === "Enter") event.stopPropagation();
+              }}
+            >
+              {action}
+            </div>
+          )}
           <CommandList
             className={`overflow-y-auto overscroll-contain ${
-              fitViewport
-                ? "max-h-[min(14rem,calc(var(--radix-popover-content-available-height,17rem)_-_3rem))]"
-                : "max-h-56"
+              fitViewport && action
+                ? "max-h-[min(14rem,calc(var(--radix-popover-content-available-height,20rem)_-_5.5rem))]"
+                : fitViewport
+                  ? "max-h-[min(14rem,calc(var(--radix-popover-content-available-height,17rem)_-_3rem))]"
+                  : "max-h-56"
             }`}
             onWheel={(event) => event.stopPropagation()}
           >

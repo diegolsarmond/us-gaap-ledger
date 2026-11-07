@@ -37,6 +37,8 @@ import {
 } from "@/lib/vendor-attachments";
 
 export const Route = createFileRoute("/vendors")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   component: () => (
     <AccountingProvider>
       <VendorsPage />
@@ -82,6 +84,7 @@ function SourceBalance({
   );
 }
 function VendorsPage() {
+  const { create } = Route.useSearch();
   const {
     activeCompany,
     vendors,
@@ -95,7 +98,9 @@ function VendorsPage() {
     paymentTerms,
     userPersona,
   } = useAccounting();
-  const [draft, setDraft] = useState<VendorInput | null>(null);
+  const [draft, setDraft] = useState<VendorInput | null>(() =>
+    create && userPersona.canCreateJournals ? blankVendor() : null,
+  );
   const [editingId, setEditingId] = useState<string>();
   const [search, setSearch] = useState("");
   const [customColumn, setCustomColumn] = useState("");

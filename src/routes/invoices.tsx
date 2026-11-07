@@ -686,7 +686,7 @@ function InvoicesPage() {
                     >
                       <div className="col-span-12 sm:col-span-5">
                         <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink3 mb-1">
-                          {kind === "Product" ? "Inventory Catalog Item" : "Service Description"}
+                          {kind === "Product" ? "Product" : "Service Description"}
                         </label>
                         {kind === "Product" ? (
                           <select

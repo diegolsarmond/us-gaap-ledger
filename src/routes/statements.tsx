@@ -15,6 +15,16 @@ import {
 } from "lucide-react";
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import { bankBatchLimit, bankSourceAccount, type BankBatchAction } from "@/lib/bank-feed-model";
+import {
+  bankFilterData,
+  bankFilterOptions,
+  bankQuickFilters,
+  bankRuleFor,
+  emptyBankFilters,
+  matchesBankFilters,
+  type BankAdvancedFilters,
+  type BankQuickFilter,
+} from "@/lib/bank-feed-filters";
 import { externalAccount, sourceCategoryAccount } from "@/lib/statement-csv";
 import { formatCurrency as bankMoney, downloadBlob as downloadBankBlob } from "@/lib/format";
 import {
@@ -30,6 +40,7 @@ import { Badge, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 import { BankReview, type BankReviewView } from "@/components/bank-feed-review";
 import { BankBatchDialog } from "@/components/bank-feed-batch";
+import { BankFeedFilters } from "@/components/bank-feed-filters";
 import { SearchableSelect } from "@/components/searchable-select";
 import {
   DropdownMenu,
@@ -112,7 +123,7 @@ function StatementsPage() {
 }
 
 function CompanyFeed() {
-  const { activeCompany, accounts, vendors, customers } = useAccounting();
+  const { activeCompany, accounts, vendors, customers, dimensions } = useAccounting();
   const companyId = activeCompany.id;
   const cache = useQueryClient();
   const feed = useQuery({
@@ -125,6 +136,8 @@ function CompanyFeed() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [direction, setDirection] = useState("");
+  const [advancedFilters, setAdvancedFilters] = useState<BankAdvancedFilters>(emptyBankFilters);
+  const [quickFilter, setQuickFilter] = useState<BankQuickFilter>("");
   const [page, setPage] = useState(0);
   const [review, setReview] = useState<{ id: string; view: BankReviewView }>();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -210,10 +223,16 @@ function CompanyFeed() {
       ? "Posted"
       : "Pending");
   const filter = search.trim().toLowerCase();
-  const filtered = rows
+  const filterRows = rows.map((row) => ({
+    row,
+    filters: bankFilterData(row, accounts, dimensions, data.rules, suggestionFor(row)),
+  }));
+  const advancedOptions = bankFilterOptions(filterRows.map((item) => item.filters));
+  const filtered = filterRows
     .filter(
-      (row) =>
+      ({ row, filters }) =>
         bankTab(row) === status &&
+        matchesBankFilters(filters, advancedFilters, quickFilter) &&
         (!from || row.date >= from) &&
         (!to || row.date <= to) &&
         (!direction || (Number(row.amount) < 0 ? "out" : "in") === direction) &&
@@ -226,6 +245,7 @@ function CompanyFeed() {
             row.journalNumber ?? "",
           ].some((v) => v.toLowerCase().includes(filter))),
     )
+    .map(({ row }) => row)
     .sort((a, b) => {
       const order =
         sort.field === "amount"
@@ -261,6 +281,10 @@ function CompanyFeed() {
     clearSelection();
   };
   const selectAccount = (code: string) => {
+    if (code !== account) {
+      setAdvancedFilters(emptyBankFilters);
+      setQuickFilter("");
+    }
     setAccountChoice(code);
     goToPage(0);
     setNotice("");
@@ -284,23 +308,21 @@ function CompanyFeed() {
     setSort({ field, descending: sort.field === field ? !sort.descending : field === "date" });
     goToPage(0);
   };
-  const suggestionFor = (row: BankRow) => {
+  function suggestionFor(row: BankRow) {
     if (row.classifiedAccount) return row.classifiedAccount;
     if (row.status !== "Pending" || row.attemptId) return;
     const external = externalAccount(row.externalPosting, row.sourceFormat);
     const sourceAccount = sourceCategoryAccount(row.externalPosting, row.sourceFormat, accounts);
     return (
       data.rules.find((rule) => rule.kind === "mapping" && rule.pattern === external)?.account ??
-      data.rules.find(
-        (rule) => rule.kind === "rule" && row.description.toLowerCase().includes(rule.pattern),
-      )?.account ??
+      bankRuleFor(row, data.rules)?.account ??
       (sourceAccount &&
       sourceAccount !== row.account &&
       !accounts.some((a) => a.parentCode === sourceAccount)
         ? sourceAccount
         : undefined)
     );
-  };
+  }
   const close = () => {
     setDialog(null);
     setError(null);
@@ -900,6 +922,24 @@ function CompanyFeed() {
                 { id: "out", name: "Money out" },
               ]}
             />
+            <SelectField
+              name="Transaction filter"
+              placeholder="All transactions"
+              value={quickFilter}
+              change={(value) => {
+                setQuickFilter(value as BankQuickFilter);
+                goToPage(0);
+              }}
+              options={[...bankQuickFilters]}
+            />
+            <BankFeedFilters
+              value={advancedFilters}
+              options={advancedOptions}
+              change={(value) => {
+                setAdvancedFilters(value);
+                goToPage(0);
+              }}
+            />
             <div className="ml-auto flex gap-1">
               <Button
                 variant="outline"
@@ -1047,6 +1087,8 @@ function CompanyFeed() {
           accountCurrency={accountCurrency}
           close={close}
           done={(code, count, postedInQuickBooks) => {
+            setAdvancedFilters(emptyBankFilters);
+            setQuickFilter("");
             setAccountChoice(code);
             setStatus(postedInQuickBooks ? "Posted" : "Pending");
             goToPage(0);

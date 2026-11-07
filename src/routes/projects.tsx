@@ -9,6 +9,8 @@ import { useModal } from "@/components/modal-provider";
 import { ArrowLeft, Plus, Search } from "lucide-react";
 
 export const Route = createFileRoute("/projects")({
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } =>
+    search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
       "Project Profitability & Job Costing · LedgerX",
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/projects")({
 });
 
 function ProjectsPage() {
+  const { create } = Route.useSearch();
   const modal = useModal();
   const {
     activeCompany,
@@ -36,7 +39,9 @@ function ProjectsPage() {
   } = useAccounting();
 
   // Screen View Mode
-  const [view, setView] = useState<"list" | "create">("list");
+  const [view, setView] = useState<"list" | "create">(
+    create && userPersona.canCreateJournals ? "create" : "list",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 

@@ -29,8 +29,10 @@ registerHooks({
   },
 });
 
-const { parseStatementCsv, parseStatementFile, sourceCategoryAccount } =
+const { parseStatementCsv, parseStatementFile, quickBooksAutoPost, sourceCategoryAccount } =
   await import("../src/lib/statement-csv.ts");
+const { bankFilterData, bankFilterOptions, emptyBankFilters, matchesBankFilters } =
+  await import("../src/lib/bank-feed-filters.ts");
 const { isModuleAvailable } = await import("../src/lib/module-availability.ts");
 assert(isModuleAvailable("/statements"));
 const source = process.argv[2] ? readFileSync(process.argv[2], "utf8") : undefined;
@@ -116,6 +118,9 @@ assert.equal(postedWithDetails.rows[0].checkNumber, "000123");
 assert.equal(postedWithDetails.rows[0].sourceLocation, "Office");
 assert.equal(postedWithDetails.rows[0].sourceCustomer, "Buyer");
 assert.equal(postedWithDetails.rows[0].sourceClass, null);
+assert.equal(quickBooksAutoPost("Added to: Expense: 6000 Fees · Auto-post (rule)"), "rule");
+assert.equal(quickBooksAutoPost("Auto-post (match)"), "match");
+assert.equal(quickBooksAutoPost("Matched to: Expense: 6000 Fees"), null);
 assert.equal(
   parseStatementFile(
     "Date,Bank description,Amount,Match/Categorize\n07/01/2026,Card,-$53.32,6000 Fees",
@@ -647,7 +652,10 @@ try {
   assert.equal((await find("Bulk deposit")).status, "Pending");
   const bulkResult = await batch([bulkFee, bulkDeposit], bulkCategorize);
   assert.deepEqual(bulkResult, { count: 2, posted: 2, inApproval: 0 });
-  const feeJournal = (await find("Bulk fee")).journalId;
+  const postedFee = await find("Bulk fee");
+  assert.equal(postedFee.transactionType, "Expense");
+  assert.deepEqual(postedFee.allocationAccounts, ["6000"]);
+  const feeJournal = postedFee.journalId;
   assert.equal(
     (
       await pool.query(
@@ -694,6 +702,27 @@ try {
   assert.equal(reviewRow.sourceCustomer, "Buyer");
   assert.equal(reviewRow.externalPosting, "6000 Fees");
   assert.equal(reviewRow.sourceStatus, "Pending");
+  const reviewFilters = bankFilterData(
+    reviewRow,
+    [],
+    [],
+    [{ kind: "rule", pattern: "review fee", account: "6000" }],
+  );
+  assert.equal(matchesBankFilters(reviewFilters, emptyBankFilters, "rules"), true);
+  assert.equal(matchesBankFilters(reviewFilters, emptyBankFilters, "uncategorized"), true);
+  const options = bankFilterOptions([reviewFilters]);
+  assert.equal(
+    matchesBankFilters(
+      reviewFilters,
+      { ...emptyBankFilters, class: options.class[0].id, payee: options.payee[0].id },
+      "",
+    ),
+    true,
+  );
+  assert.equal(
+    matchesBankFilters(reviewFilters, { ...emptyBankFilters, location: "another location" }, ""),
+    false,
+  );
   const postedFile = importFile(postedCsv);
   assert.equal((await feed.previewBankImport(postedFile)).postedInQuickBooks, 2);
   const postedImport = await feed.importBankFile(postedFile);

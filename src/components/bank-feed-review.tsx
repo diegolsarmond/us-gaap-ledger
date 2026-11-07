@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { FileUp, Paperclip, Plus, Trash2, X } from "lucide-react";
+import { Link, type LinkProps } from "@tanstack/react-router";
+import { ChevronDown, FileUp, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useAccounting } from "@/lib/accounting-store";
 import { loadBankAttachment, loadBankRow } from "@/lib/bank-feed";
 import {
@@ -13,6 +13,14 @@ import { bankAmount, itemAmount, type BankCategory } from "@/lib/bank-feed-model
 import { convertedUnits, unitsAmount } from "@/lib/journal-model";
 import { externalAccount, sourceCategoryAccount } from "@/lib/statement-csv";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/searchable-select";
 import { Badge, Table, Td, Th } from "@/components/ui-kit";
 import {
@@ -414,6 +422,92 @@ const blankLine = (key: number, amount = ""): DraftLine => ({
   billable: false,
 });
 
+function CategorySelect({
+  create,
+  ...field
+}: ComponentProps<typeof SelectField> & { create: LinkProps & { item: string } }) {
+  const { userPersona } = useAccounting();
+  const { name, value, change, options, placeholder = "Select…" } = field;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const searchable = options.length > 5;
+  if (!searchable && !userPersona.canCreateJournals) {
+    return <SelectField {...field} />;
+  }
+
+  const { item, ...link } = create;
+  const addNew = userPersona.canCreateJournals ? (
+    <Link
+      {...link}
+      target="_blank"
+      rel="noopener"
+      aria-label={`Add new ${item} (opens in a new tab)`}
+      className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-brand outline-none hover:bg-accent focus:bg-accent"
+    >
+      <Plus aria-hidden="true" className="size-4 shrink-0" />
+      Add new
+    </Link>
+  ) : null;
+  const selectedName = options.find((option) => option.id === value)?.name ?? placeholder;
+  return (
+    <fieldset className="min-w-0 space-y-1">
+      <legend className="text-xs font-medium text-ink2">{name}</legend>
+      {searchable ? (
+        <SearchableSelect
+          label={name}
+          value={value}
+          onChange={change}
+          options={[
+            { value: "", label: placeholder },
+            ...options.map((option) => ({ value: option.id, label: option.name })),
+          ]}
+          fitViewport
+          action={addNew}
+        />
+      ) : (
+        <DropdownMenu
+          modal={false}
+          onOpenChange={(open) => {
+            if (open)
+              setPortalContainer(
+                triggerRef.current?.closest<HTMLElement>('[role="dialog"]') ?? null,
+              );
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <button
+              ref={triggerRef}
+              type="button"
+              className={`${fieldStyle} flex items-center justify-between gap-2 text-left`}
+              aria-label={`${name}: ${selectedName}`}
+            >
+              <span className="truncate">{selectedName}</span>
+              <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-ink3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            container={portalContainer}
+            align="start"
+            className="z-[60] w-[var(--radix-dropdown-menu-trigger-width)]"
+          >
+            <DropdownMenuItem asChild>{addNew}</DropdownMenuItem>
+            {options.length > 0 && (
+              <DropdownMenuRadioGroup value={value} onValueChange={change}>
+                <DropdownMenuRadioItem value="">{placeholder}</DropdownMenuRadioItem>
+                {options.map((option) => (
+                  <DropdownMenuRadioItem key={option.id} value={option.id}>
+                    <span className="truncate">{option.name}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </fieldset>
+  );
+}
+
 function CategoryForm({
   detail,
   list,
@@ -461,6 +555,8 @@ function CategoryForm({
     dimensions
       .find((d) => d.code.toUpperCase() === code && d.status === "Active")
       ?.options.filter((o) => o.status === "Active") ?? [];
+  const locations = options("LOCATION");
+  const classes = options("CLASS");
   const mapCode = externalAccount(row.externalPosting, row.sourceFormat);
   const sourceAccount = sourceCategoryAccount(row.externalPosting, row.sourceFormat, accounts);
   const suggested = [
@@ -595,27 +691,29 @@ function CategoryForm({
               name: id,
             }))}
           />
-          <fieldset className="min-w-0 space-y-1">
-            <legend className="text-xs font-medium text-ink2">
-              {out ? "Paid to" : "Received from"}
-            </legend>
-            <SearchableSelect
-              label={out ? "Paid to" : "Received from"}
-              value={payee}
-              onChange={setPayee}
-              options={[
-                { value: "", label: "No party selected" },
-                ...party.map((p) => ({ value: p.id, label: p.displayName })),
-              ]}
-              fitViewport
-            />
-          </fieldset>
-          <SelectField
+          <CategorySelect
+            name={out ? "Paid to" : "Received from"}
+            value={payee}
+            change={setPayee}
+            options={party.map((p) => ({ id: p.id, name: p.displayName }))}
+            placeholder="No party selected"
+            create={{
+              to: out ? "/vendors" : "/customers",
+              search: { create: true },
+              item: out ? "vendor" : "customer",
+            }}
+          />
+          <CategorySelect
             name="Location"
             value={location}
             change={setLocation}
-            options={options("LOCATION")}
-            placeholder={options("LOCATION").length ? "Select…" : "No location configured"}
+            options={locations}
+            placeholder={locations.length ? "Select…" : "No location configured"}
+            create={{
+              to: "/dimensions",
+              search: { dimension: "LOCATION" },
+              item: "location",
+            }}
           />
         </div>
         <Field name="Memo">
@@ -674,11 +772,12 @@ function CategoryForm({
               className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4"
             >
               <legend className="px-1 text-xs text-ink3">Allocation {index + 1}</legend>
-              <SelectField
+              <CategorySelect
                 name="Account"
                 value={line.account}
                 change={(account) => patch(line.key, { account })}
                 options={names}
+                create={{ to: "/accounts", search: { create: true }, item: "account" }}
               />
               <Field name="Description">
                 <input
@@ -697,36 +796,44 @@ function CategoryForm({
                   onChange={(e) => patch(line.key, { amount: e.target.value })}
                 />
               </Field>
-              <SelectField
+              <CategorySelect
                 name="Customer"
                 value={line.customerId}
                 change={(customerId) => patch(line.key, { customerId })}
                 options={customers.map((c) => ({ id: c.id, name: c.displayName }))}
+                create={{ to: "/customers", search: { create: true }, item: "customer" }}
               />
-              <SelectField
+              <CategorySelect
                 name="Project"
                 value={line.projectId}
                 change={(projectId) => patch(line.key, { projectId })}
                 options={projects
                   .filter((p) => p.status !== "Completed")
                   .map((p) => ({ id: p.id, name: p.name }))}
+                create={{ to: "/projects", search: { create: true }, item: "project" }}
               />
-              <SelectField
+              <CategorySelect
                 name="Cost center"
                 value={line.costCenterId}
                 change={(costCenterId) => patch(line.key, { costCenterId })}
                 options={costCenters
                   .filter((c) => c.status === "Active")
                   .map((c) => ({ id: c.id, name: c.name }))}
+                create={{
+                  to: "/parameters/cost-centers",
+                  search: { create: true },
+                  item: "cost center",
+                }}
               />
-              <SelectField
+              <CategorySelect
                 name="Class"
                 value={line.classId}
                 change={(classId) => patch(line.key, { classId })}
-                options={options("CLASS")}
-                placeholder={options("CLASS").length ? "Select…" : "No class configured"}
+                options={classes}
+                placeholder={classes.length ? "Select…" : "No class configured"}
+                create={{ to: "/dimensions", search: { dimension: "CLASS" }, item: "class" }}
               />
-              <SelectField
+              <CategorySelect
                 name="Product or service"
                 value={line.sku}
                 change={(sku) =>
@@ -741,6 +848,11 @@ function CategoryForm({
                   id: item.sku,
                   name: item.sku + " · " + item.name,
                 }))}
+                create={{
+                  to: "/inventory",
+                  search: { create: true },
+                  item: "product or service",
+                }}
               />
               {line.sku && (
                 <>

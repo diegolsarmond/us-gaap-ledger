@@ -5,6 +5,10 @@ import { dimensionSchema, recommendedDimensions, type Dimension } from "@/lib/di
 import { PageTitle, Panel } from "@/components/ui-kit";
 
 export const Route = createFileRoute("/dimensions")({
+  validateSearch: (search: Record<string, unknown>): { dimension?: "CLASS" | "LOCATION" } => {
+    const dimension = search["dimension"];
+    return dimension === "CLASS" || dimension === "LOCATION" ? { dimension } : {};
+  },
   component: () => (
     <AccountingProvider>
       <DimensionsPage />
@@ -25,8 +29,21 @@ const emptyDimension = (): Dimension => ({
   options: [{ id: crypto.randomUUID(), code: "", name: "", status: "Active" }],
 });
 function DimensionsPage() {
+  const { dimension } = Route.useSearch();
   const { dimensions, saveDimension, userPersona, activeCompany } = useAccounting();
-  const [draft, setDraft] = useState<Dimension | null>(null);
+  const [draft, setDraft] = useState<Dimension | null>(() => {
+    if (!dimension || !userPersona.canCreateJournals) return null;
+    const existing = dimensions.find((item) => item.code.toUpperCase() === dimension);
+    return existing
+      ? structuredClone(existing)
+      : {
+          ...emptyDimension(),
+          code: dimension,
+          name: dimension === "CLASS" ? "Class" : "Location",
+          applyInvoices: false,
+          applyBills: false,
+        };
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [pendingTemplates, setPendingTemplates] = useState<Dimension[] | null>(null);

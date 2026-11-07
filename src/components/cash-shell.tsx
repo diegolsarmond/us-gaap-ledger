@@ -91,7 +91,7 @@ const functionalGroups: MenuGroup[] = [
       { label: "Bills & AP", route: "/payables", icon: CreditCard },
       { label: "Customers", route: "/customers", icon: Users },
       { label: "Vendors", route: "/vendors", icon: Building2 },
-      { label: "Inventory Catalog", route: "/inventory", icon: Package },
+      { label: "Products & services", route: "/inventory", icon: Package },
       { label: "Projects & Margin", route: "/projects", icon: FolderKanban },
     ],
   },

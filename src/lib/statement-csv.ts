@@ -4,7 +4,9 @@ import { currencyPrecision } from "./format";
 type SourceFormat = "ledgerx" | "quickbooks-posted" | "quickbooks-review";
 
 export function quickBooksAutoPost(posting: string) {
-  if (/\b(?:auto[- ]post\s*\(\s*match\s*\)|automatically matched\b|auto[- ]matched\b)/i.test(posting))
+  if (
+    /\b(?:auto[- ]post\s*\(\s*match\s*\)|automatically matched\b|auto[- ]matched\b)/i.test(posting)
+  )
     return "match" as const;
   if (/\bauto[- ]post(?:\s*\(\s*rule\s*\)|\s*$)/i.test(posting)) return "rule" as const;
   return null;
@@ -13,7 +15,10 @@ export function quickBooksAutoPost(posting: string) {
 export function quickBooksSourceStatus(format: SourceFormat | null, posting: string) {
   if (format === "quickbooks-review") return "Pending" as const;
   // Older imports may have a posting label but no persisted source format.
-  if (format !== "ledgerx" && (/^(?:(?:Added|Matched) to:\s*\S|Posted$)/i.test(posting) || quickBooksAutoPost(posting)))
+  if (
+    format !== "ledgerx" &&
+    (/^(?:(?:Added|Matched) to:\s*\S|Posted$)/i.test(posting) || quickBooksAutoPost(posting))
+  )
     return "Posted" as const;
   return null;
 }
