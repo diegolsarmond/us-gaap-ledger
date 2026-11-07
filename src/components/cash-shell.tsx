@@ -10,7 +10,6 @@ import {
   Building2,
   CalendarClock,
   CalendarRange,
-  ChevronRight,
   Clock,
   Coins,
   CreditCard,
@@ -240,11 +239,10 @@ export function CashShell({
           <button
             type="button"
             onClick={() => setUserTab("features")}
-            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 px-2 text-[11.5px] font-medium transition-all cursor-pointer ${
-              activeSection === "features"
-                ? "bg-white text-ink shadow-2xs font-semibold ring-1 ring-line/70"
-                : "text-ink3 hover:text-ink hover:bg-white/50"
-            }`}
+            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 px-2 text-[11.5px] font-medium transition-all cursor-pointer ${activeSection === "features"
+              ? "bg-white text-ink shadow-2xs font-semibold ring-1 ring-line/70"
+              : "text-ink3 hover:text-ink hover:bg-white/50"
+              }`}
           >
             <Layers className="size-3.5 shrink-0" />
             <span className="truncate">Features</span>
@@ -252,11 +250,10 @@ export function CashShell({
           <button
             type="button"
             onClick={() => setUserTab("settings")}
-            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 px-2 text-[11.5px] font-medium transition-all cursor-pointer ${
-              activeSection === "settings"
-                ? "bg-white text-ink shadow-2xs font-semibold ring-1 ring-line/70"
-                : "text-ink3 hover:text-ink hover:bg-white/50"
-            }`}
+            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 px-2 text-[11.5px] font-medium transition-all cursor-pointer ${activeSection === "settings"
+              ? "bg-white text-ink shadow-2xs font-semibold ring-1 ring-line/70"
+              : "text-ink3 hover:text-ink hover:bg-white/50"
+              }`}
           >
             <Settings2 className="size-3.5 shrink-0" />
             <span className="truncate">Settings</span>
@@ -268,24 +265,7 @@ export function CashShell({
         aria-label="Modules"
         className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden overscroll-contain"
       >
-        {/* Contextual overview banner in Global Settings */}
-        {activeSection === "settings" && (
-          <div className="mb-3 rounded-lg border border-line/70 bg-white/70 p-2.5 shadow-2xs">
-            <div className="flex items-start gap-2">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand mt-0.5">
-                <SlidersHorizontal className="size-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11.5px] font-semibold leading-tight text-ink">
-                  Global Settings
-                </p>
-                <p className="mt-0.5 text-[10px] text-ink3 leading-snug">
-                  Multi-tenant environment, access control & accounting parameters
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {currentGroups.map((g) => (
           <div
@@ -353,9 +333,8 @@ export function CashShell({
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Icon
-                          className={`size-3.5 shrink-0 transition-colors ${
-                            isActive ? "text-brand" : "text-ink3 group-hover:text-ink2"
-                          }`}
+                          className={`size-3.5 shrink-0 transition-colors ${isActive ? "text-brand" : "text-ink3 group-hover:text-ink2"
+                            }`}
                         />
                         <span className="truncate">{item.label}</span>
                       </div>
@@ -366,32 +345,6 @@ export function CashShell({
             </div>
           </div>
         ))}
-
-        {/* Quick access footer shortcut in Features to jump to Global Settings */}
-        {activeSection === "features" && (
-          <div className="mt-4 pt-3 border-t border-line/60">
-            <button
-              type="button"
-              onClick={() => setUserTab("settings")}
-              className="group flex w-full items-center justify-between rounded-lg border border-line/60 bg-white/50 p-2.5 text-left transition-all hover:border-brand/40 hover:bg-white hover:shadow-2xs cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand group-hover:bg-brand group-hover:text-white transition-colors">
-                  <SlidersHorizontal className="size-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-ink leading-tight truncate">
-                    Global Settings
-                  </p>
-                  <p className="text-[10px] text-ink3 leading-tight truncate">
-                    Companies, users and parameters
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="size-3.5 text-ink3 group-hover:translate-x-0.5 group-hover:text-brand transition-all shrink-0" />
-            </button>
-          </div>
-        )}
 
         {/* Quick button to return to Features from Settings */}
         {activeSection === "settings" && (
