@@ -245,6 +245,11 @@ function CompanyFeed() {
     setPage(page);
     clearSelection();
   };
+  const selectAccount = (code: string) => {
+    setAccountChoice(code);
+    goToPage(0);
+    setNotice("");
+  };
   const paginate = (page: number) => {
     setPage(page);
     setReview(undefined);
@@ -712,6 +717,21 @@ function CompanyFeed() {
           </div>
         }
       />
+      {account && (
+        <div className="max-w-md space-y-1 print:hidden">
+          <p className="text-xs font-medium text-ink2">Bank or credit card account</p>
+          <SearchableSelect
+            label="Bank or credit card account"
+            value={account}
+            onChange={selectAccount}
+            options={[...accountCodes].map((code) => ({
+              value: code,
+              label: `${code} · ${accountName(code)}`,
+            }))}
+            fitViewport
+          />
+        </div>
+      )}
       <div className="grid auto-cols-[minmax(13rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 print:hidden">
         {[...accountCodes].map((code) => {
           const balance = data.balances.find((b) => b.account === code);
@@ -723,11 +743,7 @@ function CompanyFeed() {
               type="button"
               key={code}
               aria-pressed={account === code}
-              onClick={() => {
-                setAccountChoice(code);
-                goToPage(0);
-                setNotice("");
-              }}
+              onClick={() => selectAccount(code)}
               className={`rounded-lg border p-3 text-left ${account === code ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-line bg-background"}`}
             >
               <div className="flex items-start justify-between gap-2">

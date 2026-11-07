@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Plus, Trash2, X } from "lucide-react";
+import { FileUp, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useAccounting } from "@/lib/accounting-store";
 import { loadBankAttachment, loadBankRow } from "@/lib/bank-feed";
 import {
@@ -972,6 +972,7 @@ function Attachments({
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const rowId = detail.row.id;
+  const attachmentInput = useRef<HTMLInputElement>(null);
   const handle = (work: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
@@ -980,8 +981,29 @@ function Attachments({
       .finally(() => setBusy(false));
   };
   return (
-    <div className="space-y-2 rounded-md border p-3 text-sm">
-      <h3 className="font-semibold">Files</h3>
+    <section
+      aria-label="Files"
+      className="space-y-2 rounded-md border border-brand/25 bg-brand/5 p-3 text-sm"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 font-semibold">
+          <Paperclip aria-hidden="true" className="size-4 text-brand" />
+          Files
+        </h3>
+        {canWrite && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-brand/35 text-brand hover:bg-brand/10 hover:text-brand"
+            disabled={busy}
+            onClick={() => attachmentInput.current?.click()}
+          >
+            <FileUp aria-hidden="true" />
+            Upload attachment
+          </Button>
+        )}
+      </div>
       {detail.attachments.map((file) => (
         <div key={file.id} className="flex flex-wrap items-center gap-2">
           <Button
@@ -1014,33 +1036,32 @@ function Attachments({
         </div>
       ))}
       {canWrite && (
-        <Field name="Upload attachment">
-          <input
-            disabled={busy}
-            className="block max-w-full"
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (!file) return;
-              if (!file.size || file.size > 10_000_000) {
-                setError("Select a file of up to 10 MB.");
-                return;
-              }
-              handle(async () => {
-                const content = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-                  reader.onerror = reject;
-                  reader.readAsDataURL(file);
-                });
-                await run({ operation: "attach", rowId, name: file.name, content });
+        <input
+          ref={attachmentInput}
+          disabled={busy}
+          hidden
+          type="file"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            if (!file.size || file.size > 10_000_000) {
+              setError("Select a file of up to 10 MB.");
+              return;
+            }
+            handle(async () => {
+              const content = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
               });
-            }}
-          />
-        </Field>
+              await run({ operation: "attach", rowId, name: file.name, content });
+            });
+          }}
+        />
       )}
       <ErrorMessage error={error} />
-    </div>
+    </section>
   );
 }
