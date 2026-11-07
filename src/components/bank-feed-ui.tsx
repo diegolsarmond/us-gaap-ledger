@@ -79,14 +79,15 @@ export function BankDialog({
         if (!open) close();
       }}
     >
-      <DialogContent
-        className={`max-h-[94dvh] w-[96vw] overflow-y-auto ${wide ? "max-w-6xl" : "max-w-xl"}`}
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        {children}
+      <DialogContent className={`max-h-[94dvh] w-[96vw] ${wide ? "max-w-6xl" : "max-w-xl"}`}>
+        {/* Scroll the body so dropdowns portaled to the dialog can overflow it. */}
+        <div className="min-h-0 space-y-4 overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          {children}
+        </div>
       </DialogContent>
     </Dialog>
   );

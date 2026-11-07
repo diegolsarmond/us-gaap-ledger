@@ -16,6 +16,7 @@ import {
 import { Badge, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 import { BankReview } from "@/components/bank-feed-review";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   BankDialog,
   BankSubmit,
@@ -622,16 +623,23 @@ function ImportDialog({
             .finally(() => setBusy(false));
         }}
       >
-        <SelectField
-          name="Bank or credit card account"
-          value={code}
-          change={(value) => {
-            setCode(value);
-            setCurrency(accountCurrency(value) ?? "USD");
-            setPreview(undefined);
-          }}
-          options={sourceAccounts.map((a) => ({ id: a.code, name: a.code + " · " + a.name }))}
-        />
+        <fieldset className="min-w-0 space-y-1" disabled={busy}>
+          <legend className="text-xs font-medium text-ink2">Bank or credit card account</legend>
+          <SearchableSelect
+            label="Bank or credit card account"
+            placeholder="Select an account"
+            value={code}
+            onChange={(value) => {
+              if (value === code) return;
+              setCode(value);
+              setCurrency(accountCurrency(value) ?? "USD");
+              setPreview(undefined);
+            }}
+            options={sourceAccounts.map((a) => ({ value: a.code, label: `${a.code} · ${a.name}` }))}
+            required
+            fitViewport
+          />
+        </fieldset>
         <SelectField
           name="Statement currency"
           value={currency}

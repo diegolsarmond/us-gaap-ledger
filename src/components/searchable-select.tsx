@@ -12,7 +12,7 @@ import {
 
 type Option = { value: string; label: string; disabled?: boolean };
 
-/** Searchable form select. Suggestions always open below the field. */
+/** Searchable form select. Suggestions open below the field by default. */
 export function SearchableSelect({
   options,
   name,
@@ -23,6 +23,7 @@ export function SearchableSelect({
   onChange,
   required = false,
   autoFocus = false,
+  fitViewport = false,
 }: {
   options: Option[];
   name?: string;
@@ -33,6 +34,7 @@ export function SearchableSelect({
   onChange?: (value: string) => void;
   required?: boolean;
   autoFocus?: boolean;
+  fitViewport?: boolean;
 }) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -94,7 +96,8 @@ export function SearchableSelect({
         container={portalContainer}
         side="bottom"
         align="start"
-        avoidCollisions={false}
+        avoidCollisions={fitViewport}
+        collisionPadding={8}
         className="z-[60] w-[var(--radix-popover-trigger-width)] p-0"
       >
         <Command>
@@ -103,7 +106,11 @@ export function SearchableSelect({
             placeholder={`Search ${label.toLowerCase()}…`}
           />
           <CommandList
-            className="max-h-56 overflow-y-auto overscroll-contain"
+            className={`overflow-y-auto overscroll-contain ${
+              fitViewport
+                ? "max-h-[min(14rem,calc(var(--radix-popover-content-available-height,17rem)_-_3rem))]"
+                : "max-h-56"
+            }`}
             onWheel={(event) => event.stopPropagation()}
           >
             <CommandEmpty>No options found.</CommandEmpty>
