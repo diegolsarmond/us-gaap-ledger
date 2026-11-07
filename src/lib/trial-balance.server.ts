@@ -1,6 +1,7 @@
 import { db } from "./db.server";
 import { authorizeCompany, setActor } from "./companies.server";
 import { readLedger } from "./ledger-storage.server";
+import { postedLedgerLines } from "./posted-ledger.server";
 import {
   trialFilters,
   exactSum,
@@ -8,18 +9,8 @@ import {
   type TrialRow,
   type TrialActivity,
 } from "./trial-balance";
-// Legacy journals already store functional amounts (the old engine converts before persisting).
-// Reversed legacy originals remain part of history alongside their posted counter-entry.
 export const trialSource = `WITH movements AS (
- SELECT l.account_code,j.id::text AS id,j.journal_number AS number,j.accounting_date AS date,
- j.description,l.description AS line_description,j.reference,j.source_module AS source,l.line_number AS sequence,
- l.cost_center_id,l.base_debit AS debit,l.base_credit AS credit,j.transaction_currency AS currency,l.debit AS original_debit,l.credit AS original_credit
- FROM journal_entries j JOIN journal_entry_lines l ON l.journal_entry_id=j.id AND l.tenant_id=j.tenant_id AND l.company_id=j.company_id
- WHERE j.tenant_id=(SELECT id FROM accounting_tenant WHERE singleton) AND j.company_id=$1 AND j.status='Posted' AND j.accounting_date<=$3::date
- UNION ALL
- SELECT l.account_code,'legacy:'||j.id,j.id,j.date,j.memo,l.memo,'',j.source_type,l.position,l.cost_center_id,l.debit,l.credit,'USD',l.debit,l.credit
- FROM ledger_journals j JOIN ledger_journals_lines l ON l.company_id=j.company_id AND l.parent_id=j.id
- WHERE j.company_id=$1 AND j.status IN ('Posted','Reversed') AND j.date<=$3::date
+ SELECT * FROM (${postedLedgerLines}) posted WHERE date<=$3::date
 ), aggregated AS (
  SELECT account_code,coalesce(sum(debit-credit) FILTER(WHERE date<$2::date),0) AS opening,
  coalesce(sum(debit) FILTER(WHERE date>=$2::date),0) AS period_debit,coalesce(sum(credit) FILTER(WHERE date>=$2::date),0) AS period_credit

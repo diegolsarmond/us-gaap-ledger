@@ -265,7 +265,10 @@ function CompanyFeed() {
       cache.invalidateQueries({ queryKey: ["bank-feed", companyId] }),
       cache.invalidateQueries({ queryKey: ["accounting", companyId] }),
       cache.invalidateQueries({ queryKey: ["journal-list", companyId] }),
-      cache.invalidateQueries({ queryKey: ["trial-balance", companyId] }),
+      cache.invalidateQueries({ queryKey: ["trial-balance", { companyId }] }),
+      cache.invalidateQueries({ queryKey: ["trial-activity", { companyId }] }),
+      cache.invalidateQueries({ queryKey: ["cash-flow", companyId] }),
+      cache.invalidateQueries({ queryKey: ["cash-gl-check", { companyId }] }),
     ]);
   };
   const run: BankRun = async (input) => {
@@ -361,6 +364,7 @@ function CompanyFeed() {
   const selectedSet = new Set(selectedIds);
   const selectedRows = eligibleRows.filter((row) => selectedSet.has(row.id));
   const selectedPending = selectedRows.filter((row) => bankTab(row) === "Pending");
+  const selectedToPost = selectedRows.filter((row) => row.status === "Pending" && !row.attemptId);
   const selectedToUndo = selectedRows.filter(canUndo);
   const checkedOnPage = selectableRows.filter((row) => selectedSet.has(row.id)).length;
   const allChecked = selectableRows.length > 0 && checkedOnPage === selectableRows.length;
@@ -978,6 +982,15 @@ function CompanyFeed() {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
+                      ) : row.isSourcePosted && data.canWrite ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-xs text-brand"
+                          onClick={() => openReview(row.id)}
+                        >
+                          Review in LedgerX
+                        </Button>
                       ) : canUndo(row) && data.canWrite ? (
                         <Button
                           variant="ghost"
@@ -1271,14 +1284,15 @@ function CompanyFeed() {
                   <span className="font-semibold" role="status">
                     {selectedRows.length} selected
                   </span>
+                  {selectedToPost.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={() => setBatch({ operation: "categorize", rows: selectedToPost })}
+                    >
+                      Post selected in LedgerX
+                    </Button>
+                  )}
                   {selectedPending.length > 0 && (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => setBatch({ operation: "categorize", rows: selectedPending })}
-                      >
-                        Post selected
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1286,7 +1300,6 @@ function CompanyFeed() {
                       >
                         Exclude selected
                       </Button>
-                    </>
                   )}
                   {selectedToUndo.length > 0 && (
                     <Button

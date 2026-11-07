@@ -129,9 +129,16 @@ export const transactionSchema = z
     (t) => (t.status === "paid") === (t.paid_date !== null),
     "Provide a payment date only for actual transactions.",
   );
-export type CashAccount = z.infer<typeof accountSchema> & { id: string };
+export type CashAccount = z.infer<typeof accountSchema> & {
+  id: string;
+  ledger_only?: true;
+  ledger_opening_date?: string;
+};
 export type CashTransaction = z.infer<typeof transactionSchema> & {
   id: string;
+  ledger_posted?: true;
+  balance_adjustment?: true;
+  reference_only?: true | undefined;
   transfer_id?: string | null;
   forecast_amount?: number | null;
   forecast_date?: string | null;
@@ -177,8 +184,14 @@ export type GlCashCheck = {
  * onwards: overdue plans are pending items, never part of the projected base balance.
  */
 function counts(t: CashTransaction, projected: boolean, asOf: string) {
-  return t.status === "paid" || (projected && t.status === "planned" && t.due_date >= asOf);
+  return (
+    !t.reference_only &&
+    (t.status === "paid" || (projected && t.status === "planned" && t.due_date >= asOf))
+  );
 }
+
+const openingDate = (a: CashAccount) => a.ledger_opening_date ?? a.opening_date;
+const openingBalance = (a: CashAccount) => (a.ledger_opening_date ? 0 : a.opening_balance);
 /** Both legs in scope: the transfer moves cash inside the scope and is not a flow. */
 function internalTransfer(t: CashTransaction, scope: Map<string, unknown>) {
   return !!t.transfer_account_id && scope.has(t.transfer_account_id);
@@ -205,7 +218,7 @@ export function summarize(
 ) {
   const cents = (n: number) => Math.round(n * 100);
   const signed = (t: CashTransaction) => cents(t.amount) * (t.direction === "in" ? 1 : -1);
-  const accountDates = new Map(accounts.map((a) => [a.id, a.opening_date]));
+  const accountDates = new Map(accounts.map((a) => [a.id, openingDate(a)]));
   const eligible = transactions.filter((t) => {
     const openingDate = accountDates.get(t.account_id);
     return (
@@ -218,8 +231,8 @@ export function summarize(
   const effectiveDate = (t: CashTransaction) => t.paid_date ?? t.due_date;
   let balance =
     accounts
-      .filter((a) => a.opening_date < start)
-      .reduce((s, a) => s + cents(a.opening_balance), 0) +
+      .filter((a) => openingDate(a) < start)
+      .reduce((s, a) => s + cents(openingBalance(a)), 0) +
     eligible.filter((t) => effectiveDate(t) < start).reduce((s, t) => s + signed(t), 0);
   const opening = balance;
   const periods: {
@@ -261,15 +274,16 @@ export function summarize(
       };
       periods.push(row);
     }
-    const adjustments = accounts
-      .filter((a) => a.opening_date === date)
-      .reduce((s, a) => s + cents(a.opening_balance), 0);
     const entries = eligible.filter((t) => effectiveDate(t) === date);
+    const adjustments = accounts
+      .filter((a) => openingDate(a) === date)
+      .reduce((s, a) => s + cents(openingBalance(a)), 0) +
+      entries.filter((t) => t.balance_adjustment).reduce((s, t) => s + signed(t), 0);
     const inflows = entries
-      .filter((t) => t.direction === "in")
+      .filter((t) => !t.balance_adjustment && t.direction === "in")
       .reduce((s, t) => s + cents(t.amount), 0);
     const outflows = entries
-      .filter((t) => t.direction === "out")
+      .filter((t) => !t.balance_adjustment && t.direction === "out")
       .reduce((s, t) => s + cents(t.amount), 0);
     balance += adjustments + inflows - outflows;
     row.inflows += inflows;
@@ -301,7 +315,7 @@ export function statement(
   projected: boolean,
   asOf = start,
 ) {
-  const selected = new Map(accounts.map((a) => [a.id, a.opening_date]));
+  const selected = new Map(accounts.map((a) => [a.id, openingDate(a)]));
   const entries = transactions.filter((t) => {
     const date = t.paid_date ?? t.due_date;
     const opening = selected.get(t.account_id);
@@ -310,6 +324,7 @@ export function statement(
       date >= opening &&
       date >= start &&
       date <= end &&
+      !t.balance_adjustment &&
       !internalTransfer(t, selected) &&
       counts(t, projected, asOf)
     );
@@ -364,6 +379,7 @@ export function weeklyComparison(
       paid_date: t.forecast_date!,
       direction: t.forecast_direction!,
       status: "paid" as const,
+      reference_only: undefined,
     }));
   const expected = summarize(accounts, baseline, start, end, "weekly", false);
   const actual = summarize(accounts, transactions, start, end, "weekly", false);

@@ -2,6 +2,10 @@ import { db } from "./db.server";
 import { authorizeCompany } from "./companies.server";
 import type { PoolClient } from "pg";
 import { summarize } from "./cash-flow-model";
+import { cashFromLedger } from "./cash-ledger.server";
+import { readLedger } from "./ledger-storage.server";
+import { postedLedgerLines } from "./posted-ledger.server";
+import type { CompanyState } from "./accounting-engine";
 import type {
   CashAccount,
   CashTransaction,
@@ -45,33 +49,39 @@ async function assertOpenPeriods(
 const accountingDate = (t: { status: string; paid_date: string | null }) =>
   t.status === "paid" ? t.paid_date : null;
 
-export async function load(companyId: string): Promise<CashData> {
-  await authorizeCompany(companyId);
-  const id = companyId;
-  const [accounts, transactions, categories, glAccounts] = await Promise.all([
-    db().query(
+async function readCashData(client: PoolClient, id: string): Promise<CashData> {
+  const [accounts, transactions, categories, chart] = await Promise.all([
+    client.query<CashAccount>(
       "SELECT id, name, currency, opening_date::text, opening_balance::float8, gl_account_code FROM cash_accounts WHERE company_id=$1 ORDER BY name",
       [id],
     ),
-    db().query(
+    client.query<CashTransaction>(
       "SELECT id, account_id, description, category, direction, amount::float8, due_date::text, paid_date::text, status, cash_flow_line, variance_note, forecast_amount::float8, forecast_date::text, forecast_direction, gl_account_code, transfer_id, transfer_account_id FROM cash_transactions WHERE company_id=$1 ORDER BY due_date DESC, created_at DESC",
       [id],
     ),
-    db().query(
+    client.query(
       "SELECT id,name,company_id FROM cash_categories WHERE company_id IS NULL OR company_id=$1 ORDER BY name",
       [id],
     ),
-    db().query(
-      'SELECT id AS code,name,type,balance_type AS "balanceType" FROM ledger_accounts WHERE company_id=$1 ORDER BY id',
-      [id],
-    ),
+    readLedger(client, id, "accounts") as unknown as Promise<CompanyState["accounts"]>,
   ]);
   return {
-    accounts: accounts.rows,
-    transactions: transactions.rows,
+    ...(await cashFromLedger(client, id, chart, accounts.rows, transactions.rows)),
     categories: categories.rows,
-    glAccounts: glAccounts.rows,
+    glAccounts: chart.map(({ code, name, type, balanceType }) => ({ code, name, type, balanceType })),
   };
+}
+
+export async function load(companyId: string): Promise<CashData> {
+  const client = await db().connect();
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await authorizeCompany(companyId, undefined, client);
+    return await readCashData(client, companyId);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    client.release();
+  }
 }
 
 type ReconciliationScope = Pick<
@@ -113,11 +123,8 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       return unavailable(
         "General ledger amounts are recorded in USD. Foreign-currency cash needs FX remeasurement before it can be proven against the GL.",
       );
-    const all = await client.query(
-      "SELECT id, name, currency, opening_date::text, opening_balance::float8, gl_account_code FROM cash_accounts WHERE company_id=$1",
-      [data.companyId],
-    );
-    const accounts: CashAccount[] = all.rows.filter(
+    const cash = await readCashData(client, data.companyId);
+    const accounts = cash.accounts.filter(
       (a) => a.currency === data.currency && (!data.accountId || a.id === data.accountId),
     );
     if (!accounts.length) return unavailable("No cash accounts in this scope.");
@@ -125,21 +132,16 @@ export async function checkGlCash(data: ReconciliationScope): Promise<GlCashChec
       return unavailable("Every cash account in scope must be linked to a GL account.");
     const codes = [...new Set(accounts.map((a) => a.gl_account_code!))];
     const ids = new Set(accounts.map((a) => a.id));
-    if (all.rows.some((a) => !ids.has(a.id) && codes.includes(a.gl_account_code)))
+    if (cash.accounts.some((a) => !ids.has(a.id) && a.gl_account_code && codes.includes(a.gl_account_code)))
       return unavailable(
         "A linked GL account is shared with cash accounts outside this scope. Select all accounts that share it.",
       );
-    const transactions = await client.query(
-      "SELECT id, account_id, direction, amount::float8, due_date::text, paid_date::text, status, transfer_account_id FROM cash_transactions WHERE company_id=$1 AND account_id = ANY($2::uuid[])",
-      [data.companyId, [...ids]],
-    );
     const gl = await client.query(
-      `SELECT coalesce(sum(l.debit - l.credit),0)::float8 AS balance
-      FROM ledger_journals j JOIN ledger_journals_lines l ON l.company_id=j.company_id AND l.parent_id=j.id
-      WHERE j.company_id=$1 AND j.date <= $2::date AND l.account_code = ANY($3::text[])`,
+      `SELECT coalesce(sum(debit-credit),0)::float8 AS balance
+       FROM (${postedLedgerLines}) posted WHERE date <= $2::date AND account_code = ANY($3::text[])`,
       [data.companyId, data.end, codes],
     );
-    const report = summarize(accounts, transactions.rows, data.end, data.end, "daily", false);
+    const report = summarize(accounts, cash.transactions, data.end, data.end, "daily", false);
     const cashBalance = report.periods.at(-1)?.balance ?? report.opening;
     const glBalance = Math.round(gl.rows[0].balance * 100) / 100;
     const difference = (Math.round(cashBalance * 100) - Math.round(glBalance * 100)) / 100;

@@ -107,11 +107,10 @@ function CompanyAccounting({
             await client.invalidateQueries({ queryKey: ["parameters", companyId] });
             await client.invalidateQueries({ queryKey: ["journal-parameters", companyId] });
             await client.invalidateQueries({ queryKey: ["journal-config", companyId] });
-            await client.invalidateQueries({ queryKey: ["cash-flow", companyId] });
             await client.invalidateQueries({ queryKey: ["cash-flow-links", companyId] });
           }
           await Promise.all(
-            ["trial-balance", "trial-activity", "journal-list"].map((key) =>
+            ["trial-balance", "trial-activity", "journal-list", "cash-flow", "cash-gl-check", "bank-feed"].map((key) =>
               client.invalidateQueries({ queryKey: [key] }),
             ),
           );

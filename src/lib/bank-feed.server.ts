@@ -590,7 +590,7 @@ export async function bankFeedDetail(data: RowScope) {
         : [];
     });
     const [moves, attachments, history, rules, { policy, grant }] = await Promise.all([
-      row.status === "Pending" && !row.isSourcePosted && !row.attemptId
+      row.status === "Pending" && !row.attemptId
         ? eligibleMovements(c, data.companyId, row, state)
         : [],
       c.query<{ id: string; name: string; size: number }>(
@@ -1466,8 +1466,6 @@ async function saveRule(
 }
 
 function assertPending(row: ReturnType<typeof withSourceStatus>, confirmDuplicate?: boolean) {
-  if (row.isSourcePosted)
-    throw new Error("Undo the imported posting before processing this transaction.");
   if (row.status !== "Pending" || row.attemptId)
     throw new Error("This transaction is no longer available. Refresh the Bank Feed.");
   if (confirmDuplicate === false && row.duplicate)

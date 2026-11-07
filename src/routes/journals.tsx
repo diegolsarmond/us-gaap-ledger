@@ -205,6 +205,12 @@ function JournalWorkspace({ companyId, companyName }: { companyId: string; compa
       await cache.invalidateQueries({ queryKey: ["journal-detail", companyId] });
       await cache.invalidateQueries({ queryKey: ["accounting", companyId] });
       await cache.invalidateQueries({ queryKey: ["bank-feed", companyId] });
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: ["trial-balance", { companyId }] }),
+        cache.invalidateQueries({ queryKey: ["trial-activity", { companyId }] }),
+        cache.invalidateQueries({ queryKey: ["cash-flow", companyId] }),
+        cache.invalidateQueries({ queryKey: ["cash-gl-check", { companyId }] }),
+      ]);
       setMessage(
         result && typeof result === "object" && "conflict" in result
           ? String(result.conflict)

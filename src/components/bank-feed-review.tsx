@@ -74,7 +74,7 @@ export function BankReview({
   );
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const pending = row.status === "Pending" && !row.isSourcePosted && !row.attemptId;
+  const pending = row.status === "Pending" && !row.attemptId;
   const needsReversal = !row.isSourcePosted && row.attemptKind !== "match";
   const perform = (input: Parameters<BankRun>[0], message?: string) => {
     setBusy(true);
@@ -207,6 +207,13 @@ export function BankReview({
       )}
       {view === "details" && detail.data && (
         <>
+          {row.isSourcePosted && (
+            <p className="rounded-md border border-line p-2 text-sm">
+              This transaction was posted in QuickBooks and still needs review in LedgerX. Use
+              Match if the corresponding entry is already in LedgerX. Otherwise, confirm the
+              counterpart account and post it here.
+            </p>
+          )}
           <div
             className="flex flex-wrap items-center gap-1 border-b pb-1"
             aria-label="Transaction details sections"
@@ -317,7 +324,7 @@ export function BankReview({
                   setView("undo");
                 }}
               >
-                Undo posting
+                {row.isSourcePosted ? "Move to Pending" : "Undo posting"}
               </Button>
             )}
           </div>
