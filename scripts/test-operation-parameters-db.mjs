@@ -124,12 +124,8 @@ try {
   assert.equal((await readLedger(c, company, "postingAccounts"))[0].glAccountCode, "10200");
   await replaceLedger(c, company, "postingAccounts", []);
   assert.equal((await readLedger(c, company, "postingAccounts")).length, 0);
-  await c.query(
-    "INSERT INTO cash_accounts(company_id,name,currency,opening_date,opening_balance,user_id) VALUES($1,'JPY cash','JPY','2026-01-01',0,(SELECT id FROM app_users ORDER BY id LIMIT 1))",
-    [company],
-  );
   console.log(
-    "PASS: relational posting mapping create/read/update/delete, company scope and JPY cash persistence (rolled back).",
+    "PASS: relational posting mapping create/read/update/delete and company scope (rolled back).",
   );
 } finally {
   await c.query("ROLLBACK").catch(() => {});

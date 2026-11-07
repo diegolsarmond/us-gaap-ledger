@@ -75,79 +75,87 @@ export const cashFlowLines = {
   },
 } as const;
 export type CashFlowLine = keyof typeof cashFlowLines;
-const cashFlowLineSchema = z.enum(Object.keys(cashFlowLines) as [CashFlowLine, ...CashFlowLine[]]);
-export const accountSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().trim().min(1).max(120),
-  currency: z.string().regex(/^[A-Z]{3}$/),
-  opening_date: dateSchema,
-  opening_balance: money.min(-999999999999.99),
-  gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
-});
-export const cashCategorySchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().trim().min(1).max(100),
-  company_id: z.string().uuid().nullable(),
-});
-export type CashCategory = z.infer<typeof cashCategorySchema> & { id: string };
-export const transactionSchema = z
+export const cashFlowLineSchema = z.enum(
+  Object.keys(cashFlowLines) as [CashFlowLine, ...CashFlowLine[]],
+);
+const code = z.string().trim().min(1).max(120);
+
+/** A planned receipt or payment. Actual cash only comes from the General Ledger. */
+export const forecastSchema = z
   .object({
     id: z.string().uuid().optional(),
-    account_id: z.string().uuid(),
+    account_code: code,
+    /** Counterpart GL account: the category. For a transfer, the other cash account. */
+    counterpart_code: code,
     description: z.string().trim().min(1).max(240),
-    category: z.string().trim().min(1).max(100),
     direction: z.enum(["in", "out"]),
     amount: money.positive(),
-    due_date: dateSchema,
-    paid_date: dateSchema.nullable(),
-    status: z.enum(["planned", "paid", "cancelled"]),
-    cash_flow_line: cashFlowLineSchema.default("unclassified"),
+    expected_date: dateSchema,
+    status: z.enum(["planned", "realized", "cancelled"]),
+    cash_flow_line: cashFlowLineSchema,
     variance_note: z.string().trim().max(1000).default(""),
-    gl_account_code: z.string().trim().min(1).max(120).nullable().default(null),
-    transfer_account_id: z.string().uuid().nullable().default(null),
+  })
+  .refine((f) => f.counterpart_code !== f.account_code, {
+    message: "The counterpart account must differ from the cash account.",
+    path: ["counterpart_code"],
   })
   .refine(
-    (t) =>
-      (t.cash_flow_line === "internal_transfer") === (t.transfer_account_id !== null) &&
-      t.transfer_account_id !== t.account_id,
+    (f) =>
+      !cashFlowLines[f.cash_flow_line].direction ||
+      cashFlowLines[f.cash_flow_line].direction === f.direction,
     {
-      message: "A transfer requires a different counterpart cash account.",
-      path: ["transfer_account_id"],
-    },
-  )
-  .refine(
-    (t) =>
-      !cashFlowLines[t.cash_flow_line].direction ||
-      cashFlowLines[t.cash_flow_line].direction === t.direction,
-    {
-      message:
-        "Select a cash flow classification that matches the transaction type (inflow or outflow).",
+      message: "Select a cash flow classification that matches the direction (inflow or outflow).",
       path: ["cash_flow_line"],
     },
-  )
-  .refine(
-    (t) => (t.status === "paid") === (t.paid_date !== null),
-    "Provide a payment date only for actual transactions.",
   );
-export type CashAccount = z.infer<typeof accountSchema> & {
+export type CashForecast = z.infer<typeof forecastSchema>;
+
+export const mappingSchema = z.object({
+  account_code: code,
+  inflow_line: cashFlowLineSchema,
+  outflow_line: cashFlowLineSchema,
+});
+export type CashFlowMapping = z.infer<typeof mappingSchema>;
+
+/** A bank or cash account of the Chart of Accounts. Its id is the GL account code. */
+export type CashAccount = {
   id: string;
-  ledger_only?: true;
-  ledger_opening_date?: string;
+  name: string;
+  currency: string;
+  /** First posted General Ledger date, or null when the account has no posted history. */
+  first_posting: string | null;
 };
-export type CashTransaction = z.infer<typeof transactionSchema> & {
+export type ClassificationSource = "override" | "mapping" | "default" | "forecast";
+export type CashTransaction = {
   id: string;
-  ledger_posted?: true;
-  balance_adjustment?: true;
-  reference_only?: true | undefined;
+  source: "ledger" | "forecast";
+  account_id: string;
+  description: string;
+  /** Counterpart GL account; null for opening balances and FX adjustments. */
+  counterpart_code: string | null;
+  direction: "in" | "out";
+  amount: number;
+  /** Expected date for forecasts; posting date for ledger movements. */
+  due_date: string;
+  /** Posting date of actual cash; null for forecasts. */
+  paid_date: string | null;
+  status: "planned" | "paid" | "realized" | "cancelled";
+  cash_flow_line: CashFlowLine;
+  classified_by: ClassificationSource;
+  variance_note: string;
+  transfer_account_id: string | null;
   transfer_id?: string | null;
   forecast_amount?: number | null;
   forecast_date?: string | null;
   forecast_direction?: "in" | "out" | null;
+  /** Opening balances and FX remeasurement: they change the balance but are not cash flows. */
+  balance_adjustment?: true;
+  journal?: { id: string; number: string | null; sequence: number };
 };
 export type CashData = {
   accounts: CashAccount[];
   transactions: CashTransaction[];
-  categories: CashCategory[];
+  mappings: CashFlowMapping[];
   glAccounts: {
     code: string;
     name: string;
@@ -155,25 +163,8 @@ export type CashData = {
     balanceType: "Debit" | "Credit";
     /** Asset account the Bank Feed treats as a bank or cash account. */
     cash: boolean;
-    /** Currency known from the account's bank setup or its imported statements. */
-    currency: string | null;
-    /**
-     * Known balance usable as a cash opening balance: the bank statement balance recorded in
-     * Bank Feed, else the QuickBooks register balance from the Account List import.
-     * `openingDate` is the day the balance opens (the day after it was reported), or null
-     * when the QuickBooks export date cannot be inferred.
-     */
-    knownBalance: {
-      amount: number;
-      openingDate: string | null;
-      source: "bank-feed" | "quickbooks";
-      asOf: string | null;
-      /**
-       * QuickBooks only: lines that were still "For review" in QuickBooks on or before `asOf`.
-       * They are real bank movements missing from the QuickBooks book balance.
-       */
-      unreviewed: { count: number; net: number } | null;
-    } | null;
+    /** Lines the default rule assigns when the account is not mapped. */
+    defaultLines: { in: CashFlowLine; out: CashFlowLine };
   }[];
   /** Bank Feed lines awaiting review. They are not actual cash until they are posted. */
   statementPending: { account: string; count: number; oldest: string }[];
@@ -184,7 +175,8 @@ export const reconciliationScopeSchema = z.object({
   start: dateSchema,
   end: dateSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
-  accountId: z.string().uuid().nullable(),
+  /** GL code of one cash account, or null for every account in the currency. */
+  accountId: code.nullable(),
 });
 export const reconciliationSchema = reconciliationScopeSchema.extend({
   net_income: money,
@@ -208,23 +200,19 @@ export type GlCashCheck = {
 };
 
 /**
- * Actuals always count. Planned entries count only in a forecast and only from asOf
+ * Actuals always count. Planned forecasts count only in a projection and only from asOf
  * onwards: overdue plans are pending items, never part of the projected base balance.
+ * Realized and cancelled forecasts never count; the ledger holds what actually happened.
  */
 function counts(t: CashTransaction, projected: boolean, asOf: string) {
-  return (
-    !t.reference_only &&
-    (t.status === "paid" || (projected && t.status === "planned" && t.due_date >= asOf))
-  );
+  return t.status === "paid" || (projected && t.status === "planned" && t.due_date >= asOf);
 }
-
-const openingDate = (a: CashAccount) => a.ledger_opening_date ?? a.opening_date;
-const openingBalance = (a: CashAccount) => (a.ledger_opening_date ? 0 : a.opening_balance);
+const effectiveDate = (t: CashTransaction) => t.paid_date ?? t.due_date;
 /** Both legs in scope: the transfer moves cash inside the scope and is not a flow. */
-function internalTransfer(t: CashTransaction, scope: Map<string, unknown>) {
+function internalTransfer(t: CashTransaction, scope: Set<string>) {
   return !!t.transfer_account_id && scope.has(t.transfer_account_id);
 }
-/** Planned entries whose expected date has passed; they need a new date or settlement. */
+/** Planned forecasts whose expected date has passed; they need a new date or settlement. */
 export function overduePlanned(
   accounts: CashAccount[],
   transactions: CashTransaction[],
@@ -246,22 +234,11 @@ export function summarize(
 ) {
   const cents = (n: number) => Math.round(n * 100);
   const signed = (t: CashTransaction) => cents(t.amount) * (t.direction === "in" ? 1 : -1);
-  const accountDates = new Map(accounts.map((a) => [a.id, openingDate(a)]));
-  const eligible = transactions.filter((t) => {
-    const openingDate = accountDates.get(t.account_id);
-    return (
-      openingDate !== undefined &&
-      (t.paid_date ?? t.due_date) >= openingDate &&
-      !internalTransfer(t, accountDates) &&
-      counts(t, projected, asOf)
-    );
-  });
-  const effectiveDate = (t: CashTransaction) => t.paid_date ?? t.due_date;
-  let balance =
-    accounts
-      .filter((a) => openingDate(a) < start)
-      .reduce((s, a) => s + cents(openingBalance(a)), 0) +
-    eligible.filter((t) => effectiveDate(t) < start).reduce((s, t) => s + signed(t), 0);
+  const scope = new Set(accounts.map((a) => a.id));
+  const eligible = transactions.filter(
+    (t) => scope.has(t.account_id) && !internalTransfer(t, scope) && counts(t, projected, asOf),
+  );
+  let balance = eligible.filter((t) => effectiveDate(t) < start).reduce((s, t) => s + signed(t), 0);
   const opening = balance;
   const periods: {
     label: string;
@@ -272,6 +249,12 @@ export function summarize(
     net: number;
     balance: number;
   }[] = [];
+  const byDate = new Map<string, CashTransaction[]>();
+  for (const t of eligible) {
+    const date = effectiveDate(t);
+    if (date < start || date > end) continue;
+    byDate.set(date, [...(byDate.get(date) ?? []), t]);
+  }
   for (
     let cursor = new Date(start + "T12:00:00Z");
     cursor.toISOString().slice(0, 10) <= end;
@@ -302,12 +285,10 @@ export function summarize(
       };
       periods.push(row);
     }
-    const entries = eligible.filter((t) => effectiveDate(t) === date);
-    const adjustments =
-      accounts
-        .filter((a) => openingDate(a) === date)
-        .reduce((s, a) => s + cents(openingBalance(a)), 0) +
-      entries.filter((t) => t.balance_adjustment).reduce((s, t) => s + signed(t), 0);
+    const entries = byDate.get(date) ?? [];
+    const adjustments = entries
+      .filter((t) => t.balance_adjustment)
+      .reduce((s, t) => s + signed(t), 0);
     const inflows = entries
       .filter((t) => !t.balance_adjustment && t.direction === "in")
       .reduce((s, t) => s + cents(t.amount), 0);
@@ -335,7 +316,7 @@ export function summarize(
   };
 }
 
-/** Gross direct-method lines. Unknown legacy classifications remain visible. */
+/** Gross direct-method lines. Unclassified movements remain visible. */
 export function statement(
   accounts: CashAccount[],
   transactions: CashTransaction[],
@@ -344,22 +325,20 @@ export function statement(
   projected: boolean,
   asOf = start,
 ) {
-  const selected = new Map(accounts.map((a) => [a.id, openingDate(a)]));
+  const scope = new Set(accounts.map((a) => a.id));
   const entries = transactions.filter((t) => {
-    const date = t.paid_date ?? t.due_date;
-    const opening = selected.get(t.account_id);
+    const date = effectiveDate(t);
     return (
-      opening !== undefined &&
-      date >= opening &&
+      scope.has(t.account_id) &&
       date >= start &&
       date <= end &&
       !t.balance_adjustment &&
-      !internalTransfer(t, selected) &&
+      !internalTransfer(t, scope) &&
       counts(t, projected, asOf)
     );
   });
   const lines = Object.entries(cashFlowLines).map(([key, definition]) => {
-    const matching = entries.filter((t) => (t.cash_flow_line ?? "unclassified") === key);
+    const matching = entries.filter((t) => t.cash_flow_line === key);
     const inflows = matching
       .filter((t) => t.direction === "in")
       .reduce((s, t) => s + Math.round(t.amount * 100), 0);
@@ -384,9 +363,7 @@ export function statement(
     investing: total("investing"),
     financing: total("financing"),
     transfers: total("transfer"),
-    unclassifiedCount: entries.filter(
-      (t) => !t.cash_flow_line || t.cash_flow_line === "unclassified",
-    ).length,
+    unclassifiedCount: entries.filter((t) => t.cash_flow_line === "unclassified").length,
     capex: lines.find((l) => l.key === "capex")!.outflows,
   };
 }
@@ -408,29 +385,24 @@ export function weeklyComparison(
       paid_date: t.forecast_date!,
       direction: t.forecast_direction!,
       status: "paid" as const,
-      reference_only: undefined,
     }));
   const expected = summarize(accounts, baseline, start, end, "weekly", false);
   const actual = summarize(accounts, transactions, start, end, "weekly", false);
+  const scope = new Set(accounts.map((a) => a.id));
   return expected.periods.map((p, i) => {
     const a = actual.periods[i]!;
     const sunday = new Date(p.label + "T12:00:00Z");
     sunday.setUTCDate(sunday.getUTCDate() + 6);
     const weekEnd = sunday.toISOString().slice(0, 10);
+    const inWeek = (date: string | null | undefined) =>
+      !!date && date >= start && date <= end && date >= p.label && date <= weekEnd;
     const notes = transactions
-      .filter((t) => {
-        const date = t.paid_date ?? t.due_date;
-        return (
-          accounts.some((account) => account.id === t.account_id) &&
-          ((date >= start && date <= end && date >= p.label && date <= weekEnd) ||
-            (t.forecast_date &&
-              t.forecast_date >= start &&
-              t.forecast_date <= end &&
-              t.forecast_date >= p.label &&
-              t.forecast_date <= weekEnd))
-        );
-      })
-      .filter((t) => t.variance_note)
+      .filter(
+        (t) =>
+          scope.has(t.account_id) &&
+          !!t.variance_note &&
+          (inWeek(effectiveDate(t)) || inWeek(t.forecast_date)),
+      )
       .map((t) => `${t.description}: ${t.variance_note}`);
     return {
       label: p.label,

@@ -54,12 +54,7 @@ import {
 import { SignOutButton } from "./sign-out-button";
 import { CurrencyRateTicker } from "./currency-rate-ticker";
 import { isModuleAvailable } from "@/lib/module-availability";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 interface MenuItem {
   label: string;
@@ -161,7 +156,7 @@ const settingsGroups: MenuGroup[] = [
       { label: "Cost Centers", route: "/parameters/cost-centers", icon: PieChart },
       { label: "Dimensions & Tags", route: "/dimensions", icon: Tags },
       { label: "Expense Categories", route: "/parameters/expense-categories", icon: Tag },
-      { label: "Cash flow categories", route: "/parameters/cash-categories", icon: ArrowLeftRight },
+      { label: "Cash flow mapping", route: "/parameters/cash-flow-mapping", icon: ArrowLeftRight },
     ],
   },
 ];
@@ -399,7 +394,9 @@ export function CashShell({
           />
           <div className="leading-tight min-w-0">
             <p className="text-[13px] font-semibold tracking-tight truncate">World Business</p>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-ink3 truncate">US GAAP Multi-Tenant</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-ink3 truncate">
+              US GAAP Multi-Tenant
+            </p>
           </div>
         </div>
         <button
@@ -819,7 +816,10 @@ export function CashShell({
                               </Link>
                             </BreadcrumbPage>
                           ) : (
-                            <BreadcrumbLink asChild className="hover:text-ink text-ink3 transition-colors">
+                            <BreadcrumbLink
+                              asChild
+                              className="hover:text-ink text-ink3 transition-colors"
+                            >
                               <Link
                                 to={crumb.route}
                                 onClick={() => setUserTab(null)}
@@ -852,7 +852,9 @@ export function CashShell({
               <CurrencyRateTicker baseCurrency="USD" />
             </div>
           </header>
-          <main className="p-3.5 sm:p-5 md:p-6 flex-1 max-w-full overflow-x-hidden">{children}</main>
+          <main className="p-3.5 sm:p-5 md:p-6 flex-1 max-w-full overflow-x-hidden">
+            {children}
+          </main>
           <footer className="border-t border-line/60 px-3.5 sm:px-6 py-3 text-[11px] text-ink3 flex flex-col sm:flex-row items-center justify-between gap-2 bg-canvas/80 text-center sm:text-left">
             <span>
               US GAAP Financial Platform · Client Workspace:{" "}

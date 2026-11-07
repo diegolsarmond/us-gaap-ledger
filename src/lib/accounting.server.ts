@@ -55,16 +55,16 @@ export async function load(companyId: string) {
 }
 export async function cashAccountLinks(
   companyId: string,
-): Promise<
-  { code: string; cashAccounts: number; actual: number; planned: number; cancelled: number }[]
-> {
+): Promise<{ code: string; planned: number; realized: number; cancelled: number }[]> {
   await authorizeCompany(companyId);
+  // Cash forecasts naming the account as cash account or as counterpart (category).
   const result = await db().query(
-    `SELECT code,sum(banks)::int AS "cashAccounts",sum(actual)::int AS actual,sum(planned)::int AS planned,sum(cancelled)::int AS cancelled FROM (
-    SELECT gl_account_code AS code,count(*) AS banks,0 AS actual,0 AS planned,0 AS cancelled FROM cash_accounts WHERE company_id=$1 AND gl_account_code IS NOT NULL GROUP BY gl_account_code
-    UNION ALL
-    SELECT gl_account_code AS code,0 AS banks,count(*) FILTER(WHERE status='paid') AS actual,count(*) FILTER(WHERE status='planned') AS planned,count(*) FILTER(WHERE status='cancelled') AS cancelled FROM cash_transactions WHERE company_id=$1 AND gl_account_code IS NOT NULL GROUP BY gl_account_code
-  ) links GROUP BY code ORDER BY code`,
+    `SELECT code,count(*) FILTER(WHERE status='planned')::int AS planned,
+       count(*) FILTER(WHERE status='realized')::int AS realized,
+       count(*) FILTER(WHERE status='cancelled')::int AS cancelled
+     FROM (SELECT account_code AS code,status FROM cash_forecasts WHERE company_id=$1
+           UNION ALL SELECT counterpart_code,status FROM cash_forecasts WHERE company_id=$1 AND transfer_id IS NULL) links
+     GROUP BY code ORDER BY code`,
     [companyId],
   );
   return result.rows;
@@ -373,30 +373,21 @@ export async function execute(
       const code = String(args[0]);
       const linked = await client.query(
         `SELECT
-        EXISTS(SELECT 1 FROM cash_accounts WHERE company_id=$1 AND gl_account_code=$2) AS bank,
-        EXISTS(SELECT 1 FROM cash_transactions WHERE company_id=$1 AND gl_account_code=$2) AS movement,
-        EXISTS(SELECT 1 FROM cash_transactions WHERE company_id=$1 AND gl_account_code=$2 AND status='paid') AS actual`,
+        EXISTS(SELECT 1 FROM cash_forecasts WHERE company_id=$1 AND account_code=$2) AS bank,
+        EXISTS(SELECT 1 FROM cash_forecasts WHERE company_id=$1 AND (account_code=$2 OR counterpart_code=$2)) AS movement`,
         [input.companyId, code],
       );
+      // Actual cash lives in posted journals, which protect their own accounts.
       const usage = linked.rows[0];
       if (command === "deleteAccount" && (usage.bank || usage.movement))
         throw new Error(
-          "Esta conta está vinculada ao fluxo de caixa ou forecast e não pode ser excluída.",
+          "Esta conta está vinculada a forecasts do fluxo de caixa e não pode ser excluída.",
         );
       if (command === "updateAccount") {
         const changes = args[1] as { type: string; balanceType: string };
-        const previous = state.accounts.find((a) => a.code === code);
         if (usage.bank && changes.type !== "Asset")
           throw new Error(
-            "Contas vinculadas a caixa/banco devem permanecer classificadas como Asset.",
-          );
-        if (
-          usage.actual &&
-          previous &&
-          (previous.type !== changes.type || previous.balanceType !== changes.balanceType)
-        )
-          throw new Error(
-            "Contas com movimentos de caixa realizados não podem mudar de classificação ou natureza.",
+            "Contas com forecasts de caixa/banco devem permanecer classificadas como Asset.",
           );
       }
     }
