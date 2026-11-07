@@ -75,8 +75,8 @@ export function parseStatementFile(content: string, currency = "USD") {
     const spent = review ? row[3]?.trim() || "" : "";
     const received = review ? row[4]?.trim() || "" : "";
     const bankDescription = review ? rawAmount : description;
-    const party = review ? row[5] ?? "" : fromTo;
-    const posting = review ? row[9] ?? "" : externalPosting;
+    const party = review ? (row[5] ?? "") : fromTo;
+    const posting = review ? (row[9] ?? "") : externalPosting;
     const checkNumber = review ? row[1]?.trim() || null : null;
     const sourceClass = review ? row[6]?.trim() || null : null;
     const sourceLocation = review ? row[7]?.trim() || null : null;
@@ -99,7 +99,9 @@ export function parseStatementFile(content: string, currency = "USD") {
       bankDescription.length > 500 ||
       party.length > 500 ||
       posting.length > 2000 ||
-      [checkNumber, sourceClass, sourceLocation, sourceCustomer].some((value) => (value?.length ?? 0) > 500) ||
+      [checkNumber, sourceClass, sourceLocation, sourceCustomer].some(
+        (value) => (value?.length ?? 0) > 500,
+      ) ||
       (quickBooks && !externalAmount) ||
       (symbol === "$" ? currency !== "USD" : symbol && symbol !== currency) ||
       !/^-?\d+(\.\d+)?$/.test(decimal) ||
@@ -133,7 +135,10 @@ export function externalAccount(value: string, format?: SourceFormat | null) {
 export function sourceCategoryAccount(
   value: string,
   format: SourceFormat | null,
-  accounts: readonly { code: string; sourceAccount?: { number: string; path: string } | undefined }[],
+  accounts: readonly {
+    code: string;
+    sourceAccount?: { number: string; path: string } | undefined;
+  }[],
 ) {
   if (format !== "quickbooks-review" || !value) return undefined;
   const number = externalAccount(value, format);

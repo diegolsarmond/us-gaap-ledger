@@ -280,7 +280,9 @@ function CompanyFeed() {
       data.rules.find(
         (rule) => rule.kind === "rule" && row.description.toLowerCase().includes(rule.pattern),
       )?.account ??
-      (sourceAccount !== row.account && !accounts.some((a) => a.parentCode === sourceAccount)
+      (sourceAccount &&
+      sourceAccount !== row.account &&
+      !accounts.some((a) => a.parentCode === sourceAccount)
         ? sourceAccount
         : undefined)
     );

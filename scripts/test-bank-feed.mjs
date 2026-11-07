@@ -29,7 +29,8 @@ registerHooks({
   },
 });
 
-const { parseStatementCsv } = await import("../src/lib/statement-csv.ts");
+const { parseStatementCsv, parseStatementFile, sourceCategoryAccount } =
+  await import("../src/lib/statement-csv.ts");
 const { isModuleAvailable } = await import("../src/lib/module-availability.ts");
 assert(isModuleAvailable("/statements"));
 const source = process.argv[2] ? readFileSync(process.argv[2], "utf8") : undefined;
@@ -62,6 +63,31 @@ assert.throws(
       "EUR",
     ),
   /Linha 2/,
+);
+const reviewHeader =
+  "Date,Check No.,Bank description,Spent,Received,From/To,Class,Location,Customer,Match/Categorize";
+const reviewCsv =
+  reviewHeader +
+  '\n01/17/2026,000123,"Review fee, test","$1,250.30",,Supplier,Class A,Office,Buyer,6000 Fees' +
+  "\n01/18/2026,,Review receipt,,$20.25,Buyer,,,,Unapplied Cash Payment Income";
+const review = parseStatementFile(reviewCsv);
+assert.equal(review.format, "quickbooks-review");
+assert.deepEqual(
+  review.rows.map((row) => row.amountText),
+  ["-1250.30", "20.25"],
+);
+assert.equal(review.rows[0].checkNumber, "000123");
+assert.throws(() => parseStatementFile(reviewCsv, "EUR"), /Linha 2/);
+assert.throws(
+  () => parseStatementFile(reviewHeader + "\n01/17/2026,,Both,$1.00,$2.00,,,,,"),
+  /Linha 2/,
+);
+assert.equal(
+  sourceCategoryAccount("6000 Fees", review.format, [
+    { code: "6000" },
+    { code: "QBO-6000", sourceAccount: { number: "6000", path: "Fees" } },
+  ]),
+  "QBO-6000",
 );
 console.log(
   "PASS: CSV parser, dates, quotes, delimiter and signed values" +
@@ -594,6 +620,22 @@ try {
       )
     ).rows[0].count >= 3,
   );
+  const reviewFile = importFile(reviewCsv);
+  const reviewPreview = await feed.previewBankImport(reviewFile);
+  assert.equal(reviewPreview.format, "quickbooks-review");
+  assert.equal(reviewPreview.total, "-1230.0500");
+  const reviewImport = await feed.importBankFile(reviewFile);
+  assert.equal(reviewImport.count, 2);
+  assert.equal((await feed.previewBankImport(reviewFile)).duplicateBatch, true);
+  const reviewRow = await find("Review fee, test");
+  assert.equal(reviewRow.status, "Pending");
+  assert.equal(reviewRow.journalId, null);
+  assert.equal(reviewRow.sourceFormat, "quickbooks-review");
+  assert.equal(reviewRow.checkNumber, "000123");
+  assert.equal(reviewRow.sourceClass, "Class A");
+  assert.equal(reviewRow.sourceLocation, "Office");
+  assert.equal(reviewRow.sourceCustomer, "Buyer");
+  assert.equal(reviewRow.externalPosting, "6000 Fees");
   console.log(
     "PASS: import and concurrent deduplication, legacy Undo, multi-title AP/AR, existing Match, FX rounding, approval, authorization and GL balances.",
   );

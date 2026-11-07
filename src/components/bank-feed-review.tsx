@@ -91,8 +91,12 @@ export function BankReview({
         {row.fromTo && <p className="text-ink2">From/To · {row.fromTo}</p>}
         {row.checkNumber && <p className="text-ink2">Check number · {row.checkNumber}</p>}
         {row.sourceClass && <p className="text-ink2">QuickBooks class · {row.sourceClass}</p>}
-        {row.sourceLocation && <p className="text-ink2">QuickBooks location · {row.sourceLocation}</p>}
-        {row.sourceCustomer && <p className="text-ink2">QuickBooks customer · {row.sourceCustomer}</p>}
+        {row.sourceLocation && (
+          <p className="text-ink2">QuickBooks location · {row.sourceLocation}</p>
+        )}
+        {row.sourceCustomer && (
+          <p className="text-ink2">QuickBooks customer · {row.sourceCustomer}</p>
+        )}
         {row.externalPosting && (
           <p className="text-ink3">QuickBooks history · {row.externalPosting}</p>
         )}
