@@ -88,9 +88,13 @@ async function validate(
     (p) => String(p["startDate"]) <= v.accountingDate && String(p["endDate"]) >= v.accountingDate,
   );
   if (!matches.length)
-    throw new Error(`No fiscal period covers ${v.accountingDate}. Add a period in Settings → Fiscal Periods.`);
+    throw new Error(
+      `No fiscal period covers ${v.accountingDate}. Add a period in Settings → Fiscal Periods.`,
+    );
   if (matches.length > 1)
-    throw new Error(`More than one fiscal period covers ${v.accountingDate}. Resolve the overlapping dates in Settings → Fiscal Periods.`);
+    throw new Error(
+      `More than one fiscal period covers ${v.accountingDate}. Resolve the overlapping dates in Settings → Fiscal Periods.`,
+    );
   const period = matches[0]!;
   if (
     posting &&
