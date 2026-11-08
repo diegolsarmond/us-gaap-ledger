@@ -128,7 +128,11 @@ export type CashAccount = {
 export type ClassificationSource = "override" | "mapping" | "default" | "forecast";
 export type CashTransaction = {
   id: string;
-  source: "ledger" | "forecast";
+  /**
+   * ledger: posted General Ledger lines. quickbooks: bank lines already posted in QuickBooks
+   * before the migration, whose result is the opening balance. forecast: planned cash.
+   */
+  source: "ledger" | "quickbooks" | "forecast";
   account_id: string;
   description: string;
   /** Counterpart GL account; null for opening balances and FX adjustments. */
@@ -150,6 +154,9 @@ export type CashTransaction = {
   forecast_direction?: "in" | "out" | null;
   /** Opening balances and FX remeasurement: they change the balance but are not cash flows. */
   balance_adjustment?: true;
+  /** Set on balance adjustments that come from an Opening journal. */
+  opening?: true;
+  /** Posted journal line; for QuickBooks history, the `qb:` movement id with sequence 0. */
   journal?: { id: string; number: string | null; sequence: number };
 };
 export type CashData = {

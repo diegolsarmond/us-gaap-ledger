@@ -8,6 +8,7 @@ import { quickBooksSourceStatus } from "./statement-csv";
 import {
   cashFromLedger,
   cashGlAccounts,
+  quickBooksHistoryLines,
   readCashAccounts,
   type CashOverride,
 } from "./cash-ledger.server";
@@ -121,6 +122,15 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
   ]);
   const ledger = await cashFromLedger(client, companyId, chart, mappings.rows, overrides.rows);
   const cashCodes = new Set(cashGlAccounts(chart).map((a) => a.code));
+  // QuickBooks lines dated after the opening are in neither the opening nor the ledger.
+  for (const t of ledger.unposted) {
+    const item = statementPending.find((p) => p.account === t.account_id);
+    if (!item) statementPending.push({ account: t.account_id, count: 1, oldest: t.due_date });
+    else {
+      item.count += 1;
+      if (t.due_date < item.oldest) item.oldest = t.due_date;
+    }
+  }
   return {
     accounts: ledger.accounts,
     transactions: [...forecasts.rows.map(forecastTransaction), ...ledger.transactions].sort(
@@ -463,15 +473,27 @@ export async function saveOverride(data: {
 }) {
   return write(data.companyId, async (client, auth) => {
     const cash = cashGlAccounts(await readChart(client, data.companyId)).map((a) => a.code);
-    const line = (
-      await client.query<{ date: string }>(
-        `WITH posted AS (${postedLedgerLines})
-         SELECT c.date::text FROM posted c
-         WHERE c.id=$2 AND c.sequence=$3 AND c.account_code=ANY($4::text[])
-           AND EXISTS (SELECT 1 FROM posted o WHERE o.id=c.id AND o.account_code=$5)`,
-        [data.companyId, data.journal_id, data.line_sequence, cash, data.counterpart_code],
-      )
-    ).rows[0];
+    const historyRow = data.journal_id.startsWith("qb:") ? data.journal_id.slice(3) : null;
+    if (!historyRow && !data.counterpart_code) throw new Error("Counterpart account required.");
+    const line = historyRow
+      ? data.line_sequence === 0
+        ? (
+            await client.query<{ date: string }>(
+              `SELECT h.date FROM (${quickBooksHistoryLines}) h
+               WHERE h.id::text=$2 AND h.account=ANY($3::text[])`,
+              [data.companyId, historyRow, cash],
+            )
+          ).rows[0]
+        : undefined
+      : (
+          await client.query<{ date: string }>(
+            `WITH posted AS (${postedLedgerLines})
+             SELECT c.date::text FROM posted c
+             WHERE c.id=$2 AND c.sequence=$3 AND c.account_code=ANY($4::text[])
+               AND EXISTS (SELECT 1 FROM posted o WHERE o.id=c.id AND o.account_code=$5)`,
+            [data.companyId, data.journal_id, data.line_sequence, cash, data.counterpart_code],
+          )
+        ).rows[0];
     if (!line) throw new Error("Posted cash movement not found.");
     if (cash.includes(data.counterpart_code))
       throw new Error("Movements between bank or cash accounts are always internal transfers.");

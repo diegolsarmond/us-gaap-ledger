@@ -9,6 +9,7 @@ import type {
   CashTransaction,
 } from "./cash-flow-model";
 import { postedLedgerLines } from "./posted-ledger.server";
+import { externalAccount, quickBooksSourceStatus } from "./statement-csv";
 
 type LedgerLine = {
   id: string;
@@ -175,6 +176,7 @@ export async function cashFromLedger(
           classified_by: "default",
           transfer_account_id: null,
           ...(adjustment ? { balance_adjustment: true as const } : {}),
+          ...(line.opening ? { opening: true as const } : {}),
         });
         continue;
       }
@@ -205,5 +207,186 @@ export async function cashFromLedger(
         });
       });
     }
-  return { accounts, transactions };
+  const history = await cashFromQuickBooks(
+    client,
+    companyId,
+    accounts,
+    chart,
+    (counterpart, direction, rowId, posting) => {
+      const override = overrideByKey.get(`${quickBooksMovementId(rowId)}|0|${counterpart ?? ""}`);
+      if (override) return { line: override.cash_flow_line, by: "override" as const };
+      if (counterpart)
+        return classifyCashMovement(
+          direction,
+          chartByCode.get(counterpart),
+          mappingByCode.get(counterpart),
+        );
+      return { line: quickBooksTypeLine(posting, direction), by: "default" as const };
+    },
+  );
+  return { accounts, ...withQuickBooksHistory(transactions, history) };
+}
+
+/** Movement id that overrides of a QuickBooks history line use as journal_id (sequence 0). */
+export const quickBooksMovementId = (rowId: string) => `qb:${rowId}`;
+
+/**
+ * Bank Feed lines already posted in QuickBooks, on any account ($1 is the company). A line
+ * sent to the ledger from the Bank Feed, or returned to Pending there, is left out: the ledger
+ * or the Pending tab owns it.
+ */
+export const quickBooksHistoryLines = `
+  SELECT r.id, f.account_code AS account, r.date::text, r.description, r.amount::float8,
+         f.feed_source_format AS format, r.feed_external_posting AS posting
+  FROM ledger_stagingrows r
+  JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
+  WHERE r.company_id=$1 AND r.status='Pending' AND r.feed_exclusion IS NULL
+    AND r.feed_external_posting<>''
+    AND NOT EXISTS (SELECT 1 FROM bank_feed_attempts a WHERE (a.company_id,a.row_id)=(r.company_id,r.id)
+                    AND a.state IN ('pending','posted'))
+    AND NOT EXISTS (SELECT 1 FROM system_audit_events e
+                    WHERE e.company_id=r.company_id AND e.entity='BankFeed' AND e.target_id=r.id
+                      AND e.action IN ('BANK_FEED_UNDO_SOURCE','BANK_FEED_UNDO','BANK_FEED_UNMATCH'))`;
+
+type HistoryRow = {
+  id: string;
+  account: string;
+  date: string;
+  description: string;
+  amount: number;
+  format: Parameters<typeof quickBooksSourceStatus>[0];
+  posting: string;
+};
+
+/** The GL account a QuickBooks posting label names, through Bank Feed mappings or the COA. */
+function quickBooksCounterpart(
+  posting: string,
+  chart: CompanyState["accounts"],
+  feedMappings: Map<string, string>,
+) {
+  const number = externalAccount(posting);
+  if (!number) return null;
+  const mapped = feedMappings.get(number);
+  if (mapped) return mapped;
+  const bySource = chart.filter((a) => a.sourceAccount?.number === number);
+  if (bySource.length === 1) return bySource[0]!.code;
+  return chart.some((a) => a.code === number) ? number : null;
+}
+
+/**
+ * Line for a QuickBooks posting that names no account (split or multiple transactions), from
+ * its transaction type when the type settles it; otherwise it stays unclassified for review.
+ */
+function quickBooksTypeLine(posting: string, direction: "in" | "out"): CashFlowLine {
+  const type = /^(?:Added|Matched) to:\s*([^:]+):/i.exec(posting)?.[1]?.trim().toLowerCase();
+  if (direction === "out" && type === "bill payment") return "suppliers";
+  if (direction === "in" && (type === "payment" || type === "sales receipt")) return "customers";
+  return "unclassified";
+}
+
+/**
+ * Cash history migrated from QuickBooks: Bank Feed lines on a cash account that QuickBooks had
+ * already posted. They are not posted here because their result is the QuickBooks opening
+ * balance, so they are reported as actual cash, read only, up to the opening of their account.
+ */
+async function cashFromQuickBooks(
+  client: Pick<PoolClient, "query">,
+  companyId: string,
+  accounts: CashAccount[],
+  chart: CompanyState["accounts"],
+  classify: (
+    counterpart: string | null,
+    direction: "in" | "out",
+    rowId: string,
+    posting: string,
+  ) => { line: CashFlowLine; by: CashTransaction["classified_by"] },
+) {
+  const accountByCode = new Map(accounts.map((a) => [a.id, a]));
+  // One connection runs one query at a time.
+  const rows = await client.query<HistoryRow>(
+    `${quickBooksHistoryLines} AND f.account_code=ANY($2::text[]) ORDER BY r.date, r.position`,
+    [companyId, accounts.map((a) => a.id)],
+  );
+  const rules = await client.query<{ pattern: string; account: string }>(
+    "SELECT pattern,account_code AS account FROM bank_feed_rules WHERE company_id=$1 AND kind='mapping'",
+    [companyId],
+  );
+  const feedMappings = new Map(rules.rows.map((r) => [r.pattern, r.account]));
+  const transactions: CashTransaction[] = [];
+  for (const row of rows.rows) {
+    const account = accountByCode.get(row.account);
+    if (!account || !row.amount || quickBooksSourceStatus(row.format, row.posting) !== "Posted")
+      continue;
+    const direction = row.amount > 0 ? "in" : "out";
+    const counterpart = quickBooksCounterpart(row.posting, chart, feedMappings);
+    const transfer = counterpart !== null && accountByCode.has(counterpart);
+    const classified = transfer
+      ? { line: "internal_transfer" as const, by: "default" as const }
+      : classify(counterpart, direction, row.id, row.posting);
+    transactions.push({
+      id: `quickbooks:${row.id}`,
+      source: "quickbooks",
+      account_id: account.id,
+      description: row.description,
+      counterpart_code: counterpart,
+      direction,
+      amount: Math.abs(row.amount),
+      due_date: row.date,
+      paid_date: row.date,
+      status: "paid",
+      cash_flow_line: classified.line,
+      classified_by: classified.by,
+      variance_note: "",
+      transfer_account_id: transfer ? counterpart : null,
+      journal: { id: quickBooksMovementId(row.id), number: null, sequence: 0 },
+    });
+  }
+  return transactions;
+}
+
+const dayBefore = (date: string) => {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
+const cents = (t: CashTransaction) => Math.round(t.amount * 100) * (t.direction === "in" ? 1 : -1);
+
+/**
+ * Adds the QuickBooks history of each account up to its opening date. The opening balance
+ * already contains that history, so the opening adjustment becomes the balance before the first
+ * history line (opening minus history): the running balance then reaches the QuickBooks
+ * balance on the opening date, and a gap in the imported history shows as that starting
+ * adjustment. Without a posted opening, all history is reported and the balance starts at zero.
+ * Lines dated after the opening are not in it nor in the ledger: they are returned as
+ * `unposted`, to be posted from the Bank Feed.
+ */
+function withQuickBooksHistory(ledger: CashTransaction[], history: CashTransaction[]) {
+  const result = [...ledger];
+  const unposted: CashTransaction[] = [];
+  const byAccount = new Map<string, CashTransaction[]>();
+  for (const t of history) byAccount.set(t.account_id, [...(byAccount.get(t.account_id) ?? []), t]);
+  for (const [accountId, lines] of byAccount) {
+    const openings = result.filter((t) => t.account_id === accountId && t.opening);
+    const openingDate = openings.map((t) => t.paid_date!).sort()[0];
+    const included = openingDate ? lines.filter((t) => t.paid_date! <= openingDate) : lines;
+    unposted.push(...lines.filter((t) => !included.includes(t)));
+    if (!included.length) continue;
+    result.push(...included);
+    if (!openingDate) continue;
+    const before =
+      openings.reduce((s, t) => s + cents(t), 0) - included.reduce((s, t) => s + cents(t), 0);
+    for (const t of openings) result.splice(result.indexOf(t), 1);
+    const date = dayBefore(included[0]!.paid_date!);
+    if (before)
+      result.push({
+        ...openings[0]!,
+        id: `quickbooks-opening:${accountId}`,
+        description: "QuickBooks balance before the imported history",
+        direction: before > 0 ? "in" : "out",
+        amount: Math.abs(before) / 100,
+        due_date: date,
+        paid_date: date,
+      });
+  }
+  return { transactions: result, unposted };
 }

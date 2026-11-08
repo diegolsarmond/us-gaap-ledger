@@ -123,9 +123,71 @@ try {
     ["2500", 0, 2000],
   ]);
 
+  // QuickBooks history of 1000: lines QuickBooks had posted before the 2026-01-01 opening,
+  // plus one dated after it (in neither the opening nor the ledger).
+  const feed = randomUUID();
+  await pool.query(
+    `INSERT INTO ledger_statements(company_id,id,position,file_name,account_code,file_type,rows_count,uploaded_at,uploaded_by,status,feed_source_format)
+     VALUES($1,$2,0,'qb.csv','1000','csv',4,'2026-01-01','Test','Pending Review','quickbooks-posted')`,
+    [company, feed],
+  );
+  const history = [
+    ["2025-12-10", "Customer deposit", 4000, "Added to:  Deposit: 4000 Sales 12/10/2025 $4,000.00"],
+    ["2025-12-20", "Supplies", -1500, "Added to:  Expense: Split expense 12/20/2025 $1,500.00"],
+    ["2025-12-22", "Vendor bill", -500, "Matched to:  Bill Payment: Split expense SI1 $500.00"],
+    ["2026-01-20", "Late rent", -100, "Added to:  Check: 6000 Rent 01/20/2026 $100.00"],
+  ];
+  const historyIds = [];
+  for (const [i, [date, description, amount, posting]] of history.entries()) {
+    const id = randomUUID();
+    historyIds.push(id);
+    await pool.query(
+      `INSERT INTO ledger_stagingrows(company_id,id,position,file_id,date,description,amount,suggested_account,status,feed_external_posting)
+       VALUES($1,$2,$3,$4,$5,$6,$7,'','Pending',$8)`,
+      [company, id, i, feed, date, description, amount, posting],
+    );
+  }
+
   const service = await import("../src/lib/cash-flow.server.ts");
   const model = await import("../src/lib/cash-flow-model.ts");
   let data = await service.load(company);
+  {
+    const qb = data.transactions.filter((t) => t.source === "quickbooks");
+    assert.deepEqual(
+      qb.map((t) => [t.paid_date, t.cash_flow_line, t.counterpart_code]).sort(),
+      [
+        ["2025-12-10", "customers", "4000"],
+        ["2025-12-20", "unclassified", null],
+        ["2025-12-22", "suppliers", null],
+      ],
+      "QuickBooks history up to the opening, classified by its account or transaction type",
+    );
+    const start = data.transactions.filter((t) => t.account_id === "1000" && t.balance_adjustment);
+    assert.deepEqual(
+      start.map((t) => [t.paid_date, t.direction, t.amount]),
+      [["2025-12-09", "in", 8000]],
+      "the opening becomes the balance before the history: 10000 - (4000 - 1500 - 500)",
+    );
+    const at = (date) =>
+      model
+        .summarize([data.accounts[0]], data.transactions, date, date, "daily", false)
+        .periods.at(-1).balance;
+    assert.equal(at("2025-12-31"), 10000, "history reaches the QuickBooks opening balance");
+    assert.deepEqual(data.statementPending, [{ account: "1000", count: 1, oldest: "2026-01-20" }]);
+    await service.saveOverride({
+      companyId: company,
+      journal_id: `qb:${historyIds[1]}`,
+      line_sequence: 0,
+      counterpart_code: "",
+      cash_flow_line: "opex",
+    });
+    data = await service.load(company);
+    assert.equal(
+      data.transactions.find((t) => t.id === `quickbooks:${historyIds[1]}`).cash_flow_line,
+      "opex",
+      "a split QuickBooks line can be reclassified",
+    );
+  }
   assert.deepEqual(
     data.accounts.map((a) => [a.id, a.first_posting]),
     [

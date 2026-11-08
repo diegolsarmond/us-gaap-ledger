@@ -151,7 +151,7 @@ function CompanyCashFlowPage() {
       .filter((t) => t.status === "planned" && t.direction === "out")
       .reduce((sum, t) => sum + Math.round(t.amount * 100), 0) / 100;
   const unclassified = listed.filter(
-    (t) => t.source === "ledger" && !t.balance_adjustment && t.cash_flow_line === "unclassified",
+    (t) => t.source !== "forecast" && !t.balance_adjustment && t.cash_flow_line === "unclassified",
   ).length;
   const waiting = filteredAccounts.flatMap((a) => pendingFor(a.id) ?? []);
   const withoutHistory = filteredAccounts.filter((a) => !a.first_posting);
@@ -164,7 +164,8 @@ function CompanyCashFlowPage() {
     ]);
   }
   async function reclassify(t: CashTransaction, value: string) {
-    if (!t.journal || !t.counterpart_code || pending) return;
+    const counterpart = t.counterpart_code ?? (t.source === "quickbooks" ? "" : null);
+    if (!t.journal || counterpart === null || pending) return;
     setPending(true);
     setError("");
     setNotice("");
@@ -174,7 +175,7 @@ function CompanyCashFlowPage() {
           companyId,
           journal_id: t.journal.id,
           line_sequence: t.journal.sequence,
-          counterpart_code: t.counterpart_code,
+          counterpart_code: counterpart,
           cash_flow_line: value === "" ? null : (value as CashFlowLine),
         },
       });
@@ -668,7 +669,9 @@ function CompanyCashFlowPage() {
                                 ? "Opening balance / FX remeasurement"
                                 : t.transfer_account_id
                                   ? `Transfer ${t.direction === "out" ? "to" : "from"} ${accountName(t.transfer_account_id)}`
-                                  : glName(t.counterpart_code)}
+                                  : t.counterpart_code
+                                    ? glName(t.counterpart_code)
+                                    : "Split in QuickBooks: account not in the export"}
                             </span>
                             {t.variance_note && (
                               <p className="text-xs text-ink2">{t.variance_note}</p>
@@ -682,15 +685,24 @@ function CompanyCashFlowPage() {
                                   ? `Journal ${t.journal.number}`
                                   : "General Ledger"}
                               </Link>
+                            ) : t.source === "quickbooks" ? (
+                              <Link
+                                to="/statements"
+                                search={{ account: t.account_id }}
+                                className="text-brand underline"
+                                title="Posted in QuickBooks before the migration; part of the opening balance"
+                              >
+                                QuickBooks history
+                              </Link>
                             ) : (
                               forecastStatus[t.status as keyof typeof forecastStatus]
                             )}
                           </Td>
                           <Td>
-                            {t.source === "ledger" &&
+                            {t.source !== "forecast" &&
                             !t.balance_adjustment &&
                             !t.transfer_account_id &&
-                            t.counterpart_code ? (
+                            (t.counterpart_code || t.source === "quickbooks") ? (
                               <select
                                 aria-label="Cash flow classification"
                                 disabled={pending}

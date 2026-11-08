@@ -31,7 +31,8 @@ export const saveCashFlowOverride = defineJsonOperation({ method: "POST" })
     company.extend({
       journal_id: z.string().min(1).max(200),
       line_sequence: z.number().int().nonnegative(),
-      counterpart_code: z.string().trim().min(1).max(120),
+      // Empty for a QuickBooks history line whose posting names no account (split).
+      counterpart_code: z.string().trim().max(120),
       cash_flow_line: cashFlowLineSchema.nullable(),
     }),
   )
