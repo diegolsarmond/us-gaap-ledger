@@ -34,13 +34,90 @@ for (const domain of Object.keys(importCatalog)) {
   }
   const workbook = new Workbook();
   await workbook.xlsx.load(await blob.arrayBuffer());
-  assert.equal(workbook.getWorksheet("Data").rowCount, 2);
-  assert.equal(
-    workbook.getWorksheet("Data").getCell("A2").value,
-    importExample(domain)[importColumns(domain)[0].path],
-  );
-  assert.ok(workbook.getWorksheet("Data").getCell("A2").note);
+  const sheet = workbook.getWorksheet(domain === "accounts" ? "COA - GENERAL" : "Data");
+  assert.equal(sheet.rowCount, 2);
+  assert.equal(sheet.getCell("A2").value, importExample(domain)[importColumns(domain)[0].path]);
+  assert.ok(sheet.getCell("A2").note);
+  const rows = await readImportWorkbook(new File([blob], "template.xlsx"), domain);
+  assert.deepEqual(parseImportRows(domain, rows), parseImportRows(domain, [importExample(domain)]));
 }
+const coa = new Workbook();
+const coaSheet = coa.addWorksheet("COA - GENERAL");
+coaSheet.addRow([
+  "Account Code",
+  "Account Name",
+  "QBO Detail Type / Managerial Category",
+  "Category / Type",
+  "Subgroup",
+  "Normal Balance",
+  "Current / Noncurrent",
+  "Contra Account",
+  "Track 1099",
+  "Parent Code",
+  "Description",
+  "Current Net Balance ($)",
+]);
+coaSheet.addRow([
+  10200,
+  "Operating Checking",
+  "Checking",
+  "Asset",
+  "Current Assets",
+  "Debit",
+  "Current",
+  "False",
+  "False",
+  null,
+  "Parent account",
+  0,
+]);
+coaSheet.addRow([
+  "00102",
+  "Business Checking",
+  "Checking",
+  "Asset",
+  "Current Assets",
+  "Debit",
+  "Current",
+  "False",
+  "True",
+  10200,
+  "Child account",
+  100,
+]);
+const coaFile = async () => new File([await coa.xlsx.writeBuffer()], "coa.xlsx");
+const coaRows = parseImportRows("accounts", await readImportWorkbook(await coaFile(), "accounts"));
+assert.equal(coaRows[0].code, "10200");
+assert.deepEqual(coaRows[1], {
+  code: "00102",
+  name: "Business Checking",
+  detailType: "Checking",
+  type: "Asset",
+  subgroup: "Current Assets",
+  balanceType: "Debit",
+  maturity: "Current",
+  isContra: false,
+  track1099: true,
+  parentCode: "10200",
+  description: "Child account",
+});
+await assert.rejects(async () => readImportWorkbook(await coaFile(), "customers"), /Data sheet/);
+coaSheet.getCell("J3").value = 10200.5;
+await assert.rejects(
+  async () => readImportWorkbook(await coaFile(), "accounts"),
+  /Row 3, Parent Code/,
+);
+coaSheet.getCell("D1").value = "Wrong header";
+await assert.rejects(async () => readImportWorkbook(await coaFile(), "accounts"), /Headers/);
+coa.removeWorksheet(coaSheet.id);
+const legacyCoa = coa.addWorksheet("Data");
+const legacyColumns = importColumns("accounts");
+legacyCoa.addRow(legacyColumns.map(({ path }) => path));
+legacyCoa.addRow(legacyColumns.map(({ path }) => importExample("accounts")[path] ?? ""));
+assert.deepEqual(
+  parseImportRows("accounts", await readImportWorkbook(await coaFile(), "accounts")),
+  parseImportRows("accounts", [importExample("accounts")]),
+);
 assert.equal(
   parseImportRows("companies", [{ ...importExample("companies"), ein: "12-3456789" }])[0].ein,
   "123456789",

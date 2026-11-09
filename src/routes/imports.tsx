@@ -235,6 +235,12 @@ function CompanyImports({
           >
             Download .xlsx template
           </Button>
+          {domain === "accounts" && (
+            <p className="text-sm text-ink2">
+              You can upload an existing workbook with the COA - GENERAL sheet directly. Current Net
+              Balance ($) is ignored because account balances come from journal entries.
+            </p>
+          )}
         </div>
       </Panel>
       <Panel
