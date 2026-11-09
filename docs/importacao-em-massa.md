@@ -10,30 +10,30 @@ Para **Chart of Accounts**, use a aba `COA - GENERAL` do novo modelo ou envie di
 
 ## Mapeamento
 
-| Cadastro                | Chave de duplicidade | Dependências                                                                |
-| ----------------------- | -------------------- | --------------------------------------------------------------------------- |
-| Clientes                | displayName          | currency, paymentTermId, defaultTaxCode, parentCustomerId quando informados |
-| Fornecedores            | displayName          | currency, paymentTermId, defaultExpenseAccountCode quando informados        |
-| Plano de contas         | code                 | parentCode quando informado; importar pais primeiro                         |
-| Moedas                  | code                 | USD é a única moeda base                                                    |
-| Condições de pagamento  | code                 | Nenhuma                                                                     |
-| Centros de custo        | code                 | Nenhuma                                                                     |
-| Categorias de despesas  | code                 | glAccountCode                                                               |
-| Jurisdições tributárias | code                 | glAccountCode                                                               |
-| Períodos fiscais        | periodCode           | Datas sem sobreposição; permissão close_periods                             |
+| Cadastro | Chave de duplicidade | Dependências |
+| --- | --- | --- |
+| Clientes | displayName | currency, paymentTermId, defaultTaxCode, parentCustomerId quando informados |
+| Fornecedores | displayName | currency, paymentTermId, defaultExpenseAccountCode quando informados |
+| Plano de contas | code | parentCode quando informado; importar pais primeiro |
+| Moedas | code | USD é a única moeda base |
+| Condições de pagamento | code | Nenhuma |
+| Centros de custo | code | Nenhuma |
+| Categorias de despesas | code | glAccountCode |
+| Jurisdições tributárias | code | glAccountCode |
+| Períodos fiscais | periodCode | Datas sem sobreposição; permissão close_periods |
 
 Os campos disponíveis e seus valores permitidos são gerados dos mesmos schemas de validação dos cadastros. Referências com sufixo `Id` usam o identificador interno existente; referências com sufixo `Code` usam o código cadastrado. IDs dos novos registros são gerados pelo sistema. Importar primeiro contas, moedas e condições de pagamento e depois os cadastros dependentes. Clientes pai devem existir antes dos filhos.
 
 ## Outros dados do sistema
 
-| Dados                                              | Tratamento                                                                      |
-| -------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Lançamentos contábeis                              | Motor próprio de partidas e contabilização; fora deste importador               |
+| Dados | Tratamento |
+| --- | --- |
+| Lançamentos contábeis | Motor próprio de partidas e contabilização; fora deste importador |
 | Contas bancárias, categorias e movimentos de caixa | Fluxo próprio com moedas, conciliação, vínculos e status; fora deste importador |
-| Extratos e linhas de staging                       | Fluxo específico de extratos; rota atualmente indisponível                      |
-| Faturas, contas a pagar, estoque e projetos        | Rotas atualmente indisponíveis; não habilitadas pela importação                 |
-| Empresas, usuários e perfis                        | Administração de acesso e escopo; cadastro individual                           |
-| Auditoria, saldos, relatórios e anexos             | Dados gerados pelo sistema ou arquivos; não importáveis por este módulo         |
+| Extratos e linhas de staging | Fluxo específico de extratos; rota atualmente indisponível |
+| Faturas, contas a pagar, estoque e projetos | Rotas atualmente indisponíveis; não habilitadas pela importação |
+| Empresas, usuários e perfis | Administração de acesso e escopo; cadastro individual |
+| Auditoria, saldos, relatórios e anexos | Dados gerados pelo sistema ou arquivos; não importáveis por este módulo |
 
 ## Garantias
 

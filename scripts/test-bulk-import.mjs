@@ -123,13 +123,11 @@ assert.equal(
   "123456789",
 );
 assert.throws(
-  () => parseImportRows("companies", [{ ...importExample("companies"), state: "XX" }]),
+  () => parseImportRows("companies", [{ ...importExample("companies"), state: " " }]),
   /Row 2/,
 );
-assert.equal(
-  parseImportRows("customers", [{ displayName: "Cliente" }])[0].shippingSameAsBilling,
-  true,
-);
+const customerDraft = { displayName: "Cliente", registrationStatus: "Draft" };
+assert.equal(parseImportRows("customers", [customerDraft])[0].shippingSameAsBilling, true);
 assert.throws(() => parseImportRows("customers", [{ displayName: "" }]), /Row 2/);
 assert.throws(() => parseImportRows("customers", []), /1,000/);
 assert.throws(() => parseImportRows("customers", Array(1001).fill({ displayName: "X" })), /1,000/);
@@ -139,7 +137,7 @@ assert.throws(
 );
 assert.equal(
   parseImportRows("customers", [
-    { displayName: "X", "billingAddress.city": "Miami", taxExempt: "sim" },
+    { ...customerDraft, "billingAddress.city": "Miami", taxExempt: "sim" },
   ])[0].billingAddress.city,
   "Miami",
 );
