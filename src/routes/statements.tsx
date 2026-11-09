@@ -22,7 +22,10 @@ import {
   bankFilterData,
   bankFilterOptions,
   bankQuickFilters,
+  bankReviewLabel,
   bankRuleFor,
+  bankStatusLabel,
+  bankTab,
   emptyBankFilters,
   matchesBankFilters,
   type BankAdvancedFilters,
@@ -87,9 +90,6 @@ const statuses = [
   { id: "Excluded", name: "Excluded" },
 ] as const;
 type BankTab = (typeof statuses)[number]["id"];
-function bankTab(row: BankRow): BankTab {
-  return row.status === "Classified" || row.isSourcePosted ? "Posted" : row.status;
-}
 const optionalColumns = ["Files", "Party", "Source posting", "Status"] as const;
 const gridColumns = [
   "Date",
@@ -202,6 +202,7 @@ function CompanyFeed() {
   });
   const linkedAccount = Route.useSearch().account;
   const [accountChoice, setAccountChoice] = useState(linkedAccount ?? "");
+  const accountCards = useRef<HTMLDivElement>(null);
   const [selectedStatus, setStatus] = useState<BankTab>();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
@@ -223,7 +224,7 @@ function CompanyFeed() {
   const [dialog, setDialog] = useState<
     "import" | "archive" | "settings" | "balance" | "register" | "rules" | null
   >(null);
-  const [columns, setColumns] = useState<Column[]>(["Files", "Party"]);
+  const [columns, setColumns] = useState<Column[]>([...optionalColumns]);
   const columnKey = `ledgerx:bank-feed:columns:${companyId}`;
   const [columnOrder, setColumnOrder] = useState(() => loadColumnOrder(columnKey));
   const widthKey = `${columnKey}:widths`;
@@ -303,6 +304,9 @@ function CompanyFeed() {
   const account = accountCodes.has(accountChoice)
     ? accountChoice
     : (data.files[0]?.account ?? sourceAccounts[0]?.code ?? "");
+  const orderedAccountCodes = account
+    ? [account, ...[...accountCodes].filter((code) => code !== account)]
+    : [...accountCodes];
   const bankBalance = data.balances.find((b) => b.account === account);
   const accountName = (code: string) => accounts.find((a) => a.code === code)?.name ?? code;
   const accountCurrency = (code: string) =>
@@ -325,9 +329,20 @@ function CompanyFeed() {
   const filter = search.trim().toLowerCase();
   const filterRows = rows.map((row) => ({
     row,
-    filters: bankFilterData(row, accounts, dimensions, data.rules, suggestionFor(row)),
+    filters: bankFilterData(
+      row,
+      accounts,
+      dimensions,
+      data.rules,
+      suggestionFor(row),
+      data.canWrite,
+    ),
   }));
   const advancedOptions = bankFilterOptions(filterRows.map((item) => item.filters));
+  const tabStatusLabels = new Set<string>(
+    rows.filter((row) => bankTab(row) === status).map(bankStatusLabel),
+  );
+  advancedOptions.status = advancedOptions.status.filter(({ name }) => tabStatusLabels.has(name));
   const filtered = filterRows
     .filter(
       ({ row, filters }) =>
@@ -391,6 +406,7 @@ function CompanyFeed() {
       setQuickFilter("");
     }
     setAccountChoice(code);
+    if (accountCards.current) accountCards.current.scrollLeft = 0;
     goToPage(0);
     setNotice("");
   };
@@ -655,6 +671,7 @@ function CompanyFeed() {
             const checked = !printable && selectedSet.has(row.id);
             const category = suggestionFor(row);
             const categoryLabel = category ? `${category} · ${accountName(category)}` : "";
+            const reviewLabel = bankReviewLabel(row, categoryLabel, pending && !printable);
             const fromTo = row.partyName ?? (row.partyEdited ? "" : row.fromTo);
             const cells: Record<DisplayColumn, ReactNode> = {
               Date: (
@@ -909,8 +926,7 @@ function CompanyFeed() {
                     <Badge tone="brand">In approval</Badge>
                   ) : (
                     <span className="text-ink2" title={categoryLabel || undefined}>
-                      {row.journalNumber ??
-                        (row.attemptKind === "match" ? "Matched" : categoryLabel || "—")}
+                      {reviewLabel || "—"}
                     </span>
                   )}
                 </Td>
@@ -923,13 +939,7 @@ function CompanyFeed() {
               Status: (
                 <Td>
                   <Badge tone={bankTab(row) === "Posted" ? "up" : "neutral"}>
-                    {row.attemptState === "pending"
-                      ? "In approval"
-                      : bankTab(row) === "Posted"
-                        ? row.status === "Classified"
-                          ? "Posted in World Business"
-                          : "Posted in QuickBooks"
-                        : row.status}
+                    {bankStatusLabel(row)}
                   </Badge>
                 </Td>
               ),
@@ -1086,30 +1096,38 @@ function CompanyFeed() {
           />
         </div>
       )}
-      <div className="grid auto-cols-[minmax(13rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 print:hidden">
-        {[...accountCodes].map((code) => {
+      <div
+        ref={accountCards}
+        className="grid auto-cols-[minmax(13rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 print:hidden"
+      >
+        {orderedAccountCodes.map((code) => {
+          // Bank: the balance the bank reported. Posted: the books, shown like the bank shows
+          // it (a credit card owed is positive). World Business postings are in USD.
+          const glAccount = accounts.find((a) => a.code === code);
           const balance = data.balances.find((b) => b.account === code);
-          const source = accounts.find((a) => a.code === code)?.sourceAccount;
-          const posted = data.posted.find((b) => b.account === code);
-          const displayedBalance = balance
+          const source = glAccount?.sourceAccount;
+          const sign = glAccount?.balanceType === "Credit" ? -1 : 1;
+          const postedRow = data.posted.find((b) => b.account === code);
+          const posted = postedRow
             ? {
-                amount: balance.amount,
-                currency: balance.currency,
-                label: `Bank balance as of ${balance.date}`,
+                amount: sign * Number(postedRow.amount),
+                currency: "USD",
+                label: "Posted",
+                title: "Posted in World Business (USD)",
               }
             : source?.balance != null
               ? {
                   amount: source.balance,
                   currency: source.currency,
-                  label: "Balance reported by QuickBooks",
+                  label: "QuickBooks",
+                  title: "Balance in QuickBooks at the migration (Account List)",
                 }
-              : posted
-                ? {
-                    amount: posted.amount,
-                    currency: "USD",
-                    label: "Posted World Business balance in USD",
-                  }
-                : undefined;
+              : undefined;
+          const reconciled =
+            !!balance &&
+            !!posted &&
+            balance.currency === posted.currency &&
+            Math.round(Number(balance.amount) * 100) === Math.round(posted.amount * 100);
           const pending = data.rows.filter(
             (r) => r.account === code && bankTab(r) === "Pending",
           ).length;
@@ -1122,16 +1140,32 @@ function CompanyFeed() {
               className={`rounded-lg border p-3 text-left ${account === code ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-line bg-background"}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold">
+                <span className="truncate text-xs font-semibold" title={accountName(code)}>
                   {code} · {accountName(code)}
                 </span>
-                <Badge>{pending}</Badge>
+                {reconciled ? (
+                  <span
+                    className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"
+                    title="Bank and posted balances agree"
+                  >
+                    <Check className="size-3" strokeWidth={3} />
+                  </span>
+                ) : (
+                  <Badge>{pending}</Badge>
+                )}
               </div>
-              <div className="mt-2 text-sm" title={displayedBalance?.label}>
-                Balance{" "}
-                {displayedBalance
-                  ? bankMoney(displayedBalance.amount, displayedBalance.currency)
-                  : "—"}
+              <div
+                className="mt-2 text-lg font-semibold"
+                title={balance ? `Bank balance as of ${balance.date}` : "No bank balance recorded"}
+              >
+                Bank: {balance ? bankMoney(balance.amount, balance.currency) : "—"}
+              </div>
+              <div className="flex items-end justify-between gap-2 text-sm text-ink2">
+                <span title={posted?.title}>
+                  {posted?.label ?? "Posted"}:{" "}
+                  {posted ? bankMoney(posted.amount, posted.currency) : "—"}
+                </span>
+                {balance && <span className="text-xs text-ink3">{balance.date}</span>}
               </div>
             </button>
           );
@@ -1159,6 +1193,16 @@ function CompanyFeed() {
                   variant={tab.id === status ? "secondary" : "ghost"}
                   aria-pressed={tab.id === status}
                   onClick={() => {
+                    if (tab.id !== status) {
+                      setAdvancedFilters((previous) => ({
+                        ...previous,
+                        status: "",
+                        amount:
+                          tab.id === "Pending" || status === "Pending"
+                            ? emptyBankFilters.amount
+                            : previous.amount,
+                      }));
+                    }
                     setStatus(tab.id);
                     goToPage(0);
                   }}
@@ -1243,6 +1287,7 @@ function CompanyFeed() {
             <BankFeedFilters
               value={advancedFilters}
               options={advancedOptions}
+              splitAmount={status === "Pending"}
               change={(value) => {
                 setAdvancedFilters(value);
                 goToPage(0);

@@ -8,8 +8,9 @@ type Row = BankFeed["rows"][number];
 type Rules = BankFeed["rules"];
 
 export const bankFilterFields = [
+  { id: "payee", name: "Party" },
+  { id: "status", name: "Status" },
   { id: "category", name: "Category" },
-  { id: "payee", name: "Payee" },
   { id: "class", name: "Class" },
   { id: "location", name: "Location" },
   { id: "transactionType", name: "Transaction type" },
@@ -24,15 +25,47 @@ export const bankQuickFilters = [
 ] as const;
 export type BankQuickFilter = "" | (typeof bankQuickFilters)[number]["id"];
 type FilterField = (typeof bankFilterFields)[number]["id"];
-export type BankAdvancedFilters = Record<FilterField, string>;
+export const bankTextFilters = [
+  { id: "description", name: "Description" },
+  { id: "review", name: "Review" },
+  { id: "sourcePosting", name: "Source posting" },
+] as const;
+export type BankAmountField = "Amount" | "Spent" | "Received";
+type TextField = (typeof bankTextFilters)[number]["id"];
+type AmountFilter = { field: BankAmountField; min: string; max: string };
+export type BankAdvancedFilters = Record<FilterField | TextField | "files", string> & {
+  amount: AmountFilter;
+};
 export type BankFilterOptions = Record<FilterField, { id: string; name: string }[]>;
 export const emptyBankFilters: BankAdvancedFilters = {
   category: "",
   payee: "",
+  status: "",
   class: "",
   location: "",
   transactionType: "",
+  description: "",
+  review: "",
+  sourcePosting: "",
+  files: "",
+  amount: { field: "Amount", min: "", max: "" },
 };
+
+export function bankTab(row: Row) {
+  return row.status === "Classified" || row.isSourcePosted ? "Posted" : row.status;
+}
+
+export function bankStatusLabel(row: Row) {
+  if (row.attemptState === "pending") return "In approval";
+  if (row.status === "Classified") return "Posted in World Business";
+  return row.isSourcePosted ? "Posted in QuickBooks" : row.status;
+}
+
+export function bankReviewLabel(row: Row, categoryLabel: string, showActions: boolean) {
+  if (showActions) return categoryLabel;
+  if (row.attemptState === "pending") return "In approval";
+  return row.journalNumber ?? (row.attemptKind === "match" ? "Matched" : categoryLabel);
+}
 
 export function bankRuleFor(row: Row, rules: Rules) {
   const description = row.description.toLowerCase();
@@ -49,6 +82,7 @@ export function bankFilterData(
   dimensions: Dimension[],
   rules: Rules,
   suggestion?: string,
+  canWrite = false,
 ) {
   const posting = row.externalPosting;
   const sourceType = /^(?:Added|Matched) to:\s*([^:]+):/i.exec(posting)?.[1];
@@ -75,9 +109,23 @@ export function bankFilterData(
       ?.options.find((option) => option.id === id)?.name ?? id;
   const autoPost = row.sourceStatus === "Posted" ? quickBooksAutoPost(posting) : null;
   return {
+    amount: Number(row.amount),
+    hasFiles: row.attachmentCount > 0,
+    text: {
+      description: row.description,
+      review: bankReviewLabel(
+        row,
+        suggestion
+          ? `${suggestion} · ${accounts.find((account) => account.code === suggestion)?.name ?? suggestion}`
+          : "",
+        bankTab(row) === "Pending" && !row.attemptId && canWrite,
+      ),
+      sourcePosting: posting,
+    },
     fields: {
       category,
       payee: values(row.partyName ?? (row.partyEdited ? "" : row.fromTo)),
+      status: [bankStatusLabel(row)],
       class: values(...(row.classIds ?? []).map((id) => optionName("CLASS", id)), row.sourceClass),
       location: values(optionName("LOCATION", row.locationId ?? null), row.sourceLocation),
       transactionType: values(row.transactionType ?? sourceType ?? "Unspecified"),
@@ -118,9 +166,20 @@ export function matchesBankFilters(
     bankFilterFields.some(
       ({ id }) =>
         advanced[id] && !row.fields[id].some((value) => normalized(value) === advanced[id]),
-    )
+    ) ||
+    bankTextFilters.some(
+      ({ id }) => !normalized(row.text[id]).includes(normalized(advanced[id])),
+    ) ||
+    (advanced.files && row.hasFiles !== (advanced.files === "attached"))
   )
     return false;
+  const { field, min, max } = advanced.amount;
+  if (min || max) {
+    if ((field === "Spent" && row.amount >= 0) || (field === "Received" && row.amount < 0))
+      return false;
+    const amount = field === "Spent" ? -row.amount : row.amount;
+    if ((min && amount < Number(min)) || (max && amount > Number(max))) return false;
+  }
   switch (quick) {
     case "uncategorized":
       return row.uncategorized;
