@@ -554,6 +554,9 @@ function CategoryForm({
   const out = Number(row.amount) < 0;
   const party = out ? vendors : customers;
   const original = row.amount.replace(/^-/, "");
+  const postingAccounts = accounts.filter(
+    (a) => a.code !== row.account && !accounts.some((child) => child.parentCode === a.code),
+  );
   const [type, setType] = useState<BankCategory["transactionType"]>(out ? "Expense" : "Deposit");
   const [dateOverride, setDateOverride] = useState<string>();
   const date = dateOverride ?? row.date;
@@ -568,16 +571,20 @@ function CategoryForm({
   const [rate, setRate] = useState("");
   const [rateSource, setRateSource] = useState("");
   const [split, setSplit] = useState(false);
-  const [lines, setLines] = useState([blankLine(0, original)]);
+  const [lines, setLines] = useState(() => [
+    {
+      ...blankLine(0, original),
+      account: postingAccounts.some((account) => account.code === row.splitAccount)
+        ? row.splitAccount
+        : "",
+    },
+  ]);
   const [nextKey, setNextKey] = useState(1);
   const [duplicate, setDuplicate] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [rememberMapping, setRememberMapping] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const postingAccounts = accounts.filter(
-    (a) => a.code !== row.account && !accounts.some((child) => child.parentCode === a.code),
-  );
   const names = postingAccounts.map((a) => ({ id: a.code, name: a.code + " · " + a.name }));
   const options = (code: string) =>
     dimensions

@@ -26,11 +26,13 @@ Os campos disponíveis e seus valores permitidos são gerados dos mesmos schemas
 
 ## Outros dados do sistema
 
+Em **Bank Feed → Import transaction report**, selecione o relatório **Transaction Detail by Account** do QuickBooks em CSV ou XLSX. Marque os grupos que quer importar e escolha o grupo, a conta e a moeda de destino para cada um. A prévia mostra os totais e o destino antes da confirmação. Contas bancárias e cartões ficam pendentes no Bank Feed. Os demais grupos ficam em **Report history**, disponíveis para download como CSV. A importação do relatório não gera lançamentos e depende da migração `038_transaction_report_imports.sql`.
+
 | Dados | Tratamento |
 | --- | --- |
 | Lançamentos contábeis | Motor próprio de partidas e contabilização; fora deste importador |
 | Contas bancárias, categorias e movimentos de caixa | Fluxo próprio com moedas, conciliação, vínculos e status; fora deste importador |
-| Extratos e linhas de staging | Fluxo específico de extratos; rota atualmente indisponível |
+| Extratos e linhas de staging | Bank Feed (`/statements`) |
 | Faturas, contas a pagar, estoque e projetos | Rotas atualmente indisponíveis; não habilitadas pela importação |
 | Empresas, usuários e perfis | Administração de acesso e escopo; cadastro individual |
 | Auditoria, saldos, relatórios e anexos | Dados gerados pelo sistema ou arquivos; não importáveis por este módulo |

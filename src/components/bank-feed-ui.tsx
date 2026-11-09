@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { loadBankFeed, loadBankRow, runBankAction } from "@/lib/bank-feed";
+import { cn } from "@/lib/utils";
 
 export type BankList = Awaited<ReturnType<typeof loadBankFeed>>;
 export type BankRow = BankList["rows"][number];
@@ -65,12 +66,14 @@ export function BankDialog({
   close,
   children,
   wide = false,
+  contentClassName,
 }: {
   title: string;
   description: string;
   close: () => void;
   children: ReactNode;
   wide?: boolean;
+  contentClassName?: string;
 }) {
   return (
     <Dialog
@@ -79,9 +82,11 @@ export function BankDialog({
         if (!open) close();
       }}
     >
-      <DialogContent className={`max-h-[94dvh] w-[96vw] ${wide ? "max-w-6xl" : "max-w-xl"}`}>
+      <DialogContent
+        className={cn("max-h-[94dvh] w-[96vw]", wide ? "max-w-6xl" : "max-w-xl", contentClassName)}
+      >
         {/* Scroll the body so dropdowns portaled to the dialog can overflow it. */}
-        <div className="min-h-0 space-y-4 overflow-y-auto">
+        <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>

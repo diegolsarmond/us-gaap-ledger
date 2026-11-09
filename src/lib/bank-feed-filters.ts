@@ -8,7 +8,10 @@ type Row = BankFeed["rows"][number];
 type Rules = BankFeed["rules"];
 
 export const bankFilterFields = [
-  { id: "payee", name: "Party" },
+  { id: "description", name: "Full bank description" },
+  { id: "payee", name: "From/To" },
+  { id: "review", name: "Review" },
+  { id: "split", name: "Split" },
   { id: "status", name: "Status" },
   { id: "category", name: "Category" },
   { id: "class", name: "Class" },
@@ -25,15 +28,9 @@ export const bankQuickFilters = [
 ] as const;
 export type BankQuickFilter = "" | (typeof bankQuickFilters)[number]["id"];
 type FilterField = (typeof bankFilterFields)[number]["id"];
-export const bankTextFilters = [
-  { id: "description", name: "Description" },
-  { id: "review", name: "Review" },
-  { id: "sourcePosting", name: "Source posting" },
-] as const;
 export type BankAmountField = "Amount" | "Spent" | "Received";
-type TextField = (typeof bankTextFilters)[number]["id"];
 type AmountFilter = { field: BankAmountField; min: string; max: string };
-export type BankAdvancedFilters = Record<FilterField | TextField | "files", string> & {
+export type BankAdvancedFilters = Record<FilterField | "files" | "dateFrom" | "dateTo", string> & {
   amount: AmountFilter;
 };
 export type BankFilterOptions = Record<FilterField, { id: string; name: string }[]>;
@@ -46,8 +43,10 @@ export const emptyBankFilters: BankAdvancedFilters = {
   transactionType: "",
   description: "",
   review: "",
-  sourcePosting: "",
+  split: "",
   files: "",
+  dateFrom: "",
+  dateTo: "",
   amount: { field: "Amount", min: "", max: "" },
 };
 
@@ -75,6 +74,11 @@ export function bankRuleFor(row: Row, rules: Rules) {
 const normalized = (value: string) => value.trim().toLowerCase();
 const values = (...items: (string | null | undefined)[]) =>
   items.map((item) => item?.trim() ?? "").filter(Boolean);
+
+export function bankSplitLabel(row: Row, accounts: Account[]) {
+  const account = accounts.find((account) => account.code === row.splitAccount);
+  return account ? `${account.code} · ${account.name}` : row.splitAccount || row.externalPosting;
+}
 
 export function bankFilterData(
   row: Row,
@@ -109,20 +113,21 @@ export function bankFilterData(
       ?.options.find((option) => option.id === id)?.name ?? id;
   const autoPost = row.sourceStatus === "Posted" ? quickBooksAutoPost(posting) : null;
   return {
+    date: row.date,
     amount: Number(row.amount),
     hasFiles: row.attachmentCount > 0,
-    text: {
-      description: row.description,
-      review: bankReviewLabel(
-        row,
-        suggestion
-          ? `${suggestion} · ${accounts.find((account) => account.code === suggestion)?.name ?? suggestion}`
-          : "",
-        bankTab(row) === "Pending" && !row.attemptId && canWrite,
-      ),
-      sourcePosting: posting,
-    },
     fields: {
+      description: values(row.description),
+      review: values(
+        bankReviewLabel(
+          row,
+          suggestion
+            ? `${suggestion} · ${accounts.find((account) => account.code === suggestion)?.name ?? suggestion}`
+            : "",
+          bankTab(row) === "Pending" && !row.attemptId && canWrite,
+        ),
+      ),
+      split: values(bankSplitLabel(row, accounts)),
       category,
       payee: values(row.partyName ?? (row.partyEdited ? "" : row.fromTo)),
       status: [bankStatusLabel(row)],
@@ -167,9 +172,8 @@ export function matchesBankFilters(
       ({ id }) =>
         advanced[id] && !row.fields[id].some((value) => normalized(value) === advanced[id]),
     ) ||
-    bankTextFilters.some(
-      ({ id }) => !normalized(row.text[id]).includes(normalized(advanced[id])),
-    ) ||
+    (advanced.dateFrom && row.date < advanced.dateFrom) ||
+    (advanced.dateTo && row.date > advanced.dateTo) ||
     (advanced.files && row.hasFiles !== (advanced.files === "attached"))
   )
     return false;

@@ -32,6 +32,7 @@ export function BankBatchDialog({
   const { accounts, costCenters, fiscalPeriods } = useAccounting();
   const [inflowAccount, setInflowAccount] = useState("");
   const [outflowAccount, setOutflowAccount] = useState("");
+  const [splitAccount, setSplitAccount] = useState(rows.length === 1 ? rows[0]!.splitAccount : "");
   const [costCenter, setCostCenter] = useState("");
   const [rates, setRates] = useState<Record<string, string>>({});
   const [rateSource, setRateSource] = useState("");
@@ -96,6 +97,7 @@ export function BankBatchDialog({
     exclude: "Exclude transactions",
     restore: "Restore to Pending",
     undo: "Undo posted transactions",
+    split: "Change Split",
   };
   const explanations = {
     categorize: rows.some((row) => row.isSourcePosted)
@@ -106,6 +108,7 @@ export function BankBatchDialog({
     undo: minDate
       ? "Remove matches, reverse entries created by the feed and return the selected transactions to Pending."
       : "Return the selected transactions to Pending in World Business and remove any World Business matches.",
+    split: "Choose the counterpart account to use when categorizing these transactions.",
   };
   const submit = async () => {
     const totals = { count: 0, posted: 0, inApproval: 0 };
@@ -132,7 +135,9 @@ export function BankBatchDialog({
                 ? { ...scope, operation, date: date || undefined, reason: reason || undefined }
                 : operation === "exclude"
                   ? { ...scope, operation, reason }
-                  : { ...scope, operation };
+                  : operation === "split"
+                    ? { ...scope, operation, account: splitAccount }
+                    : { ...scope, operation };
           const result = await run(input);
           totals.count += result.count;
           totals.posted += result.posted;
@@ -148,7 +153,9 @@ export function BankBatchDialog({
         ? `${totals.posted} posted · ${totals.inApproval} in approval.`
         : operation === "exclude"
           ? `${totals.count} moved to Excluded.`
-          : `${totals.count} returned to Pending.`;
+          : operation === "split"
+            ? `Split updated for ${totals.count} transactions.`
+            : `${totals.count} returned to Pending.`;
     saved(summary);
   };
 
@@ -171,6 +178,19 @@ export function BankBatchDialog({
             .finally(() => setBusy(false));
         }}
       >
+        {operation === "split" && (
+          <fieldset disabled={busy} className="min-w-0 space-y-1">
+            <legend className="text-xs font-medium text-ink2">Split account</legend>
+            <SearchableSelect
+              label="Split account"
+              value={splitAccount}
+              onChange={setSplitAccount}
+              options={accountOptions}
+              fitViewport
+              required
+            />
+          </fieldset>
+        )}
         {operation === "categorize" && (
           <>
             {incompatible ? (
@@ -286,6 +306,8 @@ export function BankBatchDialog({
             busy={busy}
             disabled={
               processed > 0 ||
+              (operation === "split" &&
+                !accountOptions.some(({ value }) => value === splitAccount)) ||
               (operation === "categorize" &&
                 (incompatible ||
                   accountsByDirection.some((item) => !item.value) ||

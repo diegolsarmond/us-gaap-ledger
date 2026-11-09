@@ -23,6 +23,7 @@ import {
   bankFilterOptions,
   bankQuickFilters,
   bankReviewLabel,
+  bankSplitLabel,
   bankRuleFor,
   bankStatusLabel,
   bankTab,
@@ -46,6 +47,7 @@ import { Badge, PageTitle, Panel, Table, Td, Th } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 import { BankReview, type BankReviewView } from "@/components/bank-feed-review";
 import { BankBatchDialog } from "@/components/bank-feed-batch";
+import { BankReportImport } from "@/components/bank-report-import";
 import { BankFeedFilters } from "@/components/bank-feed-filters";
 import { SearchableSelect } from "@/components/searchable-select";
 import {
@@ -205,8 +207,6 @@ function CompanyFeed() {
   const accountCards = useRef<HTMLDivElement>(null);
   const [selectedStatus, setStatus] = useState<BankTab>();
   const [search, setSearch] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [direction, setDirection] = useState("");
   const [advancedFilters, setAdvancedFilters] = useState<BankAdvancedFilters>(emptyBankFilters);
   const [quickFilter, setQuickFilter] = useState<BankQuickFilter>("");
@@ -222,7 +222,7 @@ function CompanyFeed() {
     descending: true,
   });
   const [dialog, setDialog] = useState<
-    "import" | "archive" | "settings" | "balance" | "register" | "rules" | null
+    "import" | "report" | "archive" | "settings" | "balance" | "register" | "rules" | null
   >(null);
   const [columns, setColumns] = useState<Column[]>([...optionalColumns]);
   const columnKey = `ledgerx:bank-feed:columns:${companyId}`;
@@ -232,6 +232,7 @@ function CompanyFeed() {
   const resize = useRef<{ start: number; widths: ColumnWidths; previous: ColumnWidths }>(null);
   const [dragColumn, setDragColumn] = useState<GridColumn>();
   const [editingParty, setEditingParty] = useState<string>();
+  const [editingSplit, setEditingSplit] = useState<string>();
   const [editingDate, setEditingDate] = useState<{ id: string; value: string }>();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -348,8 +349,6 @@ function CompanyFeed() {
       ({ row, filters }) =>
         bankTab(row) === status &&
         matchesBankFilters(filters, advancedFilters, quickFilter) &&
-        (!from || row.date >= from) &&
-        (!to || row.date <= to) &&
         (!direction || (Number(row.amount) < 0 ? "out" : "in") === direction) &&
         (!filter ||
           [
@@ -357,7 +356,8 @@ function CompanyFeed() {
             row.fromTo,
             row.partyName ?? "",
             row.externalPosting,
-            row.journalNumber ?? "",
+            ...filters.fields.split,
+            ...filters.fields.review,
           ].some((v) => v.toLowerCase().includes(filter))),
     )
     .map(({ row }) => row)
@@ -394,6 +394,7 @@ function CompanyFeed() {
     setSelectedIds([]);
     setReview(undefined);
     setEditingParty(undefined);
+    setEditingSplit(undefined);
     setEditingDate(undefined);
   };
   const goToPage = (page: number) => {
@@ -402,7 +403,7 @@ function CompanyFeed() {
   };
   const selectAccount = (code: string) => {
     if (code !== account) {
-      setAdvancedFilters(emptyBankFilters);
+      setAdvancedFilters(({ dateFrom, dateTo }) => ({ ...emptyBankFilters, dateFrom, dateTo }));
       setQuickFilter("");
     }
     setAccountChoice(code);
@@ -414,6 +415,7 @@ function CompanyFeed() {
     setPage(page);
     setReview(undefined);
     setEditingParty(undefined);
+    setEditingSplit(undefined);
     setEditingDate(undefined);
   };
   const togglePage = (checked: boolean) => {
@@ -433,6 +435,8 @@ function CompanyFeed() {
   function suggestionFor(row: BankRow) {
     if (row.classifiedAccount) return row.classifiedAccount;
     if (row.status !== "Pending" || row.attemptId) return;
+    if (row.splitAccount && accounts.some((account) => account.code === row.splitAccount))
+      return row.splitAccount;
     const external = externalAccount(row.externalPosting, row.sourceFormat);
     const sourceAccount = sourceCategoryAccount(row.externalPosting, row.sourceFormat, accounts);
     return (
@@ -502,6 +506,7 @@ function CompanyFeed() {
       return widths;
     };
     const columnLabel = (column: DisplayColumn) => {
+      if (column === "Source posting") return "Split";
       if (column === "Description") return "Full bank description";
       if (column === "Party") return "From/To";
       if (column === "Review") {
@@ -673,6 +678,12 @@ function CompanyFeed() {
             const categoryLabel = category ? `${category} · ${accountName(category)}` : "";
             const reviewLabel = bankReviewLabel(row, categoryLabel, pending && !printable);
             const fromTo = row.partyName ?? (row.partyEdited ? "" : row.fromTo);
+            const splitLabel = bankSplitLabel(row, accounts);
+            const changeSplit = () => {
+              setError(null);
+              setEditingParty(undefined);
+              setEditingSplit(row.id);
+            };
             const cells: Record<DisplayColumn, ReactNode> = {
               Date: (
                 <Td className="whitespace-nowrap">
@@ -877,6 +888,7 @@ function CompanyFeed() {
                         disabled={busy}
                         onClick={() => {
                           setError(null);
+                          setEditingSplit(undefined);
                           setEditingParty(row.id);
                         }}
                       >
@@ -932,8 +944,69 @@ function CompanyFeed() {
                 </Td>
               ),
               "Source posting": (
-                <Td className="max-w-56 truncate" title={row.externalPosting}>
-                  {row.externalPosting || "—"}
+                <Td className="max-w-56 truncate" title={splitLabel}>
+                  {!printable && data.canWrite && row.status === "Pending" && !row.attemptId ? (
+                    editingSplit === row.id ? (
+                      <SearchableSelect
+                        label={`Split for ${row.description}`}
+                        value={row.splitAccount}
+                        options={accounts
+                          .filter(
+                            (item) =>
+                              item.code !== row.account &&
+                              !accounts.some((child) => child.parentCode === item.code),
+                          )
+                          .map((item) => ({
+                            value: item.code,
+                            label: `${item.code} · ${item.name}`,
+                          }))}
+                        popupClassName="w-96 max-w-[calc(100vw_-_1rem)]"
+                        onOpenChange={(open) => {
+                          if (!open) setEditingSplit(undefined);
+                        }}
+                        onChange={(account) => {
+                          void handle(async () => {
+                            try {
+                              await runBankBatch({
+                                data: {
+                                  companyId,
+                                  input: {
+                                    operation: "split",
+                                    bankAccount: row.account,
+                                    rowIds: [row.id],
+                                    account,
+                                  },
+                                },
+                              });
+                              await refresh();
+                              setNotice("Split updated.");
+                            } finally {
+                              setEditingSplit(undefined);
+                            }
+                          });
+                        }}
+                        initiallyOpen
+                        fitViewport
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="flex max-w-full items-center gap-1 truncate text-left hover:underline"
+                        aria-label={`Change Split for ${row.description}`}
+                        title="Double-click to change Split"
+                        disabled={busy}
+                        onDoubleClick={changeSplit}
+                        onClick={(event) => {
+                          if (event.detail === 0) changeSplit();
+                        }}
+                      >
+                        <span className="truncate">{splitLabel || "Select a Split account"}</span>
+                        <ChevronDown aria-hidden="true" className="size-3 shrink-0 text-ink3" />
+                      </button>
+                    )
+                  ) : (
+                    splitLabel || "—"
+                  )}
                 </Td>
               ),
               Status: (
@@ -1074,9 +1147,14 @@ function CompanyFeed() {
               Archive
             </Button>
             {data.canWrite && (
-              <Button onClick={() => setDialog("import")}>
-                <FileUp /> Import CSV
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setDialog("report")}>
+                  Import transaction report
+                </Button>
+                <Button onClick={() => setDialog("import")}>
+                  <FileUp /> Import CSV
+                </Button>
+              </>
             )}
           </div>
         }
@@ -1236,16 +1314,18 @@ function CompanyFeed() {
                   setSearch(e.target.value);
                   goToPage(0);
                 }}
-                placeholder="Description or party"
+                placeholder="Description, party or Split"
               />
             </Field>
             <Field name="From">
               <input
                 className={fieldStyle}
                 type="date"
-                value={from}
+                value={advancedFilters.dateFrom}
+                max={advancedFilters.dateTo || undefined}
                 onChange={(e) => {
-                  setFrom(e.target.value);
+                  const dateFrom = e.target.value;
+                  setAdvancedFilters((previous) => ({ ...previous, dateFrom }));
                   goToPage(0);
                 }}
               />
@@ -1254,9 +1334,11 @@ function CompanyFeed() {
               <input
                 className={fieldStyle}
                 type="date"
-                value={to}
+                value={advancedFilters.dateTo}
+                min={advancedFilters.dateFrom || undefined}
                 onChange={(e) => {
-                  setTo(e.target.value);
+                  const dateTo = e.target.value;
+                  setAdvancedFilters((previous) => ({ ...previous, dateTo }));
                   goToPage(0);
                 }}
               />
@@ -1274,16 +1356,22 @@ function CompanyFeed() {
                 { id: "out", name: "Money out" },
               ]}
             />
-            <SelectField
-              name="Transaction filter"
-              placeholder="All transactions"
-              value={quickFilter}
-              change={(value) => {
-                setQuickFilter(value as BankQuickFilter);
-                goToPage(0);
-              }}
-              options={[...bankQuickFilters]}
-            />
+            <div className="min-w-0 space-y-1">
+              <span className="block text-xs font-medium text-ink2">Transaction filter</span>
+              <SearchableSelect
+                label="Transaction filter"
+                value={quickFilter}
+                onChange={(value) => {
+                  setQuickFilter(value as BankQuickFilter);
+                  goToPage(0);
+                }}
+                options={[
+                  { value: "", label: "All transactions" },
+                  ...bankQuickFilters.map(({ id, name }) => ({ value: id, label: name })),
+                ]}
+                fitViewport
+              />
+            </div>
             <BankFeedFilters
               value={advancedFilters}
               options={advancedOptions}
@@ -1341,12 +1429,21 @@ function CompanyFeed() {
                     {selectedRows.length} selected
                   </span>
                   {selectedToPost.length > 0 && (
-                    <Button
-                      size="sm"
-                      onClick={() => setBatch({ operation: "categorize", rows: selectedToPost })}
-                    >
-                      Post selected in World Business
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => setBatch({ operation: "categorize", rows: selectedToPost })}
+                      >
+                        Post selected in World Business
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBatch({ operation: "split", rows: selectedToPost })}
+                      >
+                        Change Split
+                      </Button>
+                    </>
                   )}
                   {selectedPending.length > 0 && (
                     <Button
@@ -1436,7 +1533,11 @@ function CompanyFeed() {
           accountCurrency={accountCurrency}
           close={close}
           done={(code, count, postedInQuickBooks) => {
-            setAdvancedFilters(emptyBankFilters);
+            setAdvancedFilters(({ dateFrom, dateTo }) => ({
+              ...emptyBankFilters,
+              dateFrom,
+              dateTo,
+            }));
             setQuickFilter("");
             setAccountChoice(code);
             setStatus(postedInQuickBooks ? "Posted" : "Pending");
@@ -1449,10 +1550,18 @@ function CompanyFeed() {
           }}
         />
       )}
+      {dialog === "report" && (
+        <BankReportImport
+          companyId={companyId}
+          accountCurrency={accountCurrency}
+          close={close}
+          done={() => void refresh()}
+        />
+      )}
       {dialog === "archive" && (
         <BankDialog
           title="Statement archive"
-          description="Original CSV uploads for the selected company."
+          description="Imported CSV files and transaction report groups for the selected company."
           close={close}
           wide
         >
@@ -1517,7 +1626,7 @@ function CompanyFeed() {
                   )
                 }
               />
-              {column}
+              {column === "Source posting" ? "Split" : column}
             </label>
           ))}
         </BankDialog>

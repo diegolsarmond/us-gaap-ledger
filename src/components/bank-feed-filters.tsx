@@ -3,9 +3,9 @@ import { ListFilter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Field, SelectField, fieldStyle } from "@/components/bank-feed-ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   bankFilterFields,
-  bankTextFilters,
   emptyBankFilters,
   type BankAdvancedFilters,
   type BankAmountField,
@@ -73,12 +73,14 @@ export function BankFeedFilters({
             </Button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {bankTextFilters.map(({ id, name }) => (
-              <Field key={id} name={name}>
+            {(["dateFrom", "dateTo"] as const).map((id) => (
+              <Field key={id} name={id === "dateFrom" ? "Date from" : "Date to"}>
                 <input
                   className={fieldStyle}
+                  type="date"
                   value={draft[id]}
-                  placeholder="Contains…"
+                  min={id === "dateTo" ? draft.dateFrom || undefined : undefined}
+                  max={id === "dateFrom" ? draft.dateTo || undefined : undefined}
                   onChange={(event) => {
                     const value = event.target.value;
                     setDraft((previous) => ({ ...previous, [id]: value }));
@@ -96,16 +98,35 @@ export function BankFeedFilters({
               placeholder="All"
               change={(files) => setDraft((previous) => ({ ...previous, files }))}
             />
-            {bankFilterFields.map(({ id, name }) => (
-              <SelectField
-                key={id}
-                name={name}
-                value={draft[id]}
-                options={options[id]}
-                placeholder="All"
-                change={(selected) => setDraft((previous) => ({ ...previous, [id]: selected }))}
-              />
-            ))}
+            {bankFilterFields.map(({ id, name }) => {
+              const choices = options[id];
+              const select = (selected: string) =>
+                setDraft((previous) => ({ ...previous, [id]: selected }));
+              return choices.length > 3 ? (
+                <div key={id} className="min-w-0 space-y-1">
+                  <span className="block text-xs font-medium text-ink2">{name}</span>
+                  <SearchableSelect
+                    label={name}
+                    value={draft[id]}
+                    options={[
+                      { value: "", label: "All" },
+                      ...choices.map(({ id, name }) => ({ value: id, label: name })),
+                    ]}
+                    onChange={select}
+                    fitViewport
+                  />
+                </div>
+              ) : (
+                <SelectField
+                  key={id}
+                  name={name}
+                  value={draft[id]}
+                  options={choices}
+                  placeholder="All"
+                  change={select}
+                />
+              );
+            })}
           </div>
           <fieldset className="mt-4 grid gap-3 sm:grid-cols-2">
             <legend className="mb-2 text-sm font-medium">

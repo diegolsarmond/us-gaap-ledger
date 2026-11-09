@@ -24,6 +24,21 @@ export const bankImport = bankScope.extend({
   fileName: z.string().trim().min(1).max(300),
   content: z.string().min(1).max(2_000_000),
 });
+export const bankReportImport = bankScope.extend({
+  preview: z.boolean(),
+  files: z
+    .array(
+      bankImport.omit({ companyId: true }).extend({
+        sourceGroup: z.string().trim().min(1).max(500),
+      }),
+    )
+    .min(1)
+    .max(200)
+    .refine(
+      (files) => files.reduce((size, file) => size + file.content.length, 0) <= 2_000_000,
+      "Select fewer groups. The total import size must be at most 2 MB.",
+    ),
+});
 export const bankCategory = z.object({
   ...row,
   ...fx,
@@ -124,6 +139,7 @@ export const bankBatchAction = z.discriminatedUnion("operation", [
     confirmDuplicate: z.boolean().default(false),
   }),
   z.object({ ...batchRows, operation: z.literal("exclude"), reason }),
+  z.object({ ...batchRows, operation: z.literal("split"), account: id }),
   z.object({ ...batchRows, operation: z.literal("restore") }),
   z.object({
     ...batchRows,

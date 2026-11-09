@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
+import type { z } from "zod";
 import type { Bill, CompanyState, Invoice } from "./accounting-engine";
 import { readState } from "./accounting.server";
 import {
@@ -9,6 +10,7 @@ import {
   bankCategory,
   bankRate,
   bankSourceAccount,
+  type bankReportImport,
   itemAmount,
   type BankAction,
   type BankBatchAction,
@@ -47,6 +49,7 @@ type BankRow = {
   partyName: string | null;
   partyEdited: boolean;
   externalPosting: string;
+  splitAccount: string;
   sourceFormat: ReturnType<typeof parseStatementFile>["format"] | null;
   checkNumber: string | null;
   sourceClass: string | null;
@@ -89,7 +92,7 @@ const rowQuery = `
    f.account_code AS account,f.feed_currency AS currency,r.feed_from_to AS "fromTo",
    selected_party.id AS "partyId",
    coalesce(v.display_name,p.display_name) AS "partyName",r.feed_party_edited AS "partyEdited",
-   r.feed_external_posting AS "externalPosting",r.feed_exclusion AS exclusion,
+   r.feed_external_posting AS "externalPosting",r.suggested_account AS "splitAccount",r.feed_exclusion AS exclusion,
    f.feed_source_format AS "sourceFormat",r.feed_check_number AS "checkNumber",
    r.feed_source_class AS "sourceClass",r.feed_source_location AS "sourceLocation",
    r.feed_source_customer AS "sourceCustomer",
@@ -301,35 +304,43 @@ export async function previewBankImport(data: Import) {
   });
 }
 
-export async function importBankFile(data: Import) {
-  return transaction(data.companyId, true, async (c, auth) => {
-    const { rows, format, postedInQuickBooks, keys, batchDigest, duplicateBatch } =
-      await prepareImport(c, data);
-    if (duplicateBatch)
-      throw new Error("This batch was already imported into the selected account.");
-    const id = randomUUID();
-    await c.query(
-      `INSERT INTO ledger_statements(company_id,id,position,content,file_name,account_code,file_type,
+async function saveBankImport(
+  c: PoolClient,
+  auth: Auth,
+  data: Import,
+  {
+    rows,
+    format,
+    postedInQuickBooks,
+    keys,
+    batchDigest,
+    duplicateBatch,
+  }: Awaited<ReturnType<typeof prepareImport>>,
+) {
+  if (duplicateBatch) throw new Error("This batch was already imported into the selected account.");
+  const id = randomUUID();
+  await c.query(
+    `INSERT INTO ledger_statements(company_id,id,position,content,file_name,account_code,file_type,
        rows_count,uploaded_at,uploaded_by,status,feed_currency,feed_digest,feed_source_format)
        VALUES($1,$2,(SELECT coalesce(min(position),0)-1 FROM ledger_statements WHERE company_id=$1),
        $3,$4,$5,'CSV',$6,$7,$8,'Pending Review',$9,$10,$11)`,
-      [
-        data.companyId,
-        id,
-        data.content,
-        data.fileName,
-        data.account,
-        rows.length,
-        new Date().toISOString(),
-        auth.user.name,
-        data.currency,
-        batchDigest,
-        format,
-      ],
-    );
-    const ids = rows.map(() => randomUUID());
-    await c.query(
-      `INSERT INTO ledger_stagingrows(company_id,id,position,file_id,date,description,amount,suggested_account,
+    [
+      data.companyId,
+      id,
+      data.content,
+      data.fileName,
+      data.account,
+      rows.length,
+      new Date().toISOString(),
+      auth.user.name,
+      data.currency,
+      batchDigest,
+      format,
+    ],
+  );
+  const ids = rows.map(() => randomUUID());
+  await c.query(
+    `INSERT INTO ledger_stagingrows(company_id,id,position,file_id,date,description,amount,suggested_account,
          status,feed_from_to,feed_external_posting,feed_fingerprint,feed_check_number,feed_source_class,
          feed_source_location,feed_source_customer)
        SELECT $1,t.id,offsets.start+t.n::int,$2,t.date,t.description,t.amount,'','Pending',t.party,t.posting,t.fingerprint,
@@ -338,37 +349,220 @@ export async function importBankFile(data: Import) {
                    $10::text[],$11::text[],$12::text[],$13::text[])
          WITH ORDINALITY AS t(id,date,description,amount,party,posting,fingerprint,check_number,source_class,source_location,source_customer,n)
        CROSS JOIN (SELECT coalesce(min(position),0)-$14::int-1 AS start FROM ledger_stagingrows WHERE company_id=$1) offsets`,
-      [
-        data.companyId,
-        id,
-        ids,
-        rows.map((r) => r.date),
-        rows.map((r) => r.description),
-        rows.map((r) => r.amountText),
-        rows.map((r) => r.fromTo),
-        rows.map((r) => r.externalPosting),
-        keys,
-        rows.map((r) => r.checkNumber),
-        rows.map((r) => r.sourceClass),
-        rows.map((r) => r.sourceLocation),
-        rows.map((r) => r.sourceCustomer),
-        rows.length,
-      ],
-    );
-    await c.query(
-      `INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,statement_id)
+    [
+      data.companyId,
+      id,
+      ids,
+      rows.map((r) => r.date),
+      rows.map((r) => r.description),
+      rows.map((r) => r.amountText),
+      rows.map((r) => r.fromTo),
+      rows.map((r) => r.externalPosting),
+      keys,
+      rows.map((r) => r.checkNumber),
+      rows.map((r) => r.sourceClass),
+      rows.map((r) => r.sourceLocation),
+      rows.map((r) => r.sourceCustomer),
+      rows.length,
+    ],
+  );
+  await c.query(
+    `INSERT INTO ledger_references(company_id,source_domain,source_id,account_id,statement_id)
        SELECT $1::uuid,'statements',$2::text,$3::text,NULL::text UNION ALL
        SELECT $1::uuid,'stagingRows',unnest($4::text[]),NULL::text,$2::text`,
-      [data.companyId, id, data.account, ids],
+    [data.companyId, id, data.account, ids],
+  );
+  await audit(c, auth, "IMPORT_STATEMENT", id, {
+    account: data.account,
+    currency: data.currency,
+    count: rows.length,
+    name: data.fileName,
+    format,
+  });
+  return { id, count: rows.length, postedInQuickBooks };
+}
+
+export async function importBankFile(data: Import) {
+  return transaction(data.companyId, true, async (c, auth) =>
+    saveBankImport(c, auth, data, await prepareImport(c, data)),
+  );
+}
+
+export async function importBankReport({
+  companyId,
+  files,
+  preview,
+}: z.infer<typeof bankReportImport>) {
+  return transaction(companyId, !preview, async (c, auth) => {
+    if (!auth.permissions.write_accounting) throw new Error("Access denied.");
+    const accounts = (await readLedger(
+      c,
+      companyId,
+      "accounts",
+    )) as unknown as CompanyState["accounts"];
+    const activeCurrencies = new Set(
+      (await readLedger(c, companyId, "currencies"))
+        .filter((row) => row["status"] === "Active")
+        .map((row) => row["code"]),
     );
-    await audit(c, auth, "IMPORT_STATEMENT", id, {
-      account: data.account,
-      currency: data.currency,
-      count: rows.length,
-      name: data.fileName,
-      format,
-    });
-    return { id, count: rows.length, postedInQuickBooks };
+    const bankCodes = new Set(
+      accounts.filter((account) => bankSourceAccount(account, accounts)).map(({ code }) => code),
+    );
+    const archiveCodes = [
+      ...new Set(files.filter((file) => !bankCodes.has(file.account)).map((file) => file.account)),
+    ];
+    const batches = new Set<string>();
+    if (archiveCodes.length) {
+      const existing = await c.query<{
+        account_code: string;
+        source_group: string;
+        currency: string;
+        digest: string;
+      }>(
+        `SELECT account_code,source_group,currency,digest FROM transaction_report_imports
+         WHERE company_id=$1 AND account_code=ANY($2::text[]) AND source_group=ANY($3::text[])`,
+        [companyId, archiveCodes, files.map(({ sourceGroup }) => sourceGroup)],
+      );
+      for (const row of existing.rows)
+        batches.add(JSON.stringify([row.account_code, row.source_group, row.currency, row.digest]));
+    }
+    const archived: {
+      id: string;
+      account_code: string;
+      source_group: string;
+      currency: string;
+      digest: string;
+      file_name: string;
+      row_count: number;
+      content: string;
+    }[] = [];
+    const currencies = new Map<string, string>();
+    const groups = [];
+    for (const file of files) {
+      try {
+        if (!accounts.some((account) => account.code === file.account))
+          throw new Error("Select an account from this company's chart of accounts.");
+        if (!activeCurrencies.has(file.currency))
+          throw new Error("Select an active company currency.");
+        const bankFeed = bankCodes.has(file.account);
+        const data = { ...file, companyId };
+        if (bankFeed) {
+          const currency = currencies.get(file.account);
+          if (currency && currency !== file.currency)
+            throw new Error(
+              "Use the same currency for all groups mapped to the same bank account.",
+            );
+          currencies.set(file.account, file.currency);
+          const prepared = await prepareImport(c, data);
+          const batch = JSON.stringify([file.account, prepared.batchDigest]);
+          const duplicateBatch = prepared.duplicateBatch || batches.has(batch);
+          batches.add(batch);
+          if (!preview) await saveBankImport(c, auth, data, { ...prepared, duplicateBatch });
+          groups.push({
+            count: prepared.rows.length,
+            total: unitsAmount(
+              prepared.rows.reduce(
+                (sum, row) => sum + bankAmount(row.amountText, file.currency),
+                0n,
+              ),
+            ),
+            duplicates: prepared.duplicates,
+            duplicateBatch,
+            bankFeed,
+          });
+          continue;
+        }
+        const { rows } = parseStatementFile(file.content, file.currency);
+        const hash = digest(
+          rows
+            .map(({ amountText, ...row }) =>
+              digest({ ...row, amount: unitsAmount(bankAmount(amountText, file.currency)) }),
+            )
+            .sort(),
+        );
+        const batch = JSON.stringify([file.account, file.sourceGroup, file.currency, hash]);
+        const duplicateBatch = batches.has(batch);
+        batches.add(batch);
+        if (!preview) {
+          if (duplicateBatch)
+            throw new Error("This group was already imported into the selected account.");
+          archived.push({
+            id: randomUUID(),
+            account_code: file.account,
+            source_group: file.sourceGroup,
+            currency: file.currency,
+            digest: hash,
+            file_name: file.fileName,
+            row_count: rows.length,
+            content: file.content,
+          });
+        }
+        groups.push({
+          count: rows.length,
+          total: unitsAmount(
+            rows.reduce((sum, row) => sum + bankAmount(row.amountText, file.currency), 0n),
+          ),
+          duplicates: 0,
+          duplicateBatch,
+          bankFeed,
+        });
+      } catch (error) {
+        throw new Error(
+          `${file.sourceGroup}: ${error instanceof Error ? error.message : "Import failed."}`,
+        );
+      }
+    }
+    if (archived.length) {
+      await c.query(
+        `INSERT INTO transaction_report_imports
+           (company_id,id,account_code,source_group,currency,digest,file_name,row_count,content)
+         SELECT $1,id,account_code,source_group,currency,digest,file_name,row_count,content
+         FROM jsonb_to_recordset($2::jsonb) AS groups
+           (id uuid,account_code text,source_group text,currency text,digest text,file_name text,row_count int,content text)`,
+        [companyId, JSON.stringify(archived)],
+      );
+      await audit(c, auth, "IMPORT_TRANSACTION_REPORT", archived[0]!.id, {
+        groups: archived.length,
+        count: archived.reduce((count, group) => count + group.row_count, 0),
+      });
+    }
+    return { groups, count: groups.reduce((sum, group) => sum + group.count, 0) };
+  });
+}
+
+export async function listTransactionReportImports({ companyId }: Scope) {
+  return transaction(
+    companyId,
+    false,
+    async (c) =>
+      (
+        await c.query<{
+          id: string;
+          account: string;
+          sourceGroup: string;
+          currency: string;
+          count: number;
+          importedAt: string;
+        }>(
+          `SELECT id,account_code AS account,source_group AS "sourceGroup",currency,row_count AS count,
+        imported_at::text AS "importedAt"
+       FROM transaction_report_imports WHERE company_id=$1 ORDER BY imported_at DESC,id LIMIT 200`,
+          [companyId],
+        )
+      ).rows,
+  );
+}
+
+export async function loadTransactionReportImport({ companyId, id }: Scope & { id: string }) {
+  return transaction(companyId, false, async (c) => {
+    const file = (
+      await c.query<{ name: string; content: string }>(
+        "SELECT file_name AS name,content FROM transaction_report_imports WHERE company_id=$1 AND id=$2",
+        [companyId, id],
+      )
+    ).rows[0];
+    if (!file) throw new Error("Imported report group unavailable.");
+    return file;
   });
 }
 
@@ -1499,6 +1693,31 @@ export async function bankFeedBatch({ companyId, input: raw }: Scope & { input: 
       throw new Error("One or more selected transactions are unavailable in this account.");
     const byId = new Map(found.map((row) => [row.id, withSourceStatus(row)]));
     const rows = input.rowIds.map((id) => byId.get(id)!);
+    if (input.operation === "split") {
+      const accounts = await readLedger(c, companyId, "accounts");
+      if (
+        input.account === input.bankAccount ||
+        !accounts.some((account) => account["code"] === input.account) ||
+        accounts.some((account) => account["parentCode"] === input.account)
+      )
+        throw new Error(
+          "Select a counterpart posting account from this company's chart of accounts.",
+        );
+      for (const row of rows) assertPending(row);
+      const changed = rows.filter((row) => row.splitAccount !== input.account);
+      if (changed.length) {
+        await c.query(
+          "UPDATE ledger_stagingrows SET suggested_account=$3 WHERE company_id=$1 AND id=ANY($2::text[])",
+          [companyId, changed.map(({ id }) => id), input.account],
+        );
+        for (const row of changed)
+          await audit(c, auth, "BANK_FEED_SPLIT", row.id, {
+            previous: row.splitAccount || row.externalPosting,
+            account: input.account,
+          });
+      }
+      return { count: rows.length, posted: 0, inApproval: 0 };
+    }
     if (input.operation === "undo") {
       rows.sort(
         (a, b) =>

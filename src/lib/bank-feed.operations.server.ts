@@ -3,6 +3,7 @@ import {
   bankAction,
   bankBatchAction,
   bankImport,
+  bankReportImport,
   bankRowScope,
   bankScope,
   bankSettlement,
@@ -18,6 +19,9 @@ import {
   bankFeedRegister,
   bankSettlementPreview,
   importBankFile,
+  importBankReport,
+  listTransactionReportImports,
+  loadTransactionReportImport,
   previewBankImport,
 } from "./bank-feed.server";
 
@@ -42,6 +46,15 @@ export const preview = defineJsonOperation({ method: "POST" })
 export const upload = defineJsonOperation({ method: "POST" })
   .validator(bankImport)
   .handler(({ data }) => importBankFile(data));
+export const reportImport = defineJsonOperation({ method: "POST" })
+  .validator(bankReportImport)
+  .handler(({ data }) => importBankReport(data));
+export const reportArchive = defineJsonOperation({ method: "GET" })
+  .validator(bankScope)
+  .handler(({ data }) => listTransactionReportImports(data));
+export const reportFile = defineJsonOperation({ method: "GET" })
+  .validator(bankScope.extend({ id: z.string().uuid() }))
+  .handler(({ data }) => loadTransactionReportImport(data));
 export const previewSettlement = defineJsonOperation({ method: "POST" })
   .validator(bankScope.extend({ input: bankSettlement }))
   .handler(({ data }) => bankSettlementPreview(data));

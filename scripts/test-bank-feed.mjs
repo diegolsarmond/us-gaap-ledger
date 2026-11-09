@@ -31,6 +31,8 @@ registerHooks({
 
 const { parseStatementCsv, parseStatementFile, quickBooksAutoPost, sourceCategoryAccount } =
   await import("../src/lib/statement-csv.ts");
+const { readBankReportCsv, bankReportGroupCsv } =
+  await import("../src/lib/bank-transaction-report.ts");
 const { bankFilterData, bankFilterOptions, emptyBankFilters, matchesBankFilters } =
   await import("../src/lib/bank-feed-filters.ts");
 const { isModuleAvailable } = await import("../src/lib/module-availability.ts");
@@ -151,6 +153,38 @@ assert.equal(
   ]),
   "QBO-6000",
 );
+const report = readBankReportCsv(
+  [
+    "Example Company;;;;;;;;;;",
+    "Transaction Detail by Account;;;;;;;;;;",
+    ";Transaction date;Transaction type;Num;Name;Location full name;Class full name;Description;Split;Amount;Balance",
+    "20000 Cards;;;;;;;;;;",
+    "20001 Business Card;;;;;;;;;;",
+    ";01/19/2026;Expense;A1;Supplier;Office;Class A;Report card fee;6000 Fees;1,200.25;1,200.25",
+    ";01/20/2026;Expense;;Supplier;;;;;$0.00;1,200.25",
+    "Total for 20001 Business Card;;;;;;;;;1,200.25;",
+    "Total for 20000 Cards with sub-accounts;;;;;;;;;1,200.25;",
+    "6000 Fees;;;;;;;;;;",
+    ";01/19/2026;Expense;;Supplier;;;;;1,200.25;1,200.25",
+    "Total for 6000 Fees;;;;;;;;;1,200.25;",
+    "TOTAL;;;;;;;;;2,400.50;",
+  ].join("\r\n"),
+);
+assert.deepEqual(
+  report.map(({ name, rows, skipped }) => [name, rows.length, skipped]),
+  [
+    ["20001 Business Card", 1, 1],
+    ["6000 Fees", 1, 0],
+  ],
+);
+assert.equal(
+  parseStatementFile(bankReportGroupCsv(report[0], true)).rows[0].amountText,
+  "-1200.25",
+);
+assert.equal(
+  parseStatementFile(bankReportGroupCsv(report[1], false)).rows[0].description,
+  "Expense · Supplier",
+);
 console.log(
   "PASS: CSV parser, dates, quotes, delimiter and signed values" +
     (source ? ", including the 300-row sample." : "."),
@@ -230,6 +264,7 @@ try {
       account("1010", "EUR Bank"),
       account("1100", "Accounts Receivable"),
       account("2000", "Accounts Payable", "Liability", "Credit"),
+      account("2100", "Business Credit Card", "Liability", "Credit"),
       account("4000", "Sales", "Revenue", "Credit"),
       account("6000", "Fees", "Operating Expense"),
       account("6300", "FX", "Other Expense"),
@@ -351,6 +386,48 @@ try {
     assert.equal(sample.length, 300);
     assert(sample.every((row) => row.status === "Pending"));
   }
+  const reportFiles = report.map((group, index) => ({
+    account: index === 0 ? "2100" : "6000",
+    currency: "USD",
+    fileName: "transaction report.csv",
+    sourceGroup: group.name,
+    content: bankReportGroupCsv(group, index === 0),
+  }));
+  const reportInput = { companyId, files: reportFiles, preview: true };
+  const reportPreview = await feed.importBankReport(reportInput);
+  assert.equal(reportPreview.count, 2);
+  assert.deepEqual(
+    reportPreview.groups.map((group) => [group.bankFeed, group.total]),
+    [
+      [true, "-1200.2500"],
+      [false, "1200.2500"],
+    ],
+  );
+  assert.equal(await find("Report card fee"), undefined);
+  assert.equal((await feed.listTransactionReportImports({ companyId })).length, 0);
+  await assert.rejects(
+    feed.importBankReport({
+      ...reportInput,
+      preview: false,
+      files: [reportFiles[0], { ...reportFiles[1], account: "missing" }],
+    }),
+    /chart of accounts/,
+  );
+  assert.equal(await find("Report card fee"), undefined);
+  assert.equal((await feed.importBankReport({ ...reportInput, preview: false })).count, 2);
+  assert.equal((await find("Report card fee")).status, "Pending");
+  assert.equal(await find("Expense · Supplier"), undefined);
+  const [archived] = await feed.listTransactionReportImports({ companyId });
+  assert.equal(archived.account, "6000");
+  assert.equal(
+    (await feed.loadTransactionReportImport({ companyId, id: archived.id })).content,
+    reportFiles[1].content,
+  );
+  assert((await feed.importBankReport(reportInput)).groups.every((group) => group.duplicateBatch));
+  assert.equal((await feed.listTransactionReportImports({ companyId: other })).length, 0);
+  console.log(
+    "PASS: report group routing, preview, atomic rollback, archive and duplicate checks.",
+  );
   const usdCsv =
     "date,description,amount\n2026-01-12,New payment,-60\n2026-01-13,New receipt,45\n2026-01-13,Competing receipt,45\n2026-01-14,Find recorded,20\n2026-01-14,Find competing,20\n2026-01-15,Duplicate,-6\n2026-01-15,Duplicate,-6\n2026-01-15,Exclude me,1";
   const uploads = await Promise.allSettled([
@@ -358,6 +435,53 @@ try {
     feed.importBankFile(importFile(usdCsv)),
   ]);
   assert.equal(uploads.filter((x) => x.status === "fulfilled").length, 1);
+  const splitRows = [await find("New payment"), await find("New receipt")];
+  const splitBatch = {
+    operation: "split",
+    bankAccount: "1000",
+    rowIds: splitRows.map(({ id }) => id),
+    account: "6000",
+  };
+  assert.equal((await feed.bankFeedBatch({ companyId, input: splitBatch })).count, 2);
+  const changedSplit = await find("New payment");
+  assert.equal(changedSplit.splitAccount, "6000");
+  assert.equal((await find("New receipt")).splitAccount, "6000");
+  assert.equal(changedSplit.externalPosting, splitRows[0].externalPosting);
+  assert.equal(changedSplit.status, "Pending");
+  await assert.rejects(
+    feed.bankFeedBatch({ companyId, input: { ...splitBatch, account: "1000" } }),
+    /counterpart posting account/,
+  );
+  const splitFilters = bankFilterData(
+    changedSplit,
+    [account("6000", "Fees", "Operating Expense")],
+    [],
+    [],
+  );
+  const {
+    split: [splitOption],
+  } = bankFilterOptions([splitFilters]);
+  assert.equal(splitOption.name, "6000 · Fees");
+  assert.equal(
+    matchesBankFilters(
+      splitFilters,
+      {
+        ...emptyBankFilters,
+        split: splitOption.id,
+        dateTo: "2026-01-12",
+        amount: { field: "Spent", min: "60", max: "60" },
+      },
+      "",
+    ),
+    true,
+  );
+  assert.equal(
+    matchesBankFilters(splitFilters, { ...emptyBankFilters, dateFrom: "2026-01-13" }, ""),
+    false,
+  );
+  console.log(
+    "PASS: bulk Split preserves source data, validates counterpart accounts, and matches grid filters.",
+  );
   const duplicate = await find("Duplicate");
   assert.equal(duplicate.duplicate, true);
   await assert.rejects(category(duplicate), /duplicate/);
