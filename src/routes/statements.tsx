@@ -993,7 +993,7 @@ function CompanyFeed() {
                           className="h-6 px-1.5 text-xs text-brand"
                           onClick={() => openReview(row.id)}
                         >
-                          Review in LedgerX
+                          Review
                         </Button>
                       ) : canUndo(row) && data.canWrite ? (
                         <Button

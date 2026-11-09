@@ -209,7 +209,7 @@ export function BankReview({
         <>
           {row.isSourcePosted && (
             <p className="rounded-md border border-line p-2 text-sm">
-              This transaction was posted in QuickBooks and still needs review in LedgerX. Use Match
+              This transaction was posted in QuickBooks and still needs Review. Use Match
               if the corresponding entry is already in LedgerX. Otherwise, confirm the counterpart
               account and post it here.
             </p>
