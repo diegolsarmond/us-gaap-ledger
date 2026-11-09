@@ -99,13 +99,13 @@ export function BankBatchDialog({
   };
   const explanations = {
     categorize: rows.some((row) => row.isSourcePosted)
-      ? "Post these transactions in LedgerX using the selected counterpart accounts. If a transaction is already in the LedgerX register, use Match on that row instead."
+      ? "Post these transactions in World Business using the selected counterpart accounts. If a transaction is already in the World Business register, use Match on that row instead."
       : "Apply a counterpart account per direction. Each transaction keeps its bank date and amount. Company approval rules still apply.",
     exclude: "Move the selected transactions to Excluded.",
     restore: "Return the selected transactions to Pending for review.",
     undo: minDate
       ? "Remove matches, reverse entries created by the feed and return the selected transactions to Pending."
-      : "Return the selected transactions to Pending in LedgerX and remove any LedgerX matches.",
+      : "Return the selected transactions to Pending in World Business and remove any World Business matches.",
   };
   const submit = async () => {
     const totals = { count: 0, posted: 0, inApproval: 0 };

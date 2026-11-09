@@ -19,7 +19,7 @@ import { quickBooksOpening } from "@/lib/quickbooks-opening";
 export const Route = createFileRoute("/journals")({
   head: () =>
     pageHead(
-      "Journal Entries · LedgerX",
+      "Journal Entries · World Business",
       "Create, approve, post and reverse double-entry journals.",
     ),
   component: JournalsPage,

@@ -1,4 +1,4 @@
-# Executar o LedgerX com login
+# Executar o World Business com login
 
 Requisitos: Node.js 22.12+ e PostgreSQL 16+. O banco precisa estar acessível pelo servidor da aplicação.
 

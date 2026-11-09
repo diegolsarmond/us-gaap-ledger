@@ -8,7 +8,7 @@ import { pageHead } from "@/lib/head";
 export const Route = createFileRoute("/dre")({
   head: () =>
     pageHead(
-      "Income Statement · LedgerX",
+      "Income Statement · World Business",
       "Revenue, COGS, operating expenses and other income and expenses.",
     ),
   component: () => (

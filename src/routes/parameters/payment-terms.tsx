@@ -15,7 +15,7 @@ import { ArrowLeft, Plus, Search, Clock, Edit2, Trash2, Check, Download } from "
 export const Route = createFileRoute("/parameters/payment-terms")({
   head: () =>
     pageHead(
-      "Payment Terms & Conditions · LedgerX",
+      "Payment Terms & Conditions · World Business",
       "Manage contractual payment terms (Net 15, Net 30, Net 60, and early payment discounts).",
     ),
   component: PaymentTermsPage,

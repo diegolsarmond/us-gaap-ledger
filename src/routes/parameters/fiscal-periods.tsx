@@ -27,7 +27,7 @@ import {
 export const Route = createFileRoute("/parameters/fiscal-periods")({
   head: () =>
     pageHead(
-      "Fiscal Periods & Calendar · LedgerX",
+      "Fiscal Periods & Calendar · World Business",
       "Monthly accounting close governance (hard and soft close) under US GAAP.",
     ),
   component: FiscalPeriodsPage,

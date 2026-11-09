@@ -8,7 +8,10 @@ import { displayAmount, exactSum, type TrialFilters, type TrialReport } from "@/
 import { exportTrial } from "@/lib/trial-balance-export";
 export const Route = createFileRoute("/trial-balance")({
   head: () =>
-    pageHead("Trial Balance · LedgerX", "General Ledger balances and accounting reconciliation."),
+    pageHead(
+      "Trial Balance · World Business",
+      "General Ledger balances and accounting reconciliation.",
+    ),
   component: TrialPage,
 });
 const control = "rounded-md border border-line bg-white px-3 py-2 text-sm w-full";

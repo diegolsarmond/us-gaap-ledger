@@ -26,7 +26,7 @@ export const Route = createFileRoute("/parameters/cost-centers")({
     search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
-      "Cost Centers & Units · LedgerX",
+      "Cost Centers & Units · World Business",
       "Departmental cost allocation, budget limits, and expense governance.",
     ),
   component: CostCentersPage,

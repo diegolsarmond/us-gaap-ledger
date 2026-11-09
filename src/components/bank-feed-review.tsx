@@ -189,8 +189,8 @@ export function BankReview({
             </>
           ) : row.isSourcePosted ? (
             <p className="text-sm">
-              Return this transaction to Pending in LedgerX. The QuickBooks posting remains in the
-              import history.
+              Return this transaction to Pending in World Business. The QuickBooks posting remains
+              in the import history.
             </p>
           ) : (
             <p className="text-sm">Remove the match and return this transaction to Pending.</p>
@@ -209,8 +209,8 @@ export function BankReview({
         <>
           {row.isSourcePosted && (
             <p className="rounded-md border border-line p-2 text-sm">
-              This transaction was posted in QuickBooks and still needs Review. Use Match
-              if the corresponding entry is already in LedgerX. Otherwise, confirm the counterpart
+              This transaction was posted in QuickBooks and still needs Review. Use Match if the
+              corresponding entry is already in World Business. Otherwise, confirm the counterpart
               account and post it here.
             </p>
           )}

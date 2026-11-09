@@ -24,7 +24,7 @@ export const Route = createFileRoute("/accounts")({
     search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
-      "Chart of Accounts · LedgerX",
+      "Chart of Accounts · World Business",
       "US GAAP standardized Chart of Accounts covering Assets, Liabilities, Equity, Revenue, COGS, and Expenses.",
     ),
   component: AccountsRoute,

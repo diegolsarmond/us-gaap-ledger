@@ -13,7 +13,7 @@ export const Route = createFileRoute("/projects")({
     search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
-      "Project Profitability & Job Costing · LedgerX",
+      "Project Profitability & Job Costing · World Business",
       "US GAAP milestone and cost-to-cost project accounting with revenue recognition and direct expense allocation.",
     ),
   component: () => (

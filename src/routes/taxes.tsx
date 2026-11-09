@@ -11,7 +11,7 @@ import { useModal } from "@/components/modal-provider";
 export const Route = createFileRoute("/taxes")({
   head: () =>
     pageHead(
-      "Sales Tax Collection & Filing · LedgerX",
+      "Sales Tax Collection & Filing · World Business",
       "State and county sales tax collection summary, taxable versus exempt proceeds, and payment receipt archives.",
     ),
   component: () => (
@@ -232,7 +232,7 @@ function TaxesPage() {
             <div className="p-4 border-t border-line/50">
               <Note tone="brand">
                 US Tax Rule: Payments are executed manually on the Florida DOR or IRS e-Services
-                portal. LedgerX registers the payable clearance and stores the official PDF
+                portal. World Business registers the payable clearance and stores the official PDF
                 confirmation receipt. No direct government transmissions are performed in the MVP.
               </Note>
             </div>

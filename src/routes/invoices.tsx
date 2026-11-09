@@ -18,7 +18,7 @@ import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
 export const Route = createFileRoute("/invoices")({
   head: () =>
     pageHead(
-      "Invoices & Accounts Receivable · LedgerX",
+      "Invoices & Accounts Receivable · World Business",
       "Issue US GAAP compliant customer invoices with automatic inventory relief, sales tax accrual, and subledger aging.",
     ),
   component: () => (

@@ -14,7 +14,7 @@ import { pageHead } from "@/lib/head";
 export const Route = createFileRoute("/parameters/currencies")({
   head: () =>
     pageHead(
-      "Company currencies · LedgerX",
+      "Company currencies · World Business",
       "Select the currencies used by the company and view exchange rates automatically.",
     ),
   component: CurrenciesPage,

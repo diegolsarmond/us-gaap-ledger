@@ -70,7 +70,10 @@ export const Route = createFileRoute("/statements")({
       ? { account: search["account"] }
       : {},
   head: () =>
-    pageHead("Bank Feed · LedgerX", "Review, match, and post bank or credit card transactions."),
+    pageHead(
+      "Bank Feed · World Business",
+      "Review, match, and post bank or credit card transactions.",
+    ),
   component: () => (
     <AccountingProvider>
       <StatementsPage />
@@ -924,7 +927,7 @@ function CompanyFeed() {
                       ? "In approval"
                       : bankTab(row) === "Posted"
                         ? row.status === "Classified"
-                          ? "Posted in LedgerX"
+                          ? "Posted in World Business"
                           : "Posted in QuickBooks"
                         : row.status}
                   </Badge>
@@ -1101,7 +1104,11 @@ function CompanyFeed() {
                   label: "Balance reported by QuickBooks",
                 }
               : posted
-                ? { amount: posted.amount, currency: "USD", label: "Posted LedgerX balance in USD" }
+                ? {
+                    amount: posted.amount,
+                    currency: "USD",
+                    label: "Posted World Business balance in USD",
+                  }
                 : undefined;
           const pending = data.rows.filter(
             (r) => r.account === code && bankTab(r) === "Pending",
@@ -1293,7 +1300,7 @@ function CompanyFeed() {
                       size="sm"
                       onClick={() => setBatch({ operation: "categorize", rows: selectedToPost })}
                     >
-                      Post selected in LedgerX
+                      Post selected in World Business
                     </Button>
                   )}
                   {selectedPending.length > 0 && (
@@ -1540,7 +1547,7 @@ function ImportDialog({
   return (
     <BankDialog
       title="Import bank or card CSV"
-      description="Supports QuickBooks bank and card exports with Amount or Spent and Received. Optional columns may vary. The LedgerX CSV template is also supported."
+      description="Supports QuickBooks bank and card exports with Amount or Spent and Received. Optional columns may vary. The World Business CSV template is also supported."
       close={close}
     >
       <form
@@ -1830,7 +1837,7 @@ function RulesDialog({ data, close, run }: { data: BankList; close: () => void; 
           />
         </Field>
         <SelectField
-          name="LedgerX posting account"
+          name="World Business posting account"
           value={account}
           change={setAccount}
           options={accounts

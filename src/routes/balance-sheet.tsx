@@ -8,7 +8,7 @@ import { pageHead } from "@/lib/head";
 export const Route = createFileRoute("/balance-sheet")({
   head: () =>
     pageHead(
-      "Classified Balance Sheet · LedgerX",
+      "Classified Balance Sheet · World Business",
       "Company chart of accounts and classified balances.",
     ),
   component: () => (

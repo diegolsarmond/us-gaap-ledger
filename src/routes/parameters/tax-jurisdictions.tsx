@@ -15,7 +15,7 @@ import { ArrowLeft, Plus, Search, Scale, Edit2, Trash2, Building, Download } fro
 export const Route = createFileRoute("/parameters/tax-jurisdictions")({
   head: () =>
     pageHead(
-      "Tax Jurisdictions & Sales Tax · LedgerX",
+      "Tax Jurisdictions & Sales Tax · World Business",
       "Manage state and local sales tax rates, filing obligations, and liability accounts.",
     ),
   component: TaxJurisdictionsPage,

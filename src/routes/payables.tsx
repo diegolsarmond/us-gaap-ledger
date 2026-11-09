@@ -18,7 +18,7 @@ import { ArrowLeft, Plus, Search } from "lucide-react";
 export const Route = createFileRoute("/payables")({
   head: () =>
     pageHead(
-      "Accounts Payable & Multi-Currency · LedgerX",
+      "Accounts Payable & Multi-Currency · World Business",
       "Manage vendor obligations, currency exchange rates, foreign payables, and realized FX gain/loss entries under US GAAP.",
     ),
   component: () => (

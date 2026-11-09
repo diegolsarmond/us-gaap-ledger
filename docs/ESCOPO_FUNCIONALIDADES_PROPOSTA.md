@@ -4,7 +4,7 @@
 ---
 
 ### 1. Resumo Executivo
-A plataforma **Quantum / LedgerX** é uma solução corporativa completa para **gestão financeira, controladoria e contabilidade em partidas dobradas aderente aos padrões US GAAP (FASB)**. Desenvolvida para suportar operações multi-empresa (*multi-tenant*), fluxos multi-moeda com controle cambial diário (ASC 830) e governança rigorosa com rastreabilidade total de auditoria e controle de fechamento de períodos fiscais.
+A plataforma **World Business** é uma solução corporativa completa para **gestão financeira, controladoria e contabilidade em partidas dobradas aderente aos padrões US GAAP (FASB)**. Desenvolvida para suportar operações multi-empresa (*multi-tenant*), fluxos multi-moeda com controle cambial diário (ASC 830) e governança rigorosa com rastreabilidade total de auditoria e controle de fechamento de períodos fiscais.
 
 Este documento detalha todos os módulos, funcionalidades e integrações disponíveis no sistema para composição de **Escopo em Propostas Comerciais e Contratos de Prestação de Serviços/Licenciamento**.
 

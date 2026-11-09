@@ -12,7 +12,7 @@ export const Route = createFileRoute("/inventory")({
     search["create"] === true ? { create: true } : {},
   head: () =>
     pageHead(
-      "Products & services · LedgerX",
+      "Products & services · World Business",
       "Perpetual inventory tracking with FIFO and Weighted Average cost lots and periodic count variance adjustments.",
     ),
   component: () => (

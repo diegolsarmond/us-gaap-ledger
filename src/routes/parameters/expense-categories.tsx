@@ -15,7 +15,7 @@ import { ArrowLeft, Plus, Search, Tag, Edit2, Trash2, BookmarkCheck, Download } 
 export const Route = createFileRoute("/parameters/expense-categories")({
   head: () =>
     pageHead(
-      "Expense Categories & Account Mapping · LedgerX",
+      "Expense Categories & Account Mapping · World Business",
       "Map operating expenses to US GAAP accounts and tax deductibility rules.",
     ),
   component: ExpenseCategoriesPage,

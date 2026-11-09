@@ -10,7 +10,7 @@ import { pageHead } from "@/lib/head";
 export const Route = createFileRoute("/receivables")({
   head: () =>
     pageHead(
-      "Accounts Receivable Aging · LedgerX",
+      "Accounts Receivable Aging · World Business",
       "Aging schedule of customer receivables categorizing balances by days past invoice due date.",
     ),
   component: () => (

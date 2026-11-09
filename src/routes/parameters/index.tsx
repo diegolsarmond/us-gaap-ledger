@@ -23,7 +23,7 @@ import {
 export const Route = createFileRoute("/parameters/")({
   head: () =>
     pageHead(
-      "Parameters & Module Settings · LedgerX",
+      "Parameters & Module Settings · World Business",
       "Manage accounting rules, currencies, taxes, payment terms, and operational settings.",
     ),
   component: ParametersIndexPage,
