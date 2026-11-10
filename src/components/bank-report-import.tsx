@@ -8,6 +8,7 @@ import {
   bankReportGroupCsv,
   readBankReportCsv,
   readBankReportXlsx,
+  type BankReport,
   type BankReportGroup,
 } from "@/lib/bank-transaction-report";
 import { downloadBlob, formatCurrency } from "@/lib/format";
@@ -29,9 +30,11 @@ type PreviewDestination = Pick<Mapping, "account" | "currency"> & { creditCard: 
 const emptyMapping: Mapping = { subgroup: "", account: "", currency: "USD" };
 
 function ReportTransactionGrid({
+  sourceColumns,
   groups,
   destinations,
 }: {
+  sourceColumns: BankReport["sourceColumns"];
   groups: BankReportGroup[];
   destinations: Map<number, PreviewDestination> | undefined;
 }) {
@@ -40,6 +43,7 @@ function ReportTransactionGrid({
     .filter((group) => !groupFilter || String(group.id) === groupFilter)
     .flatMap((group) => group.rows.map((row, index) => ({ group, row, index })));
   const { pageRows, ...pagination } = usePagination(rows, groupFilter);
+  const reportColumns = sourceColumns.slice(1);
 
   return (
     <section aria-label="Report transactions" className="min-w-0 space-y-2">
@@ -55,6 +59,7 @@ function ReportTransactionGrid({
           .filter((group) => group.rows.length > 0)
           .map((group) => ({ id: String(group.id), name: group.name }))}
       />
+      <p className="text-xs text-ink2">Scroll horizontally to see all report columns.</p>
       <div className="rounded-md border border-line">
         <div
           className="max-h-[46dvh] overflow-auto"
@@ -62,60 +67,50 @@ function ReportTransactionGrid({
           role="region"
           aria-label="Transaction grid"
         >
-          <table className="w-full text-[13px] tabular-nums">
+          <table className="w-max min-w-full text-[13px] tabular-nums">
             <caption className="sr-only">Transactions from the QuickBooks report</caption>
             <thead className="sticky top-0 bg-background">
               <tr className="whitespace-nowrap">
-                <Th>Date</Th>
-                <Th>Description</Th>
-                <Th align="right">{destinations ? "Import amount" : "Report amount"}</Th>
                 <Th>Source group</Th>
-                {destinations && <Th>Destination account</Th>}
-                <Th>Transaction type</Th>
-                <Th>Num</Th>
-                <Th>Name</Th>
-                <Th>Split account</Th>
-                <Th>Class</Th>
-                <Th>Location</Th>
+                {destinations && (
+                  <>
+                    <Th>Destination account</Th>
+                    <Th align="right">Import amount</Th>
+                  </>
+                )}
+                {reportColumns.map((column, index) => (
+                  <Th key={index}>{column || `Column ${index + 2}`}</Th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {pageRows.map(({ group, row, index }) => {
-                const [
-                  date,
-                  description,
-                  amount,
-                  name,
-                  split,
-                  ,
-                  sourceClass,
-                  location,
-                  type,
-                  reference,
-                ] = row;
                 const destination = destinations?.get(group.id);
                 return (
                   <tr className="border-t border-line" key={`${group.id}:${index}`}>
-                    <Td className="whitespace-nowrap">{date}</Td>
-                    <Td className="min-w-64 break-words">{description}</Td>
-                    <Td className="whitespace-nowrap" align="right">
-                      {destination?.currency}{" "}
-                      {bankReportAmount(amount, destination?.creditCard ?? false)}
-                    </Td>
                     <Td className="min-w-44">{group.name}</Td>
-                    {destinations && <Td>{destination?.account}</Td>}
-                    <Td>{type}</Td>
-                    <Td>{reference}</Td>
-                    <Td className="min-w-36">{name}</Td>
-                    <Td className="min-w-44">{split}</Td>
-                    <Td>{sourceClass}</Td>
-                    <Td>{location}</Td>
+                    {destination && (
+                      <>
+                        <Td>{destination.account}</Td>
+                        <Td className="whitespace-nowrap" align="right">
+                          {destination.currency}{" "}
+                          {bankReportAmount(row.importValues[2], destination.creditCard)}
+                        </Td>
+                      </>
+                    )}
+                    {reportColumns.map((_, columnIndex) => (
+                      <Td key={columnIndex} className="max-w-96 whitespace-pre-wrap wrap-anywhere">
+                        {row.sourceValues[columnIndex + 1]}
+                      </Td>
+                    ))}
                   </tr>
                 );
               })}
               {!pageRows.length && (
                 <tr>
-                  <Td colSpan={destinations ? 11 : 10}>No transactions for this group.</Td>
+                  <Td colSpan={sourceColumns.length + (destinations ? 2 : 0)}>
+                    No transactions for this group.
+                  </Td>
                 </tr>
               )}
             </tbody>
@@ -140,7 +135,7 @@ export function BankReportImport({
 }) {
   const { accounts, currencies } = useAccounting();
   const [view, setView] = useState<"import" | "history">("import");
-  const [report, setReport] = useState<{ name: string; groups: BankReportGroup[] }>();
+  const [report, setReport] = useState<BankReport & { name: string }>();
   const [mappings, setMappings] = useState<Record<number, Mapping>>({});
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -219,13 +214,17 @@ export function BankReportImport({
     setNotice("");
     setSearch("");
     try {
-      if (file.size > 2_000_000) throw new Error("Select a CSV or XLSX report of up to 2 MB.");
+      const isXlsx = file.name.toLowerCase().endsWith(".xlsx");
+      const limitMb = isXlsx ? 2 : 10;
+      if (file.size > limitMb * 1_000_000)
+        throw new Error(`Select a ${isXlsx ? "XLSX" : "CSV"} report of up to ${limitMb} MB.`);
       const bytes = await file.arrayBuffer();
-      const groups = file.name.toLowerCase().endsWith(".xlsx")
+      const parsedReport = isXlsx
         ? await readBankReportXlsx(bytes)
         : readBankReportCsv(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-      if (!groups) throw new Error("Select the QuickBooks Transaction Detail by Account report.");
-      setReport({ name: file.name, groups });
+      if (!parsedReport)
+        throw new Error("Select the QuickBooks Transaction Detail by Account report.");
+      setReport({ name: file.name, ...parsedReport });
     } catch (error) {
       setError(error);
     } finally {
@@ -373,7 +372,7 @@ export function BankReportImport({
           }}
         >
           <fieldset className="min-w-0 space-y-3" disabled={busy}>
-            <Field name="Report file (.csv or .xlsx)">
+            <Field name="Report file (CSV up to 10 MB or XLSX up to 2 MB)">
               <input
                 type="file"
                 accept=".csv,.xlsx"
@@ -525,6 +524,7 @@ export function BankReportImport({
                   </div>
                   <ReportTransactionGrid
                     key={preview ? "import-preview" : "source-report"}
+                    sourceColumns={report.sourceColumns}
                     groups={preview ? selected : report.groups}
                     destinations={previewDestinations}
                   />

@@ -169,7 +169,7 @@ const report = readBankReportCsv(
     "Total for 6000 Fees;;;;;;;;;1,200.25;",
     "TOTAL;;;;;;;;;2,400.50;",
   ].join("\r\n"),
-);
+).groups;
 assert.deepEqual(
   report.map(({ name, rows, skipped }) => [name, rows.length, skipped]),
   [
@@ -185,6 +185,52 @@ assert.equal(
   parseStatementFile(bankReportGroupCsv(report[1], false)).rows[0].description,
   "Expense · Supplier",
 );
+const extendedReport = readBankReportCsv(
+  [
+    "Example Company",
+    "Transaction Detail by Account",
+    ",Transaction date,Transaction type,Num,Name,Location full name,Class full name,Description,Split,Amount,Posting (Y/N),Balance,Account name,Account full name,Transaction type,Transaction ID,Date,Amount",
+    "10010 Checking",
+    "10011 Operating bank",
+    ',01/19/2026,Check,001,Vendor,Office,Class A,"Fee, import",6000 Fees,-25.00,Yes,100.00,6000 Fees,Expenses:6000 Fees,Expense,42,01/19/2026,100.00',
+    ",01/20/2026,Deposit,,,,,,,0.00,Yes,100.00,,,Deposit,43,01/20/2026,100.00",
+    "Total for 10011 Operating bank,,,,,,,,,-25.00",
+    "Total for 10010 Checking with sub-accounts,,,,,,,,,-25.00",
+  ].join("\r\n"),
+);
+assert.deepEqual(
+  extendedReport.groups.map(({ name, rows, skipped }) => [name, rows.length, skipped]),
+  [["10011 Operating bank", 1, 1]],
+);
+const [extendedGroup] = extendedReport.groups;
+assert.deepEqual(extendedReport.sourceColumns.slice(9), [
+  "Amount",
+  "Posting (Y/N)",
+  "Balance",
+  "Account name",
+  "Account full name",
+  "Transaction type",
+  "Transaction ID",
+  "Date",
+  "Amount",
+]);
+assert.deepEqual(extendedGroup.rows[0].sourceValues.slice(9), [
+  "-25.00",
+  "Yes",
+  "100.00",
+  "6000 Fees",
+  "Expenses:6000 Fees",
+  "Expense",
+  "42",
+  "01/19/2026",
+  "100.00",
+]);
+const [extendedRow] = parseStatementFile(bankReportGroupCsv(extendedGroup, false)).rows;
+assert.equal(extendedRow.date, "2026-01-19");
+assert.equal(extendedRow.amountText, "-25.00");
+assert.equal(extendedRow.checkNumber, "001");
+assert.equal(extendedRow.description, "Fee, import");
+assert.equal(extendedRow.externalPosting, "6000 Fees");
 console.log(
   "PASS: CSV parser, dates, quotes, delimiter and signed values" +
     (source ? ", including the 300-row sample." : "."),
