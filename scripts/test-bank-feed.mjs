@@ -207,7 +207,8 @@ try {
   const migrate = (file) =>
     pool.query(readFileSync(new URL("../database/" + file, import.meta.url), "utf8"));
   for (const file of readdirSync(new URL("../database/", import.meta.url)).sort()) {
-    if (file.endsWith(".sql") && !/^(000|024|033|034)/.test(file)) await migrate(file);
+    // 039 builds on the Bank Feed tables, so it runs after the deferred 033/034 below.
+    if (file.endsWith(".sql") && !/^(000|024|033|034|039)/.test(file)) await migrate(file);
   }
   const { replaceLedger, readLedger } = await import("../src/lib/ledger-storage.server.ts");
   const feed = await import("../src/lib/bank-feed.server.ts");
@@ -351,6 +352,8 @@ try {
   await migrate("033_bank_feed.sql");
   await migrate("034_bank_feed_party.sql");
   await migrate("034_bank_feed_party.sql");
+  await migrate("039_bank_reconciliations.sql");
+  await migrate("039_bank_reconciliations.sql");
   const rows = async () => (await feed.bankFeedList({ companyId })).rows;
   const find = async (description) => (await rows()).find((row) => row.description === description);
   const action = (row, input) =>

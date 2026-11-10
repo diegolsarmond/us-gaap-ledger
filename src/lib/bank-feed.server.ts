@@ -134,7 +134,8 @@ function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-async function transaction<T>(
+/** Company-scoped transaction shared with bank reconciliation (same lock, auth and audit actor). */
+export async function transaction<T>(
   companyId: string,
   write: boolean,
   run: (c: PoolClient, auth: Auth) => Promise<T>,

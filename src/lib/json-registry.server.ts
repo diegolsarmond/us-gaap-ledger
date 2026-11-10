@@ -9,6 +9,7 @@ const modules = {
   journals: () => import("./journals.operations.server"),
   "vendor-attachments": () => import("./vendor-attachments.operations.server"),
   "bank-feed": () => import("./bank-feed.operations.server"),
+  "bank-reconciliation": () => import("./bank-reconciliation.operations.server"),
 };
 
 export async function dispatchJson(

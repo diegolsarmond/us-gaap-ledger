@@ -14,6 +14,7 @@ import { Route as AccessRouteImport } from './routes/access'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BalanceSheetRouteImport } from './routes/balance-sheet'
+import { Route as BankReconciliationRouteImport } from './routes/bank-reconciliation'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CashFlowRouteImport } from './routes/cash-flow'
 import { Route as CompaniesRouteImport } from './routes/companies'
@@ -73,6 +74,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const BalanceSheetRoute = BalanceSheetRouteImport.update({
   id: '/balance-sheet',
   path: '/balance-sheet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BankReconciliationRoute = BankReconciliationRouteImport.update({
+  id: '/bank-reconciliation',
+  path: '/bank-reconciliation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroRoute = CadastroRouteImport.update({
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
+  '/bank-reconciliation': typeof BankReconciliationRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
@@ -302,6 +309,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
+  '/bank-reconciliation': typeof BankReconciliationRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/audit-log': typeof AuditLogRoute
   '/balance-sheet': typeof BalanceSheetRoute
+  '/bank-reconciliation': typeof BankReconciliationRoute
   '/cadastro': typeof CadastroRoute
   '/cash-flow': typeof CashFlowRoute
   '/companies': typeof CompaniesRoute
@@ -388,6 +397,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/audit-log'
     | '/balance-sheet'
+    | '/bank-reconciliation'
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/audit-log'
     | '/balance-sheet'
+    | '/bank-reconciliation'
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
@@ -471,6 +482,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/audit-log'
     | '/balance-sheet'
+    | '/bank-reconciliation'
     | '/cadastro'
     | '/cash-flow'
     | '/companies'
@@ -514,6 +526,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   AuditLogRoute: typeof AuditLogRoute
   BalanceSheetRoute: typeof BalanceSheetRoute
+  BankReconciliationRoute: typeof BankReconciliationRoute
   CadastroRoute: typeof CadastroRoute
   CashFlowRoute: typeof CashFlowRoute
   CompaniesRoute: typeof CompaniesRoute
@@ -577,6 +590,13 @@ declare module '@tanstack/react-router' {
       path: '/balance-sheet'
       fullPath: '/balance-sheet'
       preLoaderRoute: typeof BalanceSheetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bank-reconciliation': {
+      id: '/bank-reconciliation'
+      path: '/bank-reconciliation'
+      fullPath: '/bank-reconciliation'
+      preLoaderRoute: typeof BankReconciliationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro': {
@@ -870,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   AuditLogRoute: AuditLogRoute,
   BalanceSheetRoute: BalanceSheetRoute,
+  BankReconciliationRoute: BankReconciliationRoute,
   CadastroRoute: CadastroRoute,
   CashFlowRoute: CashFlowRoute,
   CompaniesRoute: CompaniesRoute,

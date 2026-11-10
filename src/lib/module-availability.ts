@@ -15,6 +15,7 @@ const availableModulePaths = new Set([
   "/vendors",
   "/cash-flow",
   "/statements",
+  "/bank-reconciliation",
   "/accounts",
   "/dimensions",
   "/invoices",
