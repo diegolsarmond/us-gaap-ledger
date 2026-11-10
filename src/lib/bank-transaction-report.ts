@@ -2,6 +2,7 @@ import { dateSchema } from "./cash-flow-model";
 import { readCsvRows } from "./statement-csv";
 
 const reportTitle = "Transaction Detail by Account";
+const postingColumnName = "Posting (Y/N)";
 const bankColumns = [
   "Date",
   "Bank description",
@@ -194,12 +195,18 @@ export function bankReportAmount(value: string, creditCard: boolean) {
   return value.startsWith("-") ? value.slice(1) : "-" + value;
 }
 
-export function bankReportGroupCsv(group: BankReportGroup, creditCard: boolean) {
+export function bankReportGroupCsv(
+  group: BankReportGroup,
+  creditCard: boolean,
+  sourceColumns: string[],
+) {
   const quote = (value: string) => '"' + value.replaceAll('"', '""') + '"';
+  const postingColumn = sourceColumns.indexOf(postingColumnName);
+  const columns = postingColumn >= 0 ? [...bankColumns, postingColumnName] : bankColumns;
   return [
-    bankColumns.join(","),
-    ...group.rows.map(({ importValues }) =>
-      importValues
+    columns.join(","),
+    ...group.rows.map(({ importValues, sourceValues }) =>
+      (postingColumn >= 0 ? [...importValues, sourceValues[postingColumn] ?? ""] : importValues)
         .map((value, index) => quote(index === 2 ? bankReportAmount(value, creditCard) : value))
         .join(","),
     ),

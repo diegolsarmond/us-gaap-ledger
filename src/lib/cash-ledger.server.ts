@@ -237,11 +237,13 @@ export const quickBooksMovementId = (rowId: string) => `qb:${rowId}`;
  */
 export const quickBooksHistoryLines = `
   SELECT r.id, f.account_code AS account, r.date::text, r.description, r.amount::float8,
-         f.feed_source_format AS format, r.feed_external_posting AS posting
+         f.feed_source_format AS format, r.feed_external_posting AS posting,
+         r.feed_source_status AS "reportedStatus"
   FROM ledger_stagingrows r
   JOIN ledger_statements f ON (f.company_id,f.id)=(r.company_id,r.file_id)
   WHERE r.company_id=$1 AND r.status='Pending' AND r.feed_exclusion IS NULL
-    AND r.feed_external_posting<>''
+    AND (r.feed_source_status='Posted' OR
+         (r.feed_source_status IS NULL AND r.feed_external_posting<>''))
     AND NOT EXISTS (SELECT 1 FROM bank_feed_attempts a WHERE (a.company_id,a.row_id)=(r.company_id,r.id)
                     AND a.state IN ('pending','posted'))
     AND NOT EXISTS (SELECT 1 FROM system_audit_events e
@@ -255,6 +257,7 @@ type HistoryRow = {
   description: string;
   amount: number;
   format: Parameters<typeof quickBooksSourceStatus>[0];
+  reportedStatus: Parameters<typeof quickBooksSourceStatus>[2];
   posting: string;
 };
 
@@ -315,7 +318,11 @@ async function cashFromQuickBooks(
   const transactions: CashTransaction[] = [];
   for (const row of rows.rows) {
     const account = accountByCode.get(row.account);
-    if (!account || !row.amount || quickBooksSourceStatus(row.format, row.posting) !== "Posted")
+    if (
+      !account ||
+      !row.amount ||
+      quickBooksSourceStatus(row.format, row.posting, row.reportedStatus) !== "Posted"
+    )
       continue;
     const direction = row.amount > 0 ? "in" : "out";
     const counterpart = quickBooksCounterpart(row.posting, chart, feedMappings);

@@ -158,13 +158,15 @@ async function pendingStatementLines(client: Pick<PoolClient, "query">, companyI
     account: string;
     date: string;
     format: Parameters<typeof quickBooksSourceStatus>[0];
+    reportedStatus: Parameters<typeof quickBooksSourceStatus>[2];
     posting: string;
     attempted: boolean;
     returned: boolean;
   }>(
     `SELECT f.account_code AS account, r.date::text, f.feed_source_format AS format,
-       r.feed_external_posting AS posting, a.id IS NOT NULL AS attempted,
-       (r.feed_external_posting<>'' AND EXISTS (
+       r.feed_external_posting AS posting, r.feed_source_status AS "reportedStatus",
+       a.id IS NOT NULL AS attempted,
+       ((r.feed_source_status='Posted' OR r.feed_external_posting<>'') AND EXISTS (
          SELECT 1 FROM system_audit_events e
          WHERE e.company_id=r.company_id AND e.entity='BankFeed' AND e.target_id=r.id
            AND e.action IN ('BANK_FEED_UNDO_SOURCE','BANK_FEED_UNDO','BANK_FEED_UNMATCH')
@@ -180,7 +182,7 @@ async function pendingStatementLines(client: Pick<PoolClient, "query">, companyI
     const sourcePosted =
       !row.attempted &&
       !row.returned &&
-      quickBooksSourceStatus(row.format, row.posting) === "Posted";
+      quickBooksSourceStatus(row.format, row.posting, row.reportedStatus) === "Posted";
     if (sourcePosted) continue;
     const item = pending.get(row.account) ?? { account: row.account, count: 0, oldest: row.date };
     item.count += 1;

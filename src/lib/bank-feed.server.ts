@@ -22,7 +22,12 @@ import { db } from "./db.server";
 import { amountUnits, convertedUnits, unitsAmount, type JournalInput } from "./journal-model";
 import { createBankJournal, journalPostingAccess } from "./journal.server";
 import { readLedger, replaceLedger } from "./ledger-storage.server";
-import { externalAccount, parseStatementFile, quickBooksSourceStatus } from "./statement-csv";
+import {
+  externalAccount,
+  parseStatementFile,
+  quickBooksSourceStatus,
+  type QuickBooksStatus,
+} from "./statement-csv";
 import { resolvePostingAccount } from "./posting-accounts";
 import {
   money,
@@ -51,6 +56,7 @@ type BankRow = {
   externalPosting: string;
   splitAccount: string;
   sourceFormat: ReturnType<typeof parseStatementFile>["format"] | null;
+  reportedStatus: QuickBooksStatus | null;
   checkNumber: string | null;
   sourceClass: string | null;
   sourceLocation: string | null;
@@ -75,7 +81,11 @@ type BankRow = {
   attachmentCount: number;
 };
 const withSourceStatus = (row: BankRow) => {
-  const sourceStatus = quickBooksSourceStatus(row.sourceFormat, row.externalPosting);
+  const sourceStatus = quickBooksSourceStatus(
+    row.sourceFormat,
+    row.externalPosting,
+    row.reportedStatus,
+  );
   return {
     ...row,
     sourceStatus,
@@ -93,7 +103,8 @@ const rowQuery = `
    selected_party.id AS "partyId",
    coalesce(v.display_name,p.display_name) AS "partyName",r.feed_party_edited AS "partyEdited",
    r.feed_external_posting AS "externalPosting",r.suggested_account AS "splitAccount",r.feed_exclusion AS exclusion,
-   f.feed_source_format AS "sourceFormat",r.feed_check_number AS "checkNumber",
+   f.feed_source_format AS "sourceFormat",r.feed_source_status AS "reportedStatus",
+   r.feed_check_number AS "checkNumber",
    r.feed_source_class AS "sourceClass",r.feed_source_location AS "sourceLocation",
    r.feed_source_customer AS "sourceCustomer",
    EXISTS (SELECT 1 FROM ledger_stagingrows d JOIN ledger_statements df ON (df.company_id,df.id)=(d.company_id,d.file_id)
@@ -127,7 +138,8 @@ const rowQuery = `
   LEFT JOIN (
     SELECT DISTINCT target_id FROM system_audit_events
     WHERE company_id=$1 AND entity='BankFeed' AND action IN ('BANK_FEED_UNDO_SOURCE','BANK_FEED_UNDO','BANK_FEED_UNMATCH')
-  ) returned ON returned.target_id=r.id AND r.feed_external_posting<>''
+  ) returned ON returned.target_id=r.id
+      AND (r.feed_source_status='Posted' OR r.feed_external_posting<>'')
  WHERE r.company_id=$1`;
 
 function digest(value: unknown) {
@@ -343,13 +355,13 @@ async function saveBankImport(
   await c.query(
     `INSERT INTO ledger_stagingrows(company_id,id,position,file_id,date,description,amount,suggested_account,
          status,feed_from_to,feed_external_posting,feed_fingerprint,feed_check_number,feed_source_class,
-         feed_source_location,feed_source_customer)
+         feed_source_location,feed_source_customer,feed_source_status)
        SELECT $1,t.id,offsets.start+t.n::int,$2,t.date,t.description,t.amount,'','Pending',t.party,t.posting,t.fingerprint,
-         t.check_number,t.source_class,t.source_location,t.source_customer
+         t.check_number,t.source_class,t.source_location,t.source_customer,t.source_status
        FROM unnest($3::text[],$4::date[],$5::text[],$6::numeric[],$7::text[],$8::text[],$9::text[],
-                   $10::text[],$11::text[],$12::text[],$13::text[])
-         WITH ORDINALITY AS t(id,date,description,amount,party,posting,fingerprint,check_number,source_class,source_location,source_customer,n)
-       CROSS JOIN (SELECT coalesce(min(position),0)-$14::int-1 AS start FROM ledger_stagingrows WHERE company_id=$1) offsets`,
+                   $10::text[],$11::text[],$12::text[],$13::text[],$14::text[])
+         WITH ORDINALITY AS t(id,date,description,amount,party,posting,fingerprint,check_number,source_class,source_location,source_customer,source_status,n)
+       CROSS JOIN (SELECT coalesce(min(position),0)-$15::int-1 AS start FROM ledger_stagingrows WHERE company_id=$1) offsets`,
     [
       data.companyId,
       id,
@@ -364,6 +376,7 @@ async function saveBankImport(
       rows.map((r) => r.sourceClass),
       rows.map((r) => r.sourceLocation),
       rows.map((r) => r.sourceCustomer),
+      rows.map((r) => r.reportedStatus),
       rows.length,
     ],
   );
@@ -470,14 +483,20 @@ export async function importBankReport({
             duplicates: prepared.duplicates,
             duplicateBatch,
             bankFeed,
+            postedInQuickBooks: prepared.postedInQuickBooks,
           });
           continue;
         }
-        const { rows } = parseStatementFile(file.content, file.currency);
+        const { format, rows } = parseStatementFile(file.content, file.currency);
         const hash = digest(
           rows
-            .map(({ amountText, ...row }) =>
-              digest({ ...row, amount: unitsAmount(bankAmount(amountText, file.currency)) }),
+            // Keep the same digest for reports imported before posting status was retained.
+            .map(({ amountText, reportedStatus: _reportedStatus, ...row }) =>
+              digest({
+                ...row,
+                sourceStatus: quickBooksSourceStatus(format, row.externalPosting),
+                amount: unitsAmount(bankAmount(amountText, file.currency)),
+              }),
             )
             .sort(),
         );
@@ -506,6 +525,7 @@ export async function importBankReport({
           duplicates: 0,
           duplicateBatch,
           bankFeed,
+          postedInQuickBooks: rows.filter((row) => row.sourceStatus === "Posted").length,
         });
       } catch (error) {
         throw new Error(

@@ -135,13 +135,16 @@ export function BankReportImport({
 }) {
   const { accounts, currencies } = useAccounting();
   const [view, setView] = useState<"import" | "history">("import");
-  const [report, setReport] = useState<BankReport & { name: string }>();
+  const [loadedReport, setReport] = useState<BankReport & { name: string }>();
+  // Fast Refresh can retain a report parsed before source columns were added.
+  const report = Array.isArray(loadedReport?.sourceColumns) ? loadedReport : undefined;
   const [mappings, setMappings] = useState<Record<number, Mapping>>({});
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof submitBankReport>>>();
+  const [loadedPreview, setPreview] = useState<Awaited<ReturnType<typeof submitBankReport>>>();
+  const preview = report ? loadedPreview : undefined;
   const history = useQuery({
     queryKey: ["transaction-report-imports", companyId],
     queryFn: ({ signal }) => loadBankReportArchive({ data: { companyId }, signal }),
@@ -245,7 +248,7 @@ export function BankReportImport({
           account,
           currency,
           fileName: name.slice(0, 296) + ".csv",
-          content: bankReportGroupCsv(group, isCreditCard(account)),
+          content: bankReportGroupCsv(group, isCreditCard(account), report.sourceColumns),
         };
       });
       const result = await submitBankReport({ data: { companyId, files, preview: !preview } });
@@ -321,7 +324,14 @@ export function BankReportImport({
           {notice}
         </p>
       )}
-      <ErrorMessage error={error} />
+      <ErrorMessage
+        error={
+          error ??
+          (loadedReport && !report && view === "import"
+            ? "Select the report file again to load its columns."
+            : null)
+        }
+      />
       {view === "history" ? (
         <>
           <p className="text-sm text-ink2">
@@ -390,8 +400,9 @@ export function BankReportImport({
                   {report.name} · {report.groups.length} source groups · {selected.length} selected
                 </p>
                 <p className="text-sm text-ink2">
-                  Bank and card groups go to Bank Feed for review. Other groups are saved in report
-                  history. Rows with no amount or a zero amount are skipped.
+                  Bank and card transactions appear under Posted or Pending in Bank Feed based on
+                  their QuickBooks status. Other groups are saved in report history. Rows with no
+                  amount or a zero amount are skipped.
                 </p>
                 <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
                   <div className="min-w-0 space-y-2">
@@ -546,6 +557,8 @@ export function BankReportImport({
                     {group.name} → {mapping.account} ·{" "}
                     {result.bankFeed ? "Bank Feed" : "Report history"} · {result.count} transactions
                     · {mapping.currency} {formatCurrency(result.total, mapping.currency)}
+                    {result.bankFeed &&
+                      ` · ${result.postedInQuickBooks} posted in QuickBooks · ${result.count - result.postedInQuickBooks} pending`}
                     {result.duplicateBatch
                       ? " · Already imported"
                       : result.duplicates > 0

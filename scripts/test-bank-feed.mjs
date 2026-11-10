@@ -33,7 +33,7 @@ const { parseStatementCsv, parseStatementFile, quickBooksAutoPost, sourceCategor
   await import("../src/lib/statement-csv.ts");
 const { readBankReportCsv, bankReportGroupCsv } =
   await import("../src/lib/bank-transaction-report.ts");
-const { bankFilterData, bankFilterOptions, emptyBankFilters, matchesBankFilters } =
+const { bankFilterData, bankFilterOptions, bankTab, emptyBankFilters, matchesBankFilters } =
   await import("../src/lib/bank-feed-filters.ts");
 const { isModuleAvailable } = await import("../src/lib/module-availability.ts");
 assert(isModuleAvailable("/statements"));
@@ -153,7 +153,7 @@ assert.equal(
   ]),
   "QBO-6000",
 );
-const report = readBankReportCsv(
+const { groups: report, sourceColumns } = readBankReportCsv(
   [
     "Example Company;;;;;;;;;;",
     "Transaction Detail by Account;;;;;;;;;;",
@@ -169,7 +169,7 @@ const report = readBankReportCsv(
     "Total for 6000 Fees;;;;;;;;;1,200.25;",
     "TOTAL;;;;;;;;;2,400.50;",
   ].join("\r\n"),
-).groups;
+);
 assert.deepEqual(
   report.map(({ name, rows, skipped }) => [name, rows.length, skipped]),
   [
@@ -178,11 +178,11 @@ assert.deepEqual(
   ],
 );
 assert.equal(
-  parseStatementFile(bankReportGroupCsv(report[0], true)).rows[0].amountText,
+  parseStatementFile(bankReportGroupCsv(report[0], true, sourceColumns)).rows[0].amountText,
   "-1200.25",
 );
 assert.equal(
-  parseStatementFile(bankReportGroupCsv(report[1], false)).rows[0].description,
+  parseStatementFile(bankReportGroupCsv(report[1], false, sourceColumns)).rows[0].description,
   "Expense · Supplier",
 );
 const extendedReport = readBankReportCsv(
@@ -193,6 +193,8 @@ const extendedReport = readBankReportCsv(
     "10010 Checking",
     "10011 Operating bank",
     ',01/19/2026,Check,001,Vendor,Office,Class A,"Fee, import",6000 Fees,-25.00,Yes,100.00,6000 Fees,Expenses:6000 Fees,Expense,42,01/19/2026,100.00',
+    ",01/20/2026,Deposit,,,,,Report pending,6000 Fees,20.00,No,120.00,,,Deposit,43,01/20/2026,20.00",
+    ",01/21/2026,Deposit,,,,,Report posted without split,,10.00,Yes,130.00,,,Deposit,44,01/21/2026,10.00",
     ",01/20/2026,Deposit,,,,,,,0.00,Yes,100.00,,,Deposit,43,01/20/2026,100.00",
     "Total for 10011 Operating bank,,,,,,,,,-25.00",
     "Total for 10010 Checking with sub-accounts,,,,,,,,,-25.00",
@@ -200,7 +202,7 @@ const extendedReport = readBankReportCsv(
 );
 assert.deepEqual(
   extendedReport.groups.map(({ name, rows, skipped }) => [name, rows.length, skipped]),
-  [["10011 Operating bank", 1, 1]],
+  [["10011 Operating bank", 3, 1]],
 );
 const [extendedGroup] = extendedReport.groups;
 assert.deepEqual(extendedReport.sourceColumns.slice(9), [
@@ -225,12 +227,19 @@ assert.deepEqual(extendedGroup.rows[0].sourceValues.slice(9), [
   "01/19/2026",
   "100.00",
 ]);
-const [extendedRow] = parseStatementFile(bankReportGroupCsv(extendedGroup, false)).rows;
+const extendedGroupCsv = bankReportGroupCsv(extendedGroup, false, extendedReport.sourceColumns);
+const extendedRows = parseStatementFile(extendedGroupCsv).rows;
+const [extendedRow, pendingReportRow] = extendedRows;
 assert.equal(extendedRow.date, "2026-01-19");
 assert.equal(extendedRow.amountText, "-25.00");
 assert.equal(extendedRow.checkNumber, "001");
 assert.equal(extendedRow.description, "Fee, import");
 assert.equal(extendedRow.externalPosting, "6000 Fees");
+assert.equal(pendingReportRow.externalPosting, "6000 Fees");
+assert.deepEqual(
+  extendedRows.map((row) => row.sourceStatus),
+  ["Posted", "Pending", "Posted"],
+);
 console.log(
   "PASS: CSV parser, dates, quotes, delimiter and signed values" +
     (source ? ", including the 300-row sample." : "."),
@@ -440,7 +449,7 @@ try {
     currency: "USD",
     fileName: "transaction report.csv",
     sourceGroup: group.name,
-    content: bankReportGroupCsv(group, index === 0),
+    content: bankReportGroupCsv(group, index === 0, sourceColumns),
   }));
   const reportInput = { companyId, files: reportFiles, preview: true };
   const reportPreview = await feed.importBankReport(reportInput);
@@ -473,6 +482,21 @@ try {
     reportFiles[1].content,
   );
   assert((await feed.importBankReport(reportInput)).groups.every((group) => group.duplicateBatch));
+  const statusReport = {
+    ...reportInput,
+    files: [{ ...reportFiles[0], sourceGroup: extendedGroup.name, content: extendedGroupCsv }],
+  };
+  const [statusPreview] = (await feed.importBankReport(statusReport)).groups;
+  assert.equal(statusPreview.postedInQuickBooks, 2);
+  assert.equal(statusPreview.count, 3);
+  await feed.importBankReport({ ...statusReport, preview: false });
+  assert.equal(bankTab(await find("Fee, import")), "Posted");
+  assert.equal(bankTab(await find("Report pending")), "Pending");
+  const postedWithoutSplit = await find("Report posted without split");
+  assert.equal(bankTab(postedWithoutSplit), "Posted");
+  assert.equal(postedWithoutSplit.journalId, null);
+  await undo(postedWithoutSplit);
+  assert.equal(bankTab(await find("Report posted without split")), "Pending");
   assert.equal((await feed.listTransactionReportImports({ companyId: other })).length, 0);
   console.log(
     "PASS: report group routing, preview, atomic rollback, archive and duplicate checks.",

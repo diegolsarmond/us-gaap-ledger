@@ -2,6 +2,7 @@ import { dateSchema } from "./cash-flow-model";
 import { currencyPrecision } from "./format";
 
 type SourceFormat = "ledgerx" | "quickbooks-posted" | "quickbooks-review";
+export type QuickBooksStatus = "Posted" | "Pending";
 
 export function quickBooksAutoPost(posting: string) {
   if (
@@ -12,7 +13,12 @@ export function quickBooksAutoPost(posting: string) {
   return null;
 }
 
-export function quickBooksSourceStatus(format: SourceFormat | null, posting: string) {
+export function quickBooksSourceStatus(
+  format: SourceFormat | null,
+  posting: string,
+  reportedStatus?: QuickBooksStatus | null,
+): QuickBooksStatus | null {
+  if (reportedStatus) return reportedStatus;
   if (format === "quickbooks-review") return "Pending" as const;
   // Older imports may have a posting label but no persisted source format.
   if (
@@ -78,6 +84,7 @@ export function parseStatementFile(content: string, currency = "USD") {
   const quickBooks = columns.has("bank description");
   const review = columns.has("match/categorize");
   const posted = columns.has("transaction posted");
+  const reportPosting = columns.has("posting (y/n)");
   const amountColumn = columns.has("amount");
   const splitAmounts = columns.has("spent") && columns.has("received");
   const hasSplitColumn = columns.has("spent") || columns.has("received");
@@ -86,7 +93,7 @@ export function parseStatementFile(content: string, currency = "USD") {
     (amountColumn ? hasSplitColumn : !splitAmounts) ||
     (quickBooks
       ? review && posted
-      : !columns.has("description") || !amountColumn || review || posted)
+      : !columns.has("description") || !amountColumn || review || posted || reportPosting)
   )
     throw new Error("Use o CSV do QuickBooks ou o modelo date,description,amount.");
   if (!rows.length || rows.length > 5000)
@@ -107,6 +114,12 @@ export function parseStatementFile(content: string, currency = "USD") {
     const bankDescription = read(row, quickBooks ? "bank description" : "description");
     const party = read(row, "from/to");
     const posting = read(row, review ? "match/categorize" : "transaction posted");
+    const postingFlag = read(row, "posting (y/n)").trim();
+    const reportedStatus = /^(y|yes|true|posted)$/i.test(postingFlag)
+      ? "Posted"
+      : /^(n|no|false|pending)$/i.test(postingFlag)
+        ? "Pending"
+        : null;
     const checkNumber = read(row, "check no.").trim() || null;
     const sourceClass = read(row, "class").trim() || null;
     const sourceLocation = read(row, "location").trim() || null;
@@ -132,6 +145,7 @@ export function parseStatementFile(content: string, currency = "USD") {
       bankDescription.length > 500 ||
       party.length > 500 ||
       posting.length > 2000 ||
+      (postingFlag && !reportedStatus) ||
       [checkNumber, sourceClass, sourceLocation, sourceCustomer].some(
         (value) => (value?.length ?? 0) > 500,
       ) ||
@@ -151,11 +165,12 @@ export function parseStatementFile(content: string, currency = "USD") {
       amountText: decimal,
       fromTo: party.trim(),
       externalPosting: posting.trim(),
-      sourceStatus: quickBooksSourceStatus(format, posting.trim()),
+      sourceStatus: quickBooksSourceStatus(format, posting.trim(), reportedStatus),
       checkNumber,
       sourceClass,
       sourceLocation,
       sourceCustomer,
+      reportedStatus,
     };
   });
   return { format, rows: transactions };
