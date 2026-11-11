@@ -188,6 +188,12 @@ export function BankReportImport({
     result.duplicateBatch ? [] : [{ result, group: selected[index]! }],
   );
   const reviewGroups = review?.map(({ group }) => group);
+  const confirmationGroups = preview
+    ? selected.filter((_, index) => {
+        const result = preview.groups[index]!;
+        return !result.duplicateBatch || result.balanceUpdate;
+      })
+    : selected;
   const ready =
     selected.length > 0 &&
     selected.every((group) => {
@@ -282,15 +288,16 @@ export function BankReportImport({
   }
 
   async function submit() {
-    if (!report || !ready || busy || reviewGroups?.length === 0) return;
+    if (!report || !ready || busy || confirmationGroups.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const files = (reviewGroups ?? selected).map((group) => {
+      const files = confirmationGroups.map((group) => {
         const { account, currency } = mappings[group.id]!;
         const name = `${report.name.replace(/\.(csv|xlsx)$/i, "")} - ${group.name}`;
         return {
           sourceGroup: group.name,
+          closingBalance: group.closingBalance,
           account,
           currency,
           fileName: name.slice(0, 296) + ".csv",
@@ -306,8 +313,12 @@ export function BankReportImport({
         (sum, group) => sum + (group.bankFeed ? group.count : 0),
         0,
       );
+      const balanceCount = result.groups.filter((group) => group.balanceUpdate).length;
       setNotice(
-        `${result.count} transactions imported · ${bankCount} in Bank Feed · ${result.count - bankCount} in report history.`,
+        `${result.count} transactions imported · ${bankCount} in Bank Feed · ${result.count - bankCount} in report history.` +
+          (balanceCount
+            ? ` Updated QuickBooks posted balances for ${balanceCount} report groups.`
+            : ""),
       );
       setReport(undefined);
       setMappings({});
@@ -650,8 +661,12 @@ export function BankReportImport({
               Edit selection
             </Button>
           )}
-          <BankSubmit busy={busy} disabled={!ready || reviewGroups?.length === 0}>
-            {preview ? "Confirm report import" : "Preview selected groups"}
+          <BankSubmit busy={busy} disabled={!ready || confirmationGroups.length === 0}>
+            {preview
+              ? reviewGroups?.length
+                ? "Confirm report import"
+                : "Update posted balances"
+              : "Preview selected groups"}
           </BankSubmit>
         </form>
       )}

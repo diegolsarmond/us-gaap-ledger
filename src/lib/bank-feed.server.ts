@@ -413,7 +413,9 @@ export async function clearBankFeed({ companyId }: Scope) {
       [companyId],
     );
     if (protectedRows.rows.length) {
-      throw new Error("This Bank Feed has posting or reconciliation history and cannot be cleared.");
+      throw new Error(
+        "This Bank Feed has posting or reconciliation history and cannot be cleared.",
+      );
     }
     await c.query("DELETE FROM bank_feed_attachments WHERE company_id=$1", [companyId]);
     const rows = await c.query("DELETE FROM ledger_stagingrows WHERE company_id=$1", [companyId]);
@@ -512,9 +514,29 @@ export async function importBankReport({
           const batch = JSON.stringify([file.account, prepared.batchDigest]);
           const duplicateBatch = prepared.duplicateBatch || batches.has(batch);
           batches.add(batch);
-          if (!preview) await saveBankImport(c, auth, data, { ...prepared, duplicateBatch });
+          const balance = file.closingBalance;
+          if (balance) {
+            const amount = unitsAmount(bankAmount(balance.amount, file.currency));
+            if (!preview) {
+              await c.query(
+                `INSERT INTO bank_report_balances(company_id,account_code,currency,balance_date,amount)
+                 VALUES($1,$2,$3,$4,$5)
+                 ON CONFLICT(company_id,account_code,balance_date) DO UPDATE
+                 SET currency=excluded.currency, amount=excluded.amount`,
+                [companyId, file.account, file.currency, balance.date, amount],
+              );
+              await audit(c, auth, "BANK_REPORT_POSTED_BALANCE", file.account, {
+                amount,
+                date: balance.date,
+                currency: file.currency,
+              });
+            }
+          }
+          if (!preview && (!duplicateBatch || !balance))
+            await saveBankImport(c, auth, data, { ...prepared, duplicateBatch });
           groups.push({
-            count: prepared.rows.length,
+            count: !preview && duplicateBatch ? 0 : prepared.rows.length,
+            balanceUpdate: !!balance,
             ...reportMovementTotals(prepared.rows, file.currency),
             duplicates: prepared.duplicates,
             duplicateBatch,
@@ -557,6 +579,7 @@ export async function importBankReport({
           count: rows.length,
           ...reportMovementTotals(rows, file.currency),
           duplicates: 0,
+          balanceUpdate: false,
           duplicateBatch,
           bankFeed,
           postedInQuickBooks: rows.filter((row) => row.sourceStatus === "Posted").length,
@@ -597,12 +620,17 @@ export async function importBankReport({
 }
 
 export async function listBankReportMappings({ companyId }: Scope) {
-  return transaction(companyId, false, async (c) =>
-    (await c.query<{ sourceGroup: string; account: string; currency: string }>(
-      `SELECT source_group AS "sourceGroup", account_code AS account, currency
+  return transaction(
+    companyId,
+    false,
+    async (c) =>
+      (
+        await c.query<{ sourceGroup: string; account: string; currency: string }>(
+          `SELECT source_group AS "sourceGroup", account_code AS account, currency
        FROM bank_report_mappings WHERE company_id=$1`,
-      [companyId],
-    )).rows,
+          [companyId],
+        )
+      ).rows,
   );
 }
 
@@ -689,7 +717,7 @@ async function register(c: PoolClient, companyId: string, account?: string) {
 
 export async function bankFeedList({ companyId }: Scope) {
   return transaction(companyId, false, async (c, auth) => {
-    const [rows, files, balances, posted, rules, access] = await Promise.all([
+    const [rows, files, balances, posted, rules, reportBalances, access] = await Promise.all([
       c.query<BankRow>(rowQuery + " ORDER BY r.date DESC,r.position,r.id", [companyId]),
       c.query<{
         id: string;
@@ -717,6 +745,10 @@ export async function bankFeedList({ companyId }: Scope) {
         "SELECT id,kind,pattern,account_code AS account FROM bank_feed_rules WHERE company_id=$1 ORDER BY kind,pattern",
         [companyId],
       ),
+      c.query<{ account: string; currency: string; date: string; amount: string }>(
+        "SELECT DISTINCT ON (account_code) account_code AS account,currency,balance_date::text AS date,amount::text FROM bank_report_balances WHERE company_id=$1 ORDER BY account_code,balance_date DESC",
+        [companyId],
+      ),
       journalPostingAccess(c, companyId, auth.user.id),
     ]);
     return {
@@ -724,6 +756,7 @@ export async function bankFeedList({ companyId }: Scope) {
       files: files.rows,
       balances: balances.rows,
       posted: posted.rows,
+      reportBalances: reportBalances.rows,
       rules: rules.rows,
       canWrite: auth.permissions.write_accounting,
       canReverse: auth.permissions.write_accounting && access.grant.post && access.grant.reverse,

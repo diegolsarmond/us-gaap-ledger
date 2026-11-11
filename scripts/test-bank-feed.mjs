@@ -449,11 +449,14 @@ try {
     currency: "USD",
     fileName: "transaction report.csv",
     sourceGroup: group.name,
+    closingBalance: group.closingBalance,
     content: bankReportGroupCsv(group, index === 0, sourceColumns),
   }));
+  assert.deepEqual(report[0].closingBalance, { date: "2026-01-20", amount: "1200.25" });
   const reportInput = { companyId, files: reportFiles, preview: true };
   const reportPreview = await feed.importBankReport(reportInput);
   assert.equal(reportPreview.count, 2);
+  assert.equal(reportPreview.groups[0].balanceUpdate, true);
   assert.deepEqual(
     reportPreview.groups.map((group) => [group.bankFeed, group.total]),
     [
@@ -474,6 +477,18 @@ try {
   assert.equal(await find("Report card fee"), undefined);
   assert.deepEqual(await feed.listBankReportMappings({ companyId }), []);
   assert.equal((await feed.importBankReport({ ...reportInput, preview: false })).count, 2);
+  const { reportBalances, balances } = await feed.bankFeedList({ companyId });
+  assert.deepEqual(reportBalances, [
+    { account: "2100", currency: "USD", date: "2026-01-20", amount: "1200.2500" },
+  ]);
+  assert(!balances.some((balance) => balance.account === "2100"));
+  const balanceOnlyImport = await feed.importBankReport({
+    ...reportInput,
+    preview: false,
+    files: [{ ...reportFiles[0], closingBalance: { date: "2026-01-20", amount: "1250.25" } }],
+  });
+  assert.equal(balanceOnlyImport.count, 0);
+  assert.equal((await feed.bankFeedList({ companyId })).reportBalances[0].amount, "1250.2500");
   const mappings = await feed.listBankReportMappings({ companyId });
   assert.deepEqual(
     mappings.sort((a, b) => a.account.localeCompare(b.account)),

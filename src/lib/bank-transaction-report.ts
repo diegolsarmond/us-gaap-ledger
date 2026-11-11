@@ -40,6 +40,7 @@ export type BankReportGroup = {
   name: string;
   rows: BankReportRow[];
   skipped: number;
+  closingBalance?: { date: string; amount: string };
   error?: string;
 };
 
@@ -116,6 +117,20 @@ function parseReport(rows: unknown[][], sourceRow: (index: number) => string[]):
     if (row.every((cell) => cell == null || cell === "")) continue;
     const group = open.at(-1);
     try {
+      const date = reportDate(row[dateColumn]);
+      const rawBalance = text(row[balanceColumn]).replace(/^\((.+)\)$/, "-$1");
+      const balance = amountPattern.exec(rawBalance);
+      if (
+        group &&
+        balance &&
+        dateSchema.safeParse(date).success &&
+        (!group.closingBalance || date >= group.closingBalance.date)
+      ) {
+        group.closingBalance = {
+          date,
+          amount: balance[1] + balance[3]!.replaceAll(",", "") + (balance[4] ?? ""),
+        };
+      }
       const rawAmount = text(row[amountColumn]);
       const amount = amountPattern.exec(rawAmount);
       if (
@@ -125,7 +140,6 @@ function parseReport(rows: unknown[][], sourceRow: (index: number) => string[]):
         if (group) group.skipped++;
         continue;
       }
-      const date = reportDate(row[dateColumn]);
       if (!amount || !dateSchema.safeParse(date).success)
         throw new Error("Invalid transaction date or amount.");
       if (!group) throw new Error("Transaction has no account group.");

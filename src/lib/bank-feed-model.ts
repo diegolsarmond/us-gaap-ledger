@@ -30,6 +30,7 @@ export const bankReportImport = bankScope.extend({
     .array(
       bankImport.omit({ companyId: true }).extend({
         sourceGroup: z.string().trim().min(1).max(500),
+        closingBalance: z.object({ date, amount: signed }).optional(),
       }),
     )
     .min(1)

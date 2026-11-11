@@ -1218,21 +1218,29 @@ function CompanyFeed() {
           const source = glAccount?.sourceAccount;
           const sign = glAccount?.balanceType === "Credit" ? -1 : 1;
           const postedRow = data.posted.find((b) => b.account === code);
-          const posted = postedRow
+          const reportBalance = data.reportBalances?.find((b) => b.account === code);
+          const posted = reportBalance
             ? {
-                amount: sign * Number(postedRow.amount),
-                currency: "USD",
+                ...reportBalance,
+                amount: Number(reportBalance.amount),
                 label: "Posted",
-                title: "Posted in World Business (USD)",
+                title: "QuickBooks report balance as of " + reportBalance.date,
               }
-            : source?.balance != null
+            : postedRow
               ? {
-                  amount: source.balance,
-                  currency: source.currency,
-                  label: "QuickBooks",
-                  title: "Balance in QuickBooks at the migration (Account List)",
+                  amount: sign * Number(postedRow.amount),
+                  currency: "USD",
+                  label: "Posted",
+                  title: "Posted in World Business (USD)",
                 }
-              : undefined;
+              : source?.balance != null
+                ? {
+                    amount: source.balance,
+                    currency: source.currency,
+                    label: "Posted",
+                    title: "Balance in QuickBooks at the migration (Account List)",
+                  }
+                : undefined;
           const reconciled =
             !!balance &&
             !!posted &&
