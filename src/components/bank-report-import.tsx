@@ -27,6 +27,16 @@ import { Table, Td, Th } from "./ui-kit";
 
 type Mapping = { subgroup: string; account: string; currency: string };
 type PreviewDestination = Pick<Mapping, "account" | "currency"> & { creditCard: boolean };
+function reportGroupPeriod(group: BankReportGroup) {
+  let first = "";
+  let last = "";
+  for (const { importValues: [date] } of group.rows) {
+    if (!first || date < first) first = date;
+    if (date > last) last = date;
+  }
+  return first === last ? first : `${first} – ${last}`;
+}
+
 const emptyMapping: Mapping = { subgroup: "", account: "", currency: "USD" };
 
 function ReportTransactionGrid({
@@ -442,6 +452,7 @@ export function BankReportImport({
                           const mapping = mappings[group.id];
                           const destination =
                             mapping && accounts.find((a) => a.code === mapping.account);
+                          const period = reportGroupPeriod(group);
                           const bank = destination && bankSourceAccount(destination, accounts);
                           const fixedCurrency =
                             mapping && bank ? accountCurrency(mapping.account) : undefined;
@@ -464,11 +475,15 @@ export function BankReportImport({
                                 />
                                 <span>
                                   <strong>{group.name}</strong> · {group.rows.length} transactions
+                                  {period && ` · ${period}`}
                                   {!!group.skipped &&
                                     ` · ${group.skipped} without an amount or zero`}
                                 </span>
                               </label>
                               <ErrorMessage error={group.error} />
+                              {mapping && !destination && (
+                                <p className="text-sm text-ink3">Select a destination account to map this group.</p>
+                              )}
                               {mapping && (
                                 <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_8rem] xl:grid-cols-1">
                                   <SelectField
@@ -554,7 +569,7 @@ export function BankReportImport({
                 const mapping = mappings[group.id]!;
                 return (
                   <p key={group.id}>
-                    {group.name} → {mapping.account} ·{" "}
+                    {group.name} → {mapping.account} · {reportGroupPeriod(group)} ·{" "}
                     {result.bankFeed ? "Bank Feed" : "Report history"} · {result.count} transactions
                     · {mapping.currency} {formatCurrency(result.total, mapping.currency)}
                     {result.bankFeed &&
