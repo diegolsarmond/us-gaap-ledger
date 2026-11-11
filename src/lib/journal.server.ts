@@ -291,7 +291,7 @@ export async function journalPostingAccess(c: PoolClient, companyId: string, act
 }
 
 async function markPosted(c: PoolClient, j: Journal, actor: Actor) {
-  if (j.source_module === bankJournalModule && j.source_type !== "BankFeedReversal") {
+  if (j.source_module === bankJournalModule && j["source_type"] !== "BankFeedReversal") {
     const opening = await c.query(
       `SELECT 1 FROM journal_entries
        WHERE company_id=$1 AND journal_type='Opening' AND status='Posted'
