@@ -4,6 +4,7 @@ import { authorizeCompany } from "./companies.server";
 import { readLedger } from "./ledger-storage.server";
 import { postedLedgerLines } from "./posted-ledger.server";
 import type { CompanyState } from "./accounting-engine";
+import { normalizedFx, outstanding } from "./transaction-fx";
 import { quickBooksSourceStatus } from "./statement-csv";
 import {
   cashFromLedger,
@@ -104,7 +105,7 @@ const readChart = (client: Pick<PoolClient, "query">, companyId: string) =>
   >;
 
 async function readCashData(client: PoolClient, companyId: string): Promise<CashData> {
-  const [chart, mappings, overrides, forecasts, statementPending] = await Promise.all([
+  const [chart, mappings, overrides, forecasts, statementPending, bills, invoices] = await Promise.all([
     readChart(client, companyId),
     client.query<CashFlowMapping>(
       "SELECT account_code,inflow_line,outflow_line FROM cash_flow_account_lines WHERE company_id=$1",
@@ -119,8 +120,56 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
       [companyId],
     ),
     pendingStatementLines(client, companyId),
+    readLedger(client, companyId, "bills") as unknown as Promise<CompanyState["bills"]>,
+    readLedger(client, companyId, "invoices") as unknown as Promise<CompanyState["invoices"]>,
   ]);
   const ledger = await cashFromLedger(client, companyId, chart, mappings.rows, overrides.rows);
+  const documentForecasts: CashTransaction[] = [];
+  const unassignedAccounts = new Map<string, CashData["accounts"][number]>();
+  for (const document of [...bills, ...invoices]) {
+    const bill = "billNumber" in document;
+    const source = bill ? "bill" : "invoice";
+    const direction = bill ? "out" : "in";
+    const fx = normalizedFx(document);
+    const eligibleAccounts = ledger.accounts.filter(
+      (account) => account.currency === fx.transactionCurrency,
+    );
+    const currency = fx.transactionCurrency;
+    const accountId = eligibleAccounts.length === 1
+      ? eligibleAccounts[0]!.id
+      : `unassigned-forecast:${currency}`;
+    if (eligibleAccounts.length !== 1) {
+      unassignedAccounts.set(currency, {
+        id: accountId,
+        name: "Documents without an assigned cash account",
+        currency,
+        first_posting: null,
+        unassignedForecasts: true,
+      });
+    }
+    const amount = outstanding(document).native;
+    documentForecasts.push({
+      id: `${source}:${document.id}`,
+      source,
+      account_id: accountId,
+      description: bill
+        ? `Bill ${document.billNumber} · ${document.vendorName}`
+        : `Invoice ${document.id} · ${document.customerName}`,
+      counterpart_code: null,
+      direction,
+      amount,
+      due_date: document.dueDate,
+      paid_date: null,
+      status: amount > 0 ? "planned" : "realized",
+      cash_flow_line: bill ? "suppliers" : "customers",
+      classified_by: "forecast",
+      variance_note: "",
+      transfer_account_id: null,
+      forecast_amount: fx.transactionAmount,
+      forecast_date: document.dueDate,
+      forecast_direction: direction,
+    });
+  }
   const cashCodes = new Set(cashGlAccounts(chart).map((a) => a.code));
   // QuickBooks lines dated after the opening are in neither the opening nor the ledger.
   for (const t of ledger.unposted) {
@@ -132,8 +181,8 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
     }
   }
   return {
-    accounts: ledger.accounts,
-    transactions: [...forecasts.rows.map(forecastTransaction), ...ledger.transactions].sort(
+    accounts: [...ledger.accounts, ...unassignedAccounts.values()],
+    transactions: [...forecasts.rows.map(forecastTransaction), ...documentForecasts, ...ledger.transactions].sort(
       (a, b) => (b.paid_date ?? b.due_date).localeCompare(a.paid_date ?? a.due_date),
     ),
     mappings: mappings.rows,

@@ -951,7 +951,7 @@ try {
   assert.equal(postedRow.journalId, null);
   const cashForBank = async () => {
     const { accounts, transactions } = await loadCash(companyId);
-    return { bank: accounts.find((a) => a.gl_account_code === "1000"), transactions };
+    return { bank: accounts.find((a) => a.id === "1000"), transactions };
   };
   const trialForBank = async () =>
     (
@@ -966,7 +966,7 @@ try {
   assert.equal(postedInLedger.externalPosting, postedRow.externalPosting);
   assert.equal(Number((await trialForBank()).period_credit), Number(before.period_credit) + 10);
   const cash = await cashForBank();
-  assert(cash.bank.ledger_only);
+  assert(cash.bank, "The chart's bank account is available in Cash Flow");
   const cashEntry = cash.transactions.find((t) => t.id.startsWith(`ledger:${posting.id}:`));
   assert.equal(cashEntry.account_id, cash.bank.id);
   assert.equal(cashEntry.amount, 10);

@@ -103,15 +103,16 @@ function CompanyCashFlowPage() {
   const [notice, setNotice] = useState("");
 
   const data = query.data;
-  const accounts = data?.accounts ?? [];
+  const allAccounts = data?.accounts ?? [];
+  const accounts = allAccounts.filter((a) => !a.unassignedForecasts);
   const glAccounts = data?.glAccounts ?? [];
   const glName = (code: string | null) =>
     code ? `${code} · ${glAccounts.find((a) => a.code === code)?.name ?? ""}` : "—";
   const accountName = (code: string | null) =>
-    accounts.find((a) => a.id === code)?.name ?? code ?? "—";
+    allAccounts.find((a) => a.id === code)?.name ?? code ?? "—";
   const pendingFor = (code: string) => data?.statementPending.find((p) => p.account === code);
   const transactions = data?.transactions ?? [];
-  const filteredAccounts = accounts.filter(
+  const filteredAccounts = allAccounts.filter(
     (a) => a.currency === currency && (!accountId || a.id === accountId),
   );
   const ids = new Set(filteredAccounts.map((a) => a.id));
@@ -154,7 +155,7 @@ function CompanyCashFlowPage() {
     (t) => t.source !== "forecast" && !t.balance_adjustment && t.cash_flow_line === "unclassified",
   ).length;
   const waiting = filteredAccounts.flatMap((a) => pendingFor(a.id) ?? []);
-  const withoutHistory = filteredAccounts.filter((a) => !a.first_posting);
+  const withoutHistory = filteredAccounts.filter((a) => !a.unassignedForecasts && !a.first_posting);
 
   async function refresh() {
     await Promise.all([
@@ -288,9 +289,9 @@ function CompanyCashFlowPage() {
         <CashForecastForm
           companyId={companyId}
           companyName={activeCompany!.name}
-          data={data}
+          data={{ ...data, accounts }}
           editing={form.editing}
-          defaultAccount={accountId || filteredAccounts[0]?.id || accounts[0]?.id || ""}
+          defaultAccount={accountId || accounts.find((a) => a.currency === currency)?.id || accounts[0]?.id || ""}
           today={today()}
           onClose={() => setForm(null)}
           onSaved={async (message) => {
@@ -560,7 +561,7 @@ function CompanyCashFlowPage() {
                   title="Cash flow over time"
                   subtitle={
                     projected
-                      ? "Posted cash plus recorded forecasts, without automatic estimates."
+                      ? "Posted cash plus forecasts. Documents without an assigned cash account appear in the currency total."
                       : "Cash posted in the General Ledger."
                   }
                   aside={
@@ -696,6 +697,10 @@ function CompanyCashFlowPage() {
                               >
                                 QuickBooks history
                               </Link>
+                            ) : t.source === "bill" ? (
+                              <Link to="/payables" className="text-brand underline">Bill</Link>
+                            ) : t.source === "invoice" ? (
+                              <Link to="/invoices" className="text-brand underline">Invoice</Link>
                             ) : (
                               forecastStatus[t.status as keyof typeof forecastStatus]
                             )}

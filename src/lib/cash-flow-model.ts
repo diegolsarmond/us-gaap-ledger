@@ -122,6 +122,7 @@ export type CashAccount = {
   id: string;
   name: string;
   currency: string;
+  unassignedForecasts?: boolean;
   /** First posted General Ledger date, or null when the account has no posted history. */
   first_posting: string | null;
 };
@@ -132,7 +133,7 @@ export type CashTransaction = {
    * ledger: posted General Ledger lines. quickbooks: bank lines already posted in QuickBooks
    * before the migration, whose result is the opening balance. forecast: planned cash.
    */
-  source: "ledger" | "quickbooks" | "forecast";
+  source: "ledger" | "quickbooks" | "forecast" | "bill" | "invoice";
   account_id: string;
   description: string;
   /** Counterpart GL account; null for opening balances and FX adjustments. */

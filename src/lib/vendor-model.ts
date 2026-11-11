@@ -35,14 +35,25 @@ export const vendorCustomFieldSchema = z
         message: "Value does not match the custom field type.",
       });
   });
+export const vendorNameLimits = {
+  displayName: 500,
+  title: 16,
+  firstName: 100,
+  middleName: 100,
+  lastName: 100,
+  suffix: 16,
+} as const;
+export const vendorNameParts = ["title", "firstName", "middleName", "lastName", "suffix"] as const;
+const nameText = (key: keyof typeof vendorNameLimits) =>
+  z.string().trim().max(vendorNameLimits[key]).default("");
 export const vendorSchema = z
   .object({
-    displayName: z.string().trim().min(1, "Enter a display name.").max(120),
-    title: optionalText,
-    firstName: optionalText,
-    middleName: optionalText,
-    lastName: optionalText,
-    suffix: optionalText,
+    displayName: nameText("displayName"),
+    title: nameText("title"),
+    firstName: nameText("firstName"),
+    middleName: nameText("middleName"),
+    lastName: nameText("lastName"),
+    suffix: nameText("suffix"),
     companyName: z.string().trim().min(1, "Enter the company name.").max(300),
     sourceOpenBalance: z.number().finite().nullable().optional(),
     sourceBalanceDate: z.string().date().nullable().optional(),
@@ -126,6 +137,12 @@ export const vendorSchema = z
       .default([]),
   })
   .superRefine((vendor, ctx) => {
+    if (!vendor.displayName && !vendorNameParts.some((key) => vendor[key]))
+      ctx.addIssue({
+        code: "custom",
+        path: ["displayName"],
+        message: "Enter a display name or at least one part of the vendor name.",
+      });
     if (!!vendor.routingNumber !== !!vendor.bankAccountNumber)
       ctx.addIssue({
         code: "custom",
@@ -145,7 +162,16 @@ export const vendorSchema = z
         path: ["customFields"],
         message: "Custom field names must be unique.",
       });
-  });
+  })
+  .transform((vendor) => ({
+    ...vendor,
+    displayName:
+      vendor.displayName ||
+      vendorNameParts
+        .map((key) => vendor[key])
+        .filter(Boolean)
+        .join(" "),
+  }));
 export type VendorInput = z.infer<typeof vendorSchema>;
 export type Vendor = VendorInput & { id: string };
 export const MAX_VENDOR_ATTACHMENT_BYTES = 20 * 1024 * 1024;

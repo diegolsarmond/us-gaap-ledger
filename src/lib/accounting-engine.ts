@@ -1209,6 +1209,12 @@ export function createAccountingEngine(
     const data = vendorSchema.parse(input);
     if (id && !nextData.vendors.some((v) => v.id === id))
       throw new Error("Fornecedor não encontrado.");
+    const name = data.displayName.toLowerCase();
+    if (
+      nextData.vendors.some((v) => v.id !== id && v.displayName.trim().toLowerCase() === name) ||
+      nextData.customers.some((c) => c.displayName.trim().toLowerCase() === name)
+    )
+      throw new Error("This display name is already used by a vendor or customer.");
     const vendorId = id ?? crypto.randomUUID();
     updateCompanyData((prev) => ({
       ...prev,

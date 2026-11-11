@@ -363,9 +363,8 @@ const cents = (t: CashTransaction) => Math.round(t.amount * 100) * (t.direction 
  * already contains that history, so the opening adjustment becomes the balance before the first
  * history line (opening minus history): the running balance then reaches the QuickBooks
  * balance on the opening date, and a gap in the imported history shows as that starting
- * adjustment. Without a posted opening, all history is reported and the balance starts at zero.
- * Lines dated after the opening are not in it nor in the ledger: they are returned as
- * `unposted`, to be posted from the Bank Feed.
+ * adjustment. Only history covered by a posted opening contributes to actual cash.
+ * Other imported lines are returned as `unposted` for review in the Bank Feed.
  */
 function withQuickBooksHistory(ledger: CashTransaction[], history: CashTransaction[]) {
   const result = [...ledger];
@@ -375,7 +374,7 @@ function withQuickBooksHistory(ledger: CashTransaction[], history: CashTransacti
   for (const [accountId, lines] of byAccount) {
     const openings = result.filter((t) => t.account_id === accountId && t.opening);
     const openingDate = openings.map((t) => t.paid_date!).sort()[0];
-    const included = openingDate ? lines.filter((t) => t.paid_date! <= openingDate) : lines;
+    const included = openingDate ? lines.filter((t) => t.paid_date! <= openingDate) : [];
     unposted.push(...lines.filter((t) => !included.includes(t)));
     if (!included.length) continue;
     result.push(...included);

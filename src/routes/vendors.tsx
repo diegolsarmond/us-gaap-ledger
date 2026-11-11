@@ -25,6 +25,8 @@ import {
 import { AccountingProvider, useAccounting } from "@/lib/accounting-store";
 import {
   vendorSchema,
+  vendorNameLimits,
+  vendorNameParts,
   MAX_VENDOR_ATTACHMENT_BYTES,
   type VendorInput,
   type Vendor,
@@ -50,6 +52,12 @@ const countryCodes =
   "AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA GS SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW".split(
     " ",
   );
+const sortableNameParts = [
+  ["firstName", "Given name"],
+  ["middleName", "Middle name"],
+  ["lastName", "Family name"],
+  ["suffix", "Suffix"],
+] as const;
 const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 const countryOptions = countryCodes
   .map((code) => ({ value: code, label: regionNames.of(code) || code }))
@@ -166,7 +174,7 @@ function VendorsPage() {
     }
   }
   function field(key: keyof VendorInput, label: string, type = "text") {
-    const required = key === "displayName" || key === "companyName";
+    const required = key === "companyName";
     const numeric = ["costRate", "billingRate", "sourceOpenBalance"].includes(key);
     return (
       <label key={key} className="space-y-1 text-sm" htmlFor={key}>
@@ -188,8 +196,8 @@ function VendorsPage() {
                 : undefined
           }
           maxLength={
-            key === "displayName"
-              ? 120
+            key in vendorNameLimits
+              ? vendorNameLimits[key as keyof typeof vendorNameLimits]
               : key === "email"
                 ? 254
                 : key === "cc" || key === "bcc"
@@ -255,6 +263,7 @@ function VendorsPage() {
       (v) =>
         [
           v.displayName,
+          ...vendorNameParts.map((key) => v[key]),
           v.companyName,
           v.email,
           v.phone,
@@ -278,7 +287,10 @@ function VendorsPage() {
           return Number(av.value) - Number(bv.value);
         return (av?.value || "").localeCompare(bv?.value || "", undefined, { numeric: true });
       }
-      return a.displayName.localeCompare(b.displayName);
+      const key = sortableNameParts.find(([key]) => key === sortBy)?.[0] ?? "displayName";
+      return (
+        (a[key] || "").localeCompare(b[key] || "") || a.displayName.localeCompare(b.displayName)
+      );
     });
   const paging = usePagination(
     visible,
@@ -304,7 +316,7 @@ function VendorsPage() {
     <div className="space-y-4">
       <PageTitle
         title={draft ? (editingId ? "Edit vendor" : "New vendor") : "Vendors"}
-        description={`${activeCompany.name} · Company name and vendor display name are required.`}
+        description={`${activeCompany.name}`}
         actions={
           draft ? (
             <button
@@ -341,13 +353,17 @@ function VendorsPage() {
               />
               <section className="space-y-4 rounded-lg border border-line bg-white p-4">
                 <h2 className="font-semibold">1. Identification, Name and Contact</h2>
+                <p className="text-sm text-ink3">
+                  Enter a display name or at least one name part. If left blank, the display name is
+                  built from the name parts.
+                </p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {field("companyName", "Company name")}
                   {field("displayName", "Vendor display name")}
                   {field("title", "Title")}
-                  {field("firstName", "First name")}
+                  {field("firstName", "Given name")}
                   {field("middleName", "Middle name")}
-                  {field("lastName", "Last name")}
+                  {field("lastName", "Family name")}
                   {field("suffix", "Suffix")}
                   {field("email", "Email", "email")}
                   {field("cc", "Cc")}
@@ -729,6 +745,11 @@ function VendorsPage() {
                   onChange={(e) => setSortBy(e.target.value)}
                 >
                   <option value="name">Display name</option>
+                  {sortableNameParts.map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
                   <option value="custom" disabled={!customColumn}>
                     Selected custom field
                   </option>
