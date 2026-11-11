@@ -24,6 +24,7 @@ export const previewBankFile = jsonClient<typeof operations.preview>(
   "POST",
 );
 export const uploadBankFile = jsonClient<typeof operations.upload>("bank-feed", "upload", "POST");
+export const clearBankFeed = jsonClient<typeof operations.clear>("bank-feed", "clear", "POST");
 export const submitBankReport = jsonClient<typeof operations.reportImport>(
   "bank-feed",
   "reportImport",

@@ -402,6 +402,32 @@ export async function importBankFile(data: Import) {
   );
 }
 
+export async function clearBankFeed({ companyId }: Scope) {
+  return transaction(companyId, true, async (c, auth) => {
+    const protectedRows = await c.query(
+      `SELECT 1 FROM ledger_stagingrows
+        WHERE company_id=$1 AND status='Classified'
+        UNION ALL SELECT 1 FROM bank_feed_attempts WHERE company_id=$1
+        UNION ALL SELECT 1 FROM bank_reconciliation_items WHERE company_id=$1 AND row_id IS NOT NULL
+        LIMIT 1`,
+      [companyId],
+    );
+    if (protectedRows.rows.length) {
+      throw new Error("This Bank Feed has posting or reconciliation history and cannot be cleared.");
+    }
+    await c.query("DELETE FROM bank_feed_attachments WHERE company_id=$1", [companyId]);
+    const rows = await c.query("DELETE FROM ledger_stagingrows WHERE company_id=$1", [companyId]);
+    await c.query(
+      "DELETE FROM ledger_references WHERE company_id=$1 AND source_domain IN ('stagingRows','statements')",
+      [companyId],
+    );
+    const files = await c.query("DELETE FROM ledger_statements WHERE company_id=$1", [companyId]);
+    const result = { rows: rows.rowCount, files: files.rowCount };
+    await audit(c, auth, "CLEAR_BANK_FEED", companyId, result);
+    return result;
+  });
+}
+
 function reportMovementTotals(rows: { amountText: string }[], currency: string) {
   let incoming = 0n;
   let outgoing = 0n;

@@ -18,6 +18,7 @@ import {
   bankFeedList,
   bankFeedRegister,
   bankSettlementPreview,
+  clearBankFeed,
   importBankFile,
   importBankReport,
   listBankReportMappings,
@@ -47,6 +48,9 @@ export const preview = defineJsonOperation({ method: "POST" })
 export const upload = defineJsonOperation({ method: "POST" })
   .validator(bankImport)
   .handler(({ data }) => importBankFile(data));
+export const clear = defineJsonOperation({ method: "POST" })
+  .validator(bankScope)
+  .handler(({ data }) => clearBankFeed(data));
 export const reportImport = defineJsonOperation({ method: "POST" })
   .validator(bankReportImport)
   .handler(({ data }) => importBankReport(data));

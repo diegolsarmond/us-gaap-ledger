@@ -35,6 +35,7 @@ import {
 import { externalAccount, sourceCategoryAccount } from "@/lib/statement-csv";
 import { formatCurrency as bankMoney, downloadBlob as downloadBankBlob } from "@/lib/format";
 import {
+  clearBankFeed,
   loadBankFeed,
   loadBankFile,
   loadBankRegister,
@@ -198,6 +199,8 @@ function CompanyFeed() {
   const { activeCompany, accounts, vendors, customers, dimensions } = useAccounting();
   const companyId = activeCompany.id;
   const cache = useQueryClient();
+  const [clearingFeed, setClearingFeed] = useState(false);
+  const [clearFeedError, setClearFeedError] = useState("");
   const feed = useQuery({
     queryKey: ["bank-feed", companyId],
     queryFn: () => loadBankFeed({ data: { companyId } }),
@@ -1148,6 +1151,30 @@ function CompanyFeed() {
             </Button>
             {data.canWrite && (
               <>
+                <Button
+                  variant="destructive"
+                  disabled={clearingFeed}
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        `Delete all Bank Feed rows and imported bank files for ${activeCompany.name}?`,
+                      )
+                    )
+                      return;
+                    setClearingFeed(true);
+                    setClearFeedError("");
+                    try {
+                      await clearBankFeed({ data: { companyId } });
+                      await refresh();
+                    } catch (error) {
+                      setClearFeedError(error instanceof Error ? error.message : String(error));
+                    } finally {
+                      setClearingFeed(false);
+                    }
+                  }}
+                >
+                  {clearingFeed ? "Clearing…" : "Clear Bank Feed"}
+                </Button>
                 <Button variant="outline" onClick={() => setDialog("report")}>
                   Import transaction report
                 </Button>
@@ -1159,6 +1186,11 @@ function CompanyFeed() {
           </div>
         }
       />
+      {clearFeedError && (
+        <p role="alert" className="text-sm text-destructive">
+          {clearFeedError}
+        </p>
+      )}
       {account && (
         <div className="max-w-md space-y-1 print:hidden">
           <p className="text-xs font-medium text-ink2">Bank or credit card account</p>
