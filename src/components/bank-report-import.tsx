@@ -30,7 +30,7 @@ import { SearchableSelect } from "./searchable-select";
 import { Button } from "./ui/button";
 import { Table, Td, Th } from "./ui-kit";
 
-type Mapping = { subgroup: string; account: string; currency: string };
+type Mapping = { account: string; currency: string };
 type PreviewDestination = Pick<Mapping, "account" | "currency"> & { creditCard: boolean };
 function reportGroupPeriod(group: BankReportGroup) {
   let first = "";
@@ -44,7 +44,7 @@ function reportGroupPeriod(group: BankReportGroup) {
   return first === last ? first : `${first} – ${last}`;
 }
 
-const emptyMapping: Mapping = { subgroup: "", account: "", currency: "USD" };
+const emptyMapping: Mapping = { account: "", currency: "USD" };
 
 function ReportTransactionGrid({
   sourceColumns,
@@ -172,16 +172,10 @@ export function BankReportImport({
     queryFn: ({ signal }) => loadBankReportMappings({ data: { companyId }, signal }),
     enabled: !!report,
   });
-  const accountGroups = new Map<string, typeof accounts>();
-  for (const account of accounts) {
-    const group = account.subgroup ? `${account.type} · ${account.subgroup}` : account.type;
-    const members = accountGroups.get(group) ?? [];
-    members.push(account);
-    accountGroups.set(group, members);
-  }
-  const subgroupOptions = [...accountGroups.keys()]
-    .sort()
-    .map((name) => ({ value: name, label: name }));
+  const accountOptions = accounts.map((account) => ({
+    value: account.code,
+    label: account.code + " · " + account.name,
+  }));
   const selectableGroups = report?.groups.filter((group) => !group.error) ?? [];
   const selected = selectableGroups.filter((group) => mappings[group.id]);
   const review = preview?.groups.flatMap((result, index) =>
@@ -198,10 +192,7 @@ export function BankReportImport({
     selected.length > 0 &&
     selected.every((group) => {
       const mapping = mappings[group.id]!;
-      return (
-        mapping.currency &&
-        accountGroups.get(mapping.subgroup)?.some((a) => a.code === mapping.account)
-      );
+      return mapping.currency && accounts.some((account) => account.code === mapping.account);
     });
   const previewDestinations = preview
     ? new Map(
@@ -244,10 +235,9 @@ export function BankReportImport({
     for (const group of selectableGroups) {
       const saved = savedByGroup.get(group.name);
       if (!saved) continue;
-      const subgroup = [...accountGroups].find(([, entries]) =>
-        entries.some((account) => account.code === saved.account),
-      )?.[0];
-      if (subgroup) next[group.id] = { subgroup, account: saved.account, currency: saved.currency };
+      if (accounts.some((account) => account.code === saved.account)) {
+        next[group.id] = { account: saved.account, currency: saved.currency };
+      }
     }
     setMappings(next);
     setPreview(undefined);
@@ -539,36 +529,12 @@ export function BankReportImport({
                                 <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_8rem] xl:grid-cols-1">
                                   <div className="space-y-1">
                                     <span className="block text-xs font-medium text-ink2">
-                                      Destination group
-                                    </span>
-                                    <SearchableSelect
-                                      label={"Destination group for " + group.name}
-                                      fitViewport
-                                      value={mapping.subgroup}
-                                      options={subgroupOptions}
-                                      onChange={(subgroup) =>
-                                        changeMapping(group.id, {
-                                          ...mapping,
-                                          subgroup,
-                                          account: "",
-                                          currency: "USD",
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <span className="block text-xs font-medium text-ink2">
                                       Destination account
                                     </span>
                                     <SearchableSelect
                                       label={`Destination account for ${group.name}`}
                                       value={mapping.account}
-                                      options={(accountGroups.get(mapping.subgroup) ?? []).map(
-                                        (a) => ({
-                                          value: a.code,
-                                          label: `${a.code} · ${a.name}`,
-                                        }),
-                                      )}
+                                      options={accountOptions}
                                       onChange={(code) => {
                                         const account = accounts.find((a) => a.code === code);
                                         const currency =
@@ -581,8 +547,19 @@ export function BankReportImport({
                                           currency: currency ?? mapping.currency,
                                         });
                                       }}
-                                      fitViewport
                                     />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="block text-xs font-medium text-ink2">
+                                      Destination group
+                                    </span>
+                                    <p className="text-sm">
+                                      {destination
+                                        ? [destination.type, destination.subgroup]
+                                            .filter(Boolean)
+                                            .join(" · ")
+                                        : "—"}
+                                    </p>
                                   </div>
                                   <SelectField
                                     name="Currency"
