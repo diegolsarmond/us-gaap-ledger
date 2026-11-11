@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccounting } from "@/lib/accounting-store";
-import { loadBankReportArchive, loadBankReportFile, loadBankReportMappings, submitBankReport } from "@/lib/bank-feed";
+import {
+  loadBankReportArchive,
+  loadBankReportFile,
+  loadBankReportMappings,
+  submitBankReport,
+} from "@/lib/bank-feed";
 import { bankSourceAccount } from "@/lib/bank-feed-model";
 import {
   bankReportAmount,
@@ -30,7 +35,9 @@ type PreviewDestination = Pick<Mapping, "account" | "currency"> & { creditCard: 
 function reportGroupPeriod(group: BankReportGroup) {
   let first = "";
   let last = "";
-  for (const { importValues: [date] } of group.rows) {
+  for (const {
+    importValues: [date],
+  } of group.rows) {
     if (!first || date < first) first = date;
     if (date > last) last = date;
   }
@@ -172,9 +179,15 @@ export function BankReportImport({
     members.push(account);
     accountGroups.set(group, members);
   }
-  const subgroupOptions = [...accountGroups.keys()].sort().map((name) => ({ id: name, name }));
+  const subgroupOptions = [...accountGroups.keys()]
+    .sort()
+    .map((name) => ({ value: name, label: name }));
   const selectableGroups = report?.groups.filter((group) => !group.error) ?? [];
   const selected = selectableGroups.filter((group) => mappings[group.id]);
+  const review = preview?.groups.flatMap((result, index) =>
+    result.duplicateBatch ? [] : [{ result, group: selected[index]! }],
+  );
+  const reviewGroups = review?.map(({ group }) => group);
   const ready =
     selected.length > 0 &&
     selected.every((group) => {
@@ -186,7 +199,7 @@ export function BankReportImport({
     });
   const previewDestinations = preview
     ? new Map(
-        selected.map(({ id }) => {
+        reviewGroups!.map(({ id }) => {
           const { account, currency } = mappings[id]!;
           return [id, { account, currency, creditCard: isCreditCard(account) }] as const;
         }),
@@ -218,7 +231,9 @@ export function BankReportImport({
   }
 
   function applySavedMappings() {
-    const savedByGroup = new Map(savedMappings.data?.map((mapping) => [mapping.sourceGroup, mapping]));
+    const savedByGroup = new Map(
+      savedMappings.data?.map((mapping) => [mapping.sourceGroup, mapping]),
+    );
     const next = { ...mappings };
     for (const group of selectableGroups) {
       const saved = savedByGroup.get(group.name);
@@ -267,11 +282,11 @@ export function BankReportImport({
   }
 
   async function submit() {
-    if (!report || !ready || busy || preview?.groups.some((group) => group.duplicateBatch)) return;
+    if (!report || !ready || busy || reviewGroups?.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const files = selected.map((group) => {
+      const files = (reviewGroups ?? selected).map((group) => {
         const { account, currency } = mappings[group.id]!;
         const name = `${report.name.replace(/\.(csv|xlsx)$/i, "")} - ${group.name}`;
         return {
@@ -429,7 +444,8 @@ export function BankReportImport({
             {report && (
               <>
                 <p className="text-sm">
-                  {report.name} · {report.groups.length} source groups · {selected.length} selected
+                  {report.name} · {(reviewGroups ?? report.groups).length} source groups ·{" "}
+                  {(reviewGroups ?? selected).length} selected
                 </p>
                 <p className="text-sm text-ink2">
                   Bank and card transactions appear under Posted or Pending in Bank Feed based on
@@ -466,7 +482,7 @@ export function BankReportImport({
                       />
                     </Field>
                     <div className="max-h-[50dvh] space-y-2 overflow-y-auto pr-2">
-                      {report.groups
+                      {(reviewGroups ?? report.groups)
                         .filter((group) =>
                           group.name.toLowerCase().includes(search.trim().toLowerCase()),
                         )
@@ -504,23 +520,31 @@ export function BankReportImport({
                               </label>
                               <ErrorMessage error={group.error} />
                               {mapping && !destination && (
-                                <p className="text-sm text-ink3">Select a destination account to map this group.</p>
+                                <p className="text-sm text-ink3">
+                                  Select a destination account to map this group.
+                                </p>
                               )}
                               {mapping && (
                                 <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_8rem] xl:grid-cols-1">
-                                  <SelectField
-                                    name="Destination group"
-                                    value={mapping.subgroup}
-                                    options={subgroupOptions}
-                                    change={(subgroup) =>
-                                      changeMapping(group.id, {
-                                        ...mapping,
-                                        subgroup,
-                                        account: "",
-                                        currency: "USD",
-                                      })
-                                    }
-                                  />
+                                  <div className="space-y-1">
+                                    <span className="block text-xs font-medium text-ink2">
+                                      Destination group
+                                    </span>
+                                    <SearchableSelect
+                                      label={"Destination group for " + group.name}
+                                      fitViewport
+                                      value={mapping.subgroup}
+                                      options={subgroupOptions}
+                                      onChange={(subgroup) =>
+                                        changeMapping(group.id, {
+                                          ...mapping,
+                                          subgroup,
+                                          account: "",
+                                          currency: "USD",
+                                        })
+                                      }
+                                    />
+                                  </div>
                                   <div className="space-y-1">
                                     <span className="block text-xs font-medium text-ink2">
                                       Destination account
@@ -573,7 +597,7 @@ export function BankReportImport({
                   <ReportTransactionGrid
                     key={preview ? "import-preview" : "source-report"}
                     sourceColumns={report.sourceColumns}
-                    groups={preview ? selected : report.groups}
+                    groups={reviewGroups ?? report.groups}
                     destinations={previewDestinations}
                   />
                 </div>
@@ -590,33 +614,43 @@ export function BankReportImport({
               className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3 text-sm"
               role="status"
             >
-              <strong>{preview.count} transactions ready for review</strong>
-              {preview.groups.map((result, index) => {
-                const group = selected[index]!;
+              <strong>
+                {review!.reduce((count, { result }) => count + result.count, 0)} transactions ready
+                for review
+              </strong>
+              {preview.groups.length > review!.length && (
+                <p>{preview.groups.length - review!.length} duplicate groups skipped.</p>
+              )}
+              {review!.map(({ result, group }) => {
                 const mapping = mappings[group.id]!;
                 return (
                   <p key={group.id}>
                     {group.name} → {mapping.account} · {reportGroupPeriod(group)} ·{" "}
                     {result.bankFeed ? "Bank Feed" : "Report history"} · {result.count} transactions
                     · {mapping.currency} {formatCurrency(result.total, mapping.currency)}
-                    {" · In: "}{formatCurrency(result.incoming, mapping.currency)}
-                    {" · Out: "}{formatCurrency(result.outgoing, mapping.currency)}
+                    {" · In: "}
+                    {formatCurrency(result.incoming, mapping.currency)}
+                    {" · Out: "}
+                    {formatCurrency(result.outgoing, mapping.currency)}
                     {result.bankFeed &&
                       ` · ${result.postedInQuickBooks} posted in QuickBooks · ${result.count - result.postedInQuickBooks} pending`}
-                    {result.duplicateBatch
-                      ? " · Already imported"
-                      : result.duplicates > 0
-                        ? ` · ${result.duplicates} possible duplicates`
-                        : ""}
+                    {result.duplicates > 0 ? ` · ${result.duplicates} possible duplicates` : ""}
                   </p>
                 );
               })}
             </div>
           )}
-          <BankSubmit
-            busy={busy}
-            disabled={!ready || !!preview?.groups.some((group) => group.duplicateBatch)}
-          >
+          {preview && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setPreview(undefined)}
+            >
+              Edit selection
+            </Button>
+          )}
+          <BankSubmit busy={busy} disabled={!ready || reviewGroups?.length === 0}>
             {preview ? "Confirm report import" : "Preview selected groups"}
           </BankSubmit>
         </form>

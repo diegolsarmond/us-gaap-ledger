@@ -51,11 +51,49 @@ function readObject(payload) {
   return [type, entity.Id, token, updated];
 }
 
+function readObjects(content, file) {
+  const objects = [];
+  const startOfObject = /\S/g;
+  let offset = 0;
+  while (offset < content.length) {
+    startOfObject.lastIndex = offset;
+    const start = startOfObject.exec(content)?.index;
+    if (start === undefined) break;
+    const location = `${file}, object ${objects.length + 1}, line ${content.slice(0, start).split("\n").length}`;
+    if (content[start] !== "{") throw new Error(`${location}: Expected a JSON object.`);
+
+    let depth = 0;
+    let inString = false;
+    offset = start;
+    do {
+      const char = content[offset++];
+      if (inString) {
+        if (char === "\\") offset++;
+        else if (char === '"') inString = false;
+      } else if (char === '"') {
+        inString = true;
+      } else if (char === "{") {
+        depth++;
+      } else if (char === "}") {
+        depth--;
+      }
+    } while (depth > 0 && offset < content.length);
+
+    const payload = content.slice(start, offset);
+    try {
+      objects.push({ payload, identity: readObject(payload), location });
+    } catch (error) {
+      throw new Error(`${location}: ${error.message}`, { cause: error });
+    }
+  }
+  if (!objects.length) throw new Error(`${file}: Expected at least one JSON object.`);
+  return objects;
+}
+
 async function main() {
-  const [mode, target, ...args] = process.argv.slice(2);
+  const [mode, target, ...files] = process.argv.slice(2);
   const byName = mode === "--company-name";
-  const files = byName ? args : args.slice(1);
-  if (!mode || !target?.trim() || !files.length || (!byName && !args[0]?.trim())) {
+  if (!mode || !target?.trim() || !files.length) {
     throw new Error(
       "Usage: node scripts/import-quickbooks-json.mjs COMPANY_UUID REALM_ID FILE.json [FILE.json ...]",
     );
@@ -74,6 +112,12 @@ async function main() {
     throw new Error("Replace COMPANY_UUID with the UUID of the destination company.");
   }
 
+  const objects = [];
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    for (const object of readObjects(content, file)) objects.push(object);
+  }
+
   const client = new pg.Client({
     connectionString: process.env.DATABASE_URL,
     connectionTimeoutMillis: 5000,
@@ -83,7 +127,7 @@ async function main() {
     await client.connect();
     await client.query("BEGIN");
     let companyId = mode;
-    let realmId = args[0]?.trim();
+    let realmId = target.trim();
     if (byName) {
       const { rows } = await client.query(
         "SELECT id FROM companies WHERE lower(btrim(name)) = lower(btrim($1)) LIMIT 2",
@@ -95,28 +139,25 @@ async function main() {
       companyId = rows[0].id;
       realmId = `manual:${companyId}`;
     }
-    for (const file of files) {
-      const payload = (await readFile(file, "utf8")).replace(/^\uFEFF/, "");
-      let identity;
+    for (const { payload, identity, location } of objects) {
       try {
-        identity = readObject(payload);
+        // Let PostgreSQL canonicalize JSON without rounding its numeric values in JavaScript.
+        const canonical = await client.query(
+          "SELECT COALESCE($1::jsonb -> $2::text, $1::jsonb)::text AS content",
+          [payload, identity[1] ? identity[0] : null],
+        );
+        const digest = createHash("sha256").update(canonical.rows[0].content).digest("hex");
+        const result = await client.query(
+          `INSERT INTO quickbooks_import_objects
+            (company_id, realm_id, object_type, external_id, sync_token, source_updated_at, digest, payload)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT DO NOTHING`,
+          [companyId, realmId, ...identity, digest, payload],
+        );
+        imported += result.rowCount;
       } catch (error) {
-        throw new Error(`${file}: ${error.message}`);
+        throw new Error(`${location}: ${error.message}`, { cause: error });
       }
-      // Let PostgreSQL canonicalize JSON without rounding its numeric values in JavaScript.
-      const canonical = await client.query(
-        "SELECT COALESCE($1::jsonb -> $2::text, $1::jsonb)::text AS content",
-        [payload, identity[1] ? identity[0] : null],
-      );
-      const digest = createHash("sha256").update(canonical.rows[0].content).digest("hex");
-      const result = await client.query(
-        `INSERT INTO quickbooks_import_objects
-          (company_id, realm_id, object_type, external_id, sync_token, source_updated_at, digest, payload)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT DO NOTHING`,
-        [companyId, realmId, ...identity, digest, payload],
-      );
-      imported += result.rowCount;
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -125,7 +166,7 @@ async function main() {
   } finally {
     await client.end();
   }
-  console.log(`Stored: ${imported}. Duplicates: ${files.length - imported}.`);
+  console.log(`Stored: ${imported}. Duplicates: ${objects.length - imported}.`);
 }
 
 main().catch((error) => {
