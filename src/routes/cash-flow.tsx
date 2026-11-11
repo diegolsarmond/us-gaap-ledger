@@ -238,7 +238,7 @@ function CompanyCashFlowPage() {
     <div className="space-y-5">
       <PageTitle
         title="Cash flow"
-        description="US GAAP cash flow management · actuals from the General Ledger · weekly forecast vs. actual."
+        description="US GAAP cash flow management · actuals from the General Ledger · Forecast vs. actual."
         actions={
           <>
             <Link to="/statements" className={button}>
@@ -344,6 +344,7 @@ function CompanyCashFlowPage() {
                     ["weekly", "Weekly"],
                     ["monthly", "Monthly"],
                     ["quarterly", "Quarterly"],
+                    ["semiannual", "Semiannual"],
                     ["yearly", "Yearly"],
                   ].map(([v, l]) => (
                     <option key={v} value={v}>
@@ -531,7 +532,7 @@ function CompanyCashFlowPage() {
                 Statement of Cash Flows
               </TabsTrigger>
               <TabsTrigger value="weekly" className={tabTrigger}>
-                Weekly forecast vs. actual
+                Forecast vs. actual
               </TabsTrigger>
               <TabsTrigger value="reconciliation" className={tabTrigger}>
                 <span className="hidden sm:inline">
@@ -619,6 +620,7 @@ function CompanyCashFlowPage() {
                     key={`${section}-${companyId}-${currency}-${accountId}-${start}-${end}`}
                     {...reportProps}
                     section={section}
+                    interval={interval}
                   />
                 )}
               </TabsContent>

@@ -4,7 +4,8 @@ import { Kpi, Panel, Table, Th, Td } from "./ui-kit";
 import {
   statement,
   summarize,
-  weeklyComparison,
+  forecastComparison,
+  type Interval,
   type CashAccount,
   type CashTransaction,
   type CashReconciliation,
@@ -39,6 +40,7 @@ export function CashManagementReport({
   companyId,
   accountId,
   asOf,
+  interval = "weekly",
   section = "all",
 }: {
   accounts: CashAccount[];
@@ -50,6 +52,7 @@ export function CashManagementReport({
   companyId: string;
   accountId: string;
   asOf: string;
+  interval?: Interval;
   section?: "statement" | "weekly" | "reconciliation" | "all";
 }) {
   const money = (n: number) =>
@@ -65,7 +68,9 @@ export function CashManagementReport({
   const actualTotals = summarize(accounts, transactions, start, end, "monthly", false);
   const closing = totals.periods.at(-1)?.balance ?? totals.opening;
   const actualClosing = actualTotals.periods.at(-1)?.balance ?? actualTotals.opening;
-  const weekly = weeklyComparison(accounts, transactions, start, end, asOf);
+  const comparison = section === "all" || section === "weekly"
+    ? forecastComparison(accounts, transactions, start, end, asOf, interval)
+    : [];
   // Burn is based only on elapsed actual cash flows, never the forecast horizon.
   const elapsedEnd = end < asOf ? end : asOf;
   const elapsed =
@@ -381,18 +386,18 @@ export function CashManagementReport({
       )}
       {(section === "all" || section === "weekly") && (
         <Panel
-          title="Weekly forecast vs. actual"
+          title="Forecast vs. actual"
           subtitle="Original plan is frozen on first planned save. Positive net variance means more cash than planned."
           aside={
             <button
               className={button}
               onClick={() =>
                 exportToCsv(
-                  `weekly_variance_${currency}_${start}_${end}`,
+                  `${interval}_variance_${currency}_${start}_${end}`,
                   [
-                    "Week of",
+                    "Period",
                     "Status",
-                    "Partial week",
+                    "Partial period",
                     "Forecast receipts",
                     "Actual receipts",
                     "Forecast payments",
@@ -403,7 +408,7 @@ export function CashManagementReport({
                     "Explanation",
                     "Currency",
                   ],
-                  weekly.map((w) => [
+                  comparison.map((w) => [
                     w.label,
                     w.state,
                     w.partial ? "Yes" : "No",
@@ -426,7 +431,7 @@ export function CashManagementReport({
         >
           <p className="px-4 py-3 text-xs text-ink3">
             Actuals come from the General Ledger; forecasts keep the plan first saved. Future and
-            current weeks are not final variances. Cancelled and realized plans remain in the
+            current periods are not final variances. Cancelled and realized plans remain in the
             baseline. Edit a forecast to record an explanation, and mark it realized once its cash
             is posted.
           </p>
@@ -434,7 +439,7 @@ export function CashManagementReport({
             <thead>
               <tr>
                 {[
-                  "Week of",
+                  "Period",
                   "Status",
                   "Forecast receipts",
                   "Actual receipts",
@@ -450,7 +455,7 @@ export function CashManagementReport({
               </tr>
             </thead>
             <tbody>
-              {weekly.map((w) => (
+              {comparison.map((w) => (
                 <tr key={w.label} className="border-t border-line">
                   <Td>
                     {w.label}
@@ -470,7 +475,27 @@ export function CashManagementReport({
                       {money(n)}
                     </Td>
                   ))}
-                  <Td>{w.notes.join("; ") || "—"}</Td>
+                  <Td>
+                    {w.notes.join("; ") || "—"}
+                    {w.movements.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer">Movements ({w.movements.length})</summary>
+                        <ul>
+                          {w.movements.map((t) => (
+                            <li key={t.id}>
+                              {t.description}
+                              {t.forecast_date && t.forecast_amount != null && (
+                                <> · Forecast {t.forecast_date} {money(t.forecast_amount)}</>
+                              )}
+                              {t.status === "paid" && (
+                                <> · Actual {t.paid_date ?? t.due_date} {money(t.amount)}</>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </Td>
                 </tr>
               ))}
             </tbody>

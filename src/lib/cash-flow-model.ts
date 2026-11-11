@@ -176,7 +176,7 @@ export type CashData = {
   /** Bank Feed lines awaiting review. They are not actual cash until they are posted. */
   statementPending: { account: string; count: number; oldest: string }[];
 };
-export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "semiannual" | "yearly";
 export const reconciliationScopeSchema = z.object({
   companyId: z.string().uuid(),
   start: dateSchema,
@@ -278,7 +278,9 @@ export function summarize(
           ? date.slice(0, 7)
           : interval === "quarterly"
             ? `${date.slice(0, 4)} Q${Math.floor(cursor.getUTCMonth() / 3) + 1}`
-            : date.slice(0, 4);
+            : interval === "semiannual"
+              ? `${date.slice(0, 4)} H${Math.floor(cursor.getUTCMonth() / 6) + 1}`
+              : date.slice(0, 4);
     let row = periods.at(-1);
     if (!row || row.label !== label) {
       row = {
@@ -376,12 +378,13 @@ export function statement(
 }
 
 /** Compare the first saved plan to actuals; cancellation never erases a plan. */
-export function weeklyComparison(
+export function forecastComparison(
   accounts: CashAccount[],
   transactions: CashTransaction[],
   start: string,
   end: string,
   asOf: string,
+  interval: Interval = "weekly",
 ) {
   const baseline = transactions
     .filter((t) => t.forecast_amount != null && t.forecast_date && t.forecast_direction)
@@ -393,28 +396,47 @@ export function weeklyComparison(
       direction: t.forecast_direction!,
       status: "paid" as const,
     }));
-  const expected = summarize(accounts, baseline, start, end, "weekly", false);
-  const actual = summarize(accounts, transactions, start, end, "weekly", false);
+  const expected = summarize(accounts, baseline, start, end, interval, false);
+  const actual = summarize(accounts, transactions, start, end, interval, false);
   const scope = new Set(accounts.map((a) => a.id));
   return expected.periods.map((p, i) => {
     const a = actual.periods[i]!;
-    const sunday = new Date(p.label + "T12:00:00Z");
-    sunday.setUTCDate(sunday.getUTCDate() + 6);
-    const weekEnd = sunday.toISOString().slice(0, 10);
-    const inWeek = (date: string | null | undefined) =>
-      !!date && date >= start && date <= end && date >= p.label && date <= weekEnd;
+    let periodStart = p.label;
+    const quarter = Number(p.label.at(-1));
+    if (interval === "monthly") periodStart += "-01";
+    if (interval === "yearly") periodStart += "-01-01";
+    if (interval === "quarterly" || interval === "semiannual") {
+      const size = interval === "quarterly" ? 3 : 6;
+      periodStart = `${p.label.slice(0, 4)}-${String(1 + (quarter - 1) * size).padStart(2, "0")}-01`;
+    }
+    const last = new Date(periodStart + "T12:00:00Z");
+    if (interval === "weekly") last.setUTCDate(last.getUTCDate() + 6);
+    const months = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+    if (interval !== "weekly" && interval !== "daily") {
+      last.setUTCMonth(last.getUTCMonth() + months[interval], 0);
+    }
+    const periodEnd = last.toISOString().slice(0, 10);
+    const inPeriod = (date: string | null | undefined) =>
+      !!date && date >= start && date <= end && date >= periodStart && date <= periodEnd;
+    const movements = transactions.filter(
+      (t) =>
+        scope.has(t.account_id) &&
+        !t.balance_adjustment &&
+        !internalTransfer(t, scope) &&
+        (inPeriod(t.forecast_date) || (counts(t, false, asOf) && inPeriod(effectiveDate(t)))),
+    );
     const notes = transactions
       .filter(
         (t) =>
           scope.has(t.account_id) &&
           !!t.variance_note &&
-          (inWeek(effectiveDate(t)) || inWeek(t.forecast_date)),
+          (inPeriod(effectiveDate(t)) || inPeriod(t.forecast_date)),
       )
       .map((t) => `${t.description}: ${t.variance_note}`);
     return {
       label: p.label,
-      state: p.label > asOf ? "Future" : weekEnd >= asOf ? "In progress" : "Closed",
-      partial: p.label < start || weekEnd > end,
+      state: periodStart > asOf ? "Future" : periodEnd >= asOf ? "In progress" : "Closed",
+      partial: periodStart < start || periodEnd > end,
       forecastIn: p.inflows,
       actualIn: a.inflows,
       forecastOut: p.outflows,
@@ -423,6 +445,7 @@ export function weeklyComparison(
       actualNet: a.net,
       variance: (Math.round(a.net * 100) - Math.round(p.net * 100)) / 100,
       notes,
+      movements,
     };
   });
 }
