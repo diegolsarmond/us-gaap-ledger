@@ -472,7 +472,13 @@ try {
     /chart of accounts/,
   );
   assert.equal(await find("Report card fee"), undefined);
+  assert.deepEqual(await feed.listBankReportMappings({ companyId }), []);
   assert.equal((await feed.importBankReport({ ...reportInput, preview: false })).count, 2);
+  const mappings = await feed.listBankReportMappings({ companyId });
+  assert.deepEqual(
+    mappings.sort((a, b) => a.account.localeCompare(b.account)),
+    reportFiles.map(({ account, currency, sourceGroup }) => ({ account, currency, sourceGroup })),
+  );
   assert.equal((await find("Report card fee")).status, "Pending");
   assert.equal(await find("Expense · Supplier"), undefined);
   const [archived] = await feed.listTransactionReportImports({ companyId });

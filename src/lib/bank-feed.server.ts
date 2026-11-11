@@ -402,6 +402,21 @@ export async function importBankFile(data: Import) {
   );
 }
 
+function reportMovementTotals(rows: { amountText: string }[], currency: string) {
+  let incoming = 0n;
+  let outgoing = 0n;
+  for (const row of rows) {
+    const amount = bankAmount(row.amountText, currency);
+    if (amount > 0n) incoming += amount;
+    else outgoing -= amount;
+  }
+  return {
+    incoming: unitsAmount(incoming),
+    outgoing: unitsAmount(outgoing),
+    total: unitsAmount(incoming - outgoing),
+  };
+}
+
 export async function importBankReport({
   companyId,
   files,
@@ -474,12 +489,7 @@ export async function importBankReport({
           if (!preview) await saveBankImport(c, auth, data, { ...prepared, duplicateBatch });
           groups.push({
             count: prepared.rows.length,
-            total: unitsAmount(
-              prepared.rows.reduce(
-                (sum, row) => sum + bankAmount(row.amountText, file.currency),
-                0n,
-              ),
-            ),
+            ...reportMovementTotals(prepared.rows, file.currency),
             duplicates: prepared.duplicates,
             duplicateBatch,
             bankFeed,
@@ -519,9 +529,7 @@ export async function importBankReport({
         }
         groups.push({
           count: rows.length,
-          total: unitsAmount(
-            rows.reduce((sum, row) => sum + bankAmount(row.amountText, file.currency), 0n),
-          ),
+          ...reportMovementTotals(rows, file.currency),
           duplicates: 0,
           duplicateBatch,
           bankFeed,
@@ -547,8 +555,29 @@ export async function importBankReport({
         count: archived.reduce((count, group) => count + group.row_count, 0),
       });
     }
+    if (!preview) {
+      for (const { sourceGroup, account, currency } of files) {
+        await c.query(
+          `INSERT INTO bank_report_mappings(company_id,source_group,account_code,currency)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (company_id,source_group) DO UPDATE
+           SET account_code=excluded.account_code,currency=excluded.currency`,
+          [companyId, sourceGroup, account, currency],
+        );
+      }
+    }
     return { groups, count: groups.reduce((sum, group) => sum + group.count, 0) };
   });
+}
+
+export async function listBankReportMappings({ companyId }: Scope) {
+  return transaction(companyId, false, async (c) =>
+    (await c.query<{ sourceGroup: string; account: string; currency: string }>(
+      `SELECT source_group AS "sourceGroup", account_code AS account, currency
+       FROM bank_report_mappings WHERE company_id=$1`,
+      [companyId],
+    )).rows,
+  );
 }
 
 export async function listTransactionReportImports({ companyId }: Scope) {

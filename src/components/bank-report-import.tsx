@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccounting } from "@/lib/accounting-store";
-import { loadBankReportArchive, loadBankReportFile, submitBankReport } from "@/lib/bank-feed";
+import { loadBankReportArchive, loadBankReportFile, loadBankReportMappings, submitBankReport } from "@/lib/bank-feed";
 import { bankSourceAccount } from "@/lib/bank-feed-model";
 import {
   bankReportAmount,
@@ -160,6 +160,11 @@ export function BankReportImport({
     queryFn: ({ signal }) => loadBankReportArchive({ data: { companyId }, signal }),
     enabled: view === "history",
   });
+  const savedMappings = useQuery({
+    queryKey: ["bank-report-mappings", companyId],
+    queryFn: ({ signal }) => loadBankReportMappings({ data: { companyId }, signal }),
+    enabled: !!report,
+  });
   const accountGroups = new Map<string, typeof accounts>();
   for (const account of accounts) {
     const group = account.subgroup ? `${account.type} · ${account.subgroup}` : account.type;
@@ -208,6 +213,22 @@ export function BankReportImport({
     setMappings((previous) =>
       Object.fromEntries(selectableGroups.map(({ id }) => [id, previous[id] ?? emptyMapping])),
     );
+    setPreview(undefined);
+    setError(null);
+  }
+
+  function applySavedMappings() {
+    const savedByGroup = new Map(savedMappings.data?.map((mapping) => [mapping.sourceGroup, mapping]));
+    const next = { ...mappings };
+    for (const group of selectableGroups) {
+      const saved = savedByGroup.get(group.name);
+      if (!saved) continue;
+      const subgroup = [...accountGroups].find(([, entries]) =>
+        entries.some((account) => account.code === saved.account),
+      )?.[0];
+      if (subgroup) next[group.id] = { subgroup, account: saved.account, currency: saved.currency };
+    }
+    setMappings(next);
     setPreview(undefined);
     setError(null);
   }
@@ -277,6 +298,7 @@ export function BankReportImport({
       setMappings({});
       setPreview(undefined);
       void history.refetch();
+      void savedMappings.refetch();
       done();
     } catch (error) {
       setError(error);
@@ -558,6 +580,11 @@ export function BankReportImport({
               </>
             )}
           </fieldset>
+          {report && !!savedMappings.data?.length && (
+            <Button type="button" variant="outline" disabled={busy} onClick={applySavedMappings}>
+              Apply saved account mappings
+            </Button>
+          )}
           {preview && (
             <div
               className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3 text-sm"
@@ -572,6 +599,8 @@ export function BankReportImport({
                     {group.name} → {mapping.account} · {reportGroupPeriod(group)} ·{" "}
                     {result.bankFeed ? "Bank Feed" : "Report history"} · {result.count} transactions
                     · {mapping.currency} {formatCurrency(result.total, mapping.currency)}
+                    {" · In: "}{formatCurrency(result.incoming, mapping.currency)}
+                    {" · Out: "}{formatCurrency(result.outgoing, mapping.currency)}
                     {result.bankFeed &&
                       ` · ${result.postedInQuickBooks} posted in QuickBooks · ${result.count - result.postedInQuickBooks} pending`}
                     {result.duplicateBatch

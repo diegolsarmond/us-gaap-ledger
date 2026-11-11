@@ -29,6 +29,9 @@ export const submitBankReport = jsonClient<typeof operations.reportImport>(
   "reportImport",
   "POST",
 );
+export const loadBankReportMappings = jsonClient<typeof operations.reportMappings>(
+  "bank-feed", "reportMappings", "GET",
+);
 export const loadBankReportArchive = jsonClient<typeof operations.reportArchive>(
   "bank-feed",
   "reportArchive",

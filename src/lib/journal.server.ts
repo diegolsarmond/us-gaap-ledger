@@ -291,6 +291,16 @@ export async function journalPostingAccess(c: PoolClient, companyId: string, act
 }
 
 async function markPosted(c: PoolClient, j: Journal, actor: Actor) {
+  if (j.source_module === bankJournalModule && j.source_type !== "BankFeedReversal") {
+    const opening = await c.query(
+      `SELECT 1 FROM journal_entries
+       WHERE company_id=$1 AND journal_type='Opening' AND status='Posted'
+         AND accounting_date >= $2 LIMIT 1`,
+      [j.company_id, j.accounting_date],
+    );
+    if (opening.rowCount)
+      throw new Error("Bank Feed posting overlaps the posted opening balance.");
+  }
   await balanced(c, j.id);
   await c.query("INSERT INTO accounting_policies(company_id) VALUES($1) ON CONFLICT DO NOTHING", [
     j.company_id,

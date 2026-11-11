@@ -20,6 +20,7 @@ import {
   bankSettlementPreview,
   importBankFile,
   importBankReport,
+  listBankReportMappings,
   listTransactionReportImports,
   loadTransactionReportImport,
   previewBankImport,
@@ -49,6 +50,9 @@ export const upload = defineJsonOperation({ method: "POST" })
 export const reportImport = defineJsonOperation({ method: "POST" })
   .validator(bankReportImport)
   .handler(({ data }) => importBankReport(data));
+export const reportMappings = defineJsonOperation({ method: "GET" })
+  .validator(bankScope)
+  .handler(({ data }) => listBankReportMappings(data));
 export const reportArchive = defineJsonOperation({ method: "GET" })
   .validator(bankScope)
   .handler(({ data }) => listTransactionReportImports(data));
