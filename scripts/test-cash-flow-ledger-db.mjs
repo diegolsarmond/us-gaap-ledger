@@ -317,6 +317,32 @@ try {
   assert.equal(realized.forecast_amount, 700, "the first plan is preserved");
   assert.equal(projected([both[0]]), 10600, "a realized forecast leaves the projection");
 
+  const { vendorSchema } = await import("../src/lib/vendor-model.ts");
+  await replaceLedger(pool, company, "vendors", [{
+    ...vendorSchema.parse({ displayName: "Rent vendor", companyName: "Rent vendor" }),
+    id: "rent-vendor",
+  }]);
+  const batchRow = {
+    ...forecast,
+    description: "Batch rent",
+    document_date: "2026-02-02",
+    party_id: "rent-vendor",
+  };
+  await assert.rejects(
+    service.saveForecasts(company, [batchRow, { ...batchRow, party_id: "unknown" }]),
+    /Select a customer or vendor/,
+  );
+  data = await service.load(company);
+  assert.ok(!data.transactions.some((t) => t.description === "Batch rent"));
+  await service.saveForecasts(company, [batchRow, { ...batchRow, description: "Batch rent 2" }]);
+  data = await service.load(company);
+  assert.deepEqual(data.vendors, [{ id: "rent-vendor", name: "Rent vendor" }]);
+  const batch = data.transactions.filter((t) => t.description.startsWith("Batch rent"));
+  assert.deepEqual(batch.map((t) => [t.party_id, t.document_date]), [
+    ["rent-vendor", "2026-02-02"],
+    ["rent-vendor", "2026-02-02"],
+  ]);
+
   const proof = await service.checkGlCash({
     companyId: company,
     start: "2026-01-01",

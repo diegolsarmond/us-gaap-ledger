@@ -65,6 +65,8 @@ type ForecastRow = {
   direction: "in" | "out";
   amount: number;
   expected_date: string;
+  document_date: string | null;
+  party_id: string | null;
   status: "planned" | "realized" | "cancelled";
   cash_flow_line: CashFlowLine;
   variance_note: string;
@@ -75,7 +77,7 @@ type ForecastRow = {
   transfer_account_code: string | null;
 };
 const forecastColumns = `id,account_code,counterpart_code,description,direction,amount::float8,
-  expected_date::text,status,cash_flow_line,variance_note,forecast_amount::float8,
+  expected_date::text,document_date::text,party_id,status,cash_flow_line,variance_note,forecast_amount::float8,
   forecast_date::text,forecast_direction,transfer_id,transfer_account_code`;
 
 const forecastTransaction = (f: ForecastRow): CashTransaction => ({
@@ -87,6 +89,8 @@ const forecastTransaction = (f: ForecastRow): CashTransaction => ({
   direction: f.direction,
   amount: f.amount,
   due_date: f.expected_date,
+  document_date: f.document_date,
+  party_id: f.party_id,
   paid_date: null,
   status: f.status,
   cash_flow_line: f.cash_flow_line,
@@ -105,7 +109,17 @@ const readChart = (client: Pick<PoolClient, "query">, companyId: string) =>
   >;
 
 async function readCashData(client: PoolClient, companyId: string): Promise<CashData> {
-  const [chart, mappings, overrides, forecasts, statementPending, bills, invoices] = await Promise.all([
+  const [
+    chart,
+    mappings,
+    overrides,
+    forecasts,
+    statementPending,
+    bills,
+    invoices,
+    customers,
+    vendors,
+  ] = await Promise.all([
     readChart(client, companyId),
     client.query<CashFlowMapping>(
       "SELECT account_code,inflow_line,outflow_line FROM cash_flow_account_lines WHERE company_id=$1",
@@ -122,6 +136,14 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
     pendingStatementLines(client, companyId),
     readLedger(client, companyId, "bills") as unknown as Promise<CompanyState["bills"]>,
     readLedger(client, companyId, "invoices") as unknown as Promise<CompanyState["invoices"]>,
+    client.query<{ id: string; name: string }>(
+      "SELECT id,display_name AS name FROM ledger_customers WHERE company_id=$1 ORDER BY name",
+      [companyId],
+    ),
+    client.query<{ id: string; name: string }>(
+      "SELECT id,display_name AS name FROM ledger_vendors WHERE company_id=$1 ORDER BY name",
+      [companyId],
+    ),
   ]);
   const ledger = await cashFromLedger(client, companyId, chart, mappings.rows, overrides.rows);
   const documentForecasts: CashTransaction[] = [];
@@ -135,9 +157,8 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
       (account) => account.currency === fx.transactionCurrency,
     );
     const currency = fx.transactionCurrency;
-    const accountId = eligibleAccounts.length === 1
-      ? eligibleAccounts[0]!.id
-      : `unassigned-forecast:${currency}`;
+    const accountId =
+      eligibleAccounts.length === 1 ? eligibleAccounts[0]!.id : `unassigned-forecast:${currency}`;
     if (eligibleAccounts.length !== 1) {
       unassignedAccounts.set(currency, {
         id: accountId,
@@ -182,10 +203,14 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
   }
   return {
     accounts: [...ledger.accounts, ...unassignedAccounts.values()],
-    transactions: [...forecasts.rows.map(forecastTransaction), ...documentForecasts, ...ledger.transactions].sort(
-      (a, b) => (b.paid_date ?? b.due_date).localeCompare(a.paid_date ?? a.due_date),
-    ),
+    transactions: [
+      ...forecasts.rows.map(forecastTransaction),
+      ...documentForecasts,
+      ...ledger.transactions,
+    ].sort((a, b) => (b.paid_date ?? b.due_date).localeCompare(a.paid_date ?? a.due_date)),
     mappings: mappings.rows,
+    customers: customers.rows,
+    vendors: vendors.rows,
     glAccounts: chart.map((account) => ({
       code: account.code,
       name: account.name,
@@ -391,93 +416,118 @@ export async function writeReconciliation(data: CashReconciliation) {
  * stored as two legs that change together. Forecasts never post journal entries.
  */
 export async function saveForecast(data: CashForecast & { companyId: string }) {
-  return write(data.companyId, async (client, auth) => {
-    const chart = await readChart(client, data.companyId);
-    const cash = new Map(
-      (await readCashAccounts(client, data.companyId, chart)).map((a) => [a.id, a]),
-    );
-    const account = cash.get(data.account_code);
-    if (!account) throw new Error("Select a bank or cash account from the Chart of Accounts.");
-    if (!chart.some((a) => a.code === data.counterpart_code))
-      throw new Error("Select a counterpart account from this company's Chart of Accounts.");
-    const counterpartCash = cash.get(data.counterpart_code);
-    const transfer = data.cash_flow_line === "internal_transfer";
-    if (transfer !== !!counterpartCash)
-      throw new Error(
-        transfer
-          ? "A transfer needs another bank or cash account as counterpart."
-          : "A forecast against another bank or cash account is a transfer: classify it as a transfer between own cash accounts.",
-      );
-    if (counterpartCash && counterpartCash.currency !== account.currency)
-      throw new Error(
-        "Transfers between currencies need FX handling and are not supported. Forecast each side separately.",
-      );
-    const previous = data.id
-      ? (
-          await client.query<ForecastRow>(
-            `SELECT ${forecastColumns} FROM cash_forecasts WHERE id=$1 AND company_id=$2 FOR UPDATE`,
-            [data.id, data.companyId],
-          )
-        ).rows[0]
-      : undefined;
-    if (data.id && !previous) throw new Error("Forecast not found.");
-    if (previous && !!previous.transfer_id !== transfer)
-      throw new Error(
-        "A transfer cannot become a regular forecast, or the reverse. Cancel it and create a new one.",
-      );
-    if (
-      previous?.transfer_id &&
-      (previous.account_code !== data.account_code ||
-        previous.transfer_account_code !== data.counterpart_code)
-    )
-      throw new Error("The accounts of a transfer cannot change. Cancel it and create a new one.");
-    const leg = (accountCode: string, counterpart: string, direction: "in" | "out"): unknown[] => [
-      data.companyId,
-      accountCode,
-      counterpart,
-      data.description,
-      direction,
-      data.amount,
-      data.expected_date,
-      data.status,
-      data.cash_flow_line,
-      data.variance_note,
-    ];
-    const mirrorDirection = data.direction === "in" ? "out" : "in";
-    if (previous) {
-      const update = `UPDATE cash_forecasts SET account_code=$2,counterpart_code=$3,description=$4,direction=$5,
-        amount=$6,expected_date=$7,status=$8,cash_flow_line=$9,variance_note=$10 WHERE company_id=$1`;
-      await client.query(update + " AND id=$11", [
-        ...leg(data.account_code, data.counterpart_code, data.direction),
-        previous.id,
-      ]);
-      if (previous.transfer_id) {
-        const other = await client.query(update + " AND transfer_id=$11 AND id<>$12", [
-          ...leg(data.counterpart_code, data.account_code, mirrorDirection),
-          previous.transfer_id,
+  return saveForecasts(data.companyId, [data]);
+}
+
+export async function saveForecasts(companyId: string, forecasts: CashForecast[]) {
+  return write(companyId, async (client, auth) => {
+    const chart = await readChart(client, companyId);
+    const cash = new Map((await readCashAccounts(client, companyId, chart)).map((a) => [a.id, a]));
+    for (const data of forecasts) {
+      const account = cash.get(data.account_code);
+      if (!account) throw new Error("Select a bank or cash account from the Chart of Accounts.");
+      if (!chart.some((a) => a.code === data.counterpart_code))
+        throw new Error("Select a counterpart account from this company's Chart of Accounts.");
+      const counterpartCash = cash.get(data.counterpart_code);
+      const transfer = data.cash_flow_line === "internal_transfer";
+      if (transfer !== !!counterpartCash)
+        throw new Error(
+          transfer
+            ? "A transfer needs another bank or cash account as counterpart."
+            : "A forecast against another bank or cash account is a transfer: classify it as a transfer between own cash accounts.",
+        );
+      if (counterpartCash && counterpartCash.currency !== account.currency)
+        throw new Error(
+          "Transfers between currencies need FX handling and are not supported. Forecast each side separately.",
+        );
+      const previous = data.id
+        ? (
+            await client.query<ForecastRow>(
+              `SELECT ${forecastColumns} FROM cash_forecasts WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+              [data.id, companyId],
+            )
+          ).rows[0]
+        : undefined;
+      if (data.id && !previous) throw new Error("Forecast not found.");
+      if (previous && !!previous.transfer_id !== transfer)
+        throw new Error(
+          "A transfer cannot become a regular forecast, or the reverse. Cancel it and create a new one.",
+        );
+      if (
+        previous?.transfer_id &&
+        (previous.account_code !== data.account_code ||
+          previous.transfer_account_code !== data.counterpart_code)
+      )
+        throw new Error(
+          "The accounts of a transfer cannot change. Cancel it and create a new one.",
+        );
+      const partyId = transfer
+        ? null
+        : data.party_id === undefined && previous?.direction === data.direction
+          ? previous.party_id
+          : (data.party_id ?? null);
+      if (partyId && (partyId !== previous?.party_id || data.direction !== previous?.direction)) {
+        const table = data.direction === "in" ? "ledger_customers" : "ledger_vendors";
+        const party = await client.query(`SELECT 1 FROM ${table} WHERE company_id=$1 AND id=$2`, [
+          companyId,
+          partyId,
+        ]);
+        if (!party.rowCount) throw new Error("Select a customer or vendor from this company.");
+      }
+      const leg = (
+        accountCode: string,
+        counterpart: string,
+        direction: "in" | "out",
+      ): unknown[] => [
+        companyId,
+        accountCode,
+        counterpart,
+        data.description,
+        direction,
+        data.amount,
+        data.expected_date,
+        data.status,
+        data.cash_flow_line,
+        data.variance_note,
+        data.document_date === undefined ? (previous?.document_date ?? null) : data.document_date,
+        partyId,
+      ];
+      const mirrorDirection = data.direction === "in" ? "out" : "in";
+      if (previous) {
+        const update = `UPDATE cash_forecasts SET account_code=$2,counterpart_code=$3,description=$4,direction=$5,
+        amount=$6,expected_date=$7,status=$8,cash_flow_line=$9,variance_note=$10,document_date=$11,party_id=$12 WHERE company_id=$1`;
+        await client.query(update + " AND id=$13", [
+          ...leg(data.account_code, data.counterpart_code, data.direction),
           previous.id,
         ]);
-        if (other.rowCount !== 1) throw new Error("The other leg of this transfer is missing.");
-      }
-    } else {
-      const transferId = transfer ? crypto.randomUUID() : null;
-      const insert = `INSERT INTO cash_forecasts(company_id,account_code,counterpart_code,description,direction,amount,
-        expected_date,status,cash_flow_line,variance_note,created_by,transfer_id,transfer_account_code,
+        if (previous.transfer_id) {
+          const other = await client.query(update + " AND transfer_id=$13 AND id<>$14", [
+            ...leg(data.counterpart_code, data.account_code, mirrorDirection),
+            previous.transfer_id,
+            previous.id,
+          ]);
+          if (other.rowCount !== 1) throw new Error("The other leg of this transfer is missing.");
+        }
+      } else {
+        const transferId = transfer ? crypto.randomUUID() : null;
+        const insert = `INSERT INTO cash_forecasts(company_id,account_code,counterpart_code,description,direction,amount,
+        expected_date,status,cash_flow_line,variance_note,document_date,party_id,created_by,transfer_id,transfer_account_code,
         forecast_amount,forecast_date,forecast_direction)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$6,$7,$5)`;
-      await client.query(insert, [
-        ...leg(data.account_code, data.counterpart_code, data.direction),
-        auth.user.id,
-        transferId,
-        transfer ? data.counterpart_code : null,
-      ]);
-      if (transfer)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$6,$7,$5)`;
         await client.query(insert, [
-          ...leg(data.counterpart_code, data.account_code, mirrorDirection),
+          ...leg(data.account_code, data.counterpart_code, data.direction),
           auth.user.id,
           transferId,
-          data.account_code,
+          transfer ? data.counterpart_code : null,
         ]);
+        if (transfer)
+          await client.query(insert, [
+            ...leg(data.counterpart_code, data.account_code, mirrorDirection),
+            auth.user.id,
+            transferId,
+            data.account_code,
+          ]);
+      }
     }
     return { ok: true };
   });

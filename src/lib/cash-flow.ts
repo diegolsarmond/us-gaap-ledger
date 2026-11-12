@@ -11,6 +11,11 @@ export const saveCashForecast = jsonClient<Operations["saveCashForecast"]>(
   "saveCashForecast",
   "POST",
 );
+export const saveCashForecasts = jsonClient<Operations["saveCashForecasts"]>(
+  "cash-flow",
+  "saveCashForecasts",
+  "POST",
+);
 export const saveCashFlowMapping = jsonClient<Operations["saveCashFlowMapping"]>(
   "cash-flow",
   "saveCashFlowMapping",

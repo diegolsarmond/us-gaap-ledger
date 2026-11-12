@@ -14,6 +14,22 @@ export const loadCashData = defineJsonOperation({ method: "GET" })
 export const saveCashForecast = defineJsonOperation({ method: "POST" })
   .validator(z.intersection(forecastSchema, company))
   .handler(async ({ data }) => (await import("./cash-flow.server")).saveForecast(data));
+export const saveCashForecasts = defineJsonOperation({ method: "POST" })
+  .validator(
+    company.extend({
+      forecasts: z
+        .array(
+          forecastSchema.refine(
+            (forecast) => forecast.cash_flow_line === "internal_transfer" || !!forecast.party_id,
+            "Select a customer or vendor.",
+          ),
+        )
+        .min(1),
+    }),
+  )
+  .handler(async ({ data }) =>
+    (await import("./cash-flow.server")).saveForecasts(data.companyId, data.forecasts),
+  );
 export const saveCashFlowMapping = defineJsonOperation({ method: "POST" })
   .validator(
     z.union([

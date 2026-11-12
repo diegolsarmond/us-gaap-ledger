@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Plus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { SearchableSelect } from "@/components/searchable-select";
 import {
@@ -8,11 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { saveCashForecast } from "@/lib/cash-flow";
+import { saveCashForecasts } from "@/lib/cash-flow";
 import {
   cashFlowLines,
   forecastSchema,
   type CashData,
+  type CashForecast,
   type CashFlowLine,
   type CashTransaction,
 } from "@/lib/cash-flow-model";
@@ -82,90 +84,74 @@ export function CashForecastForm({
 }) {
   const [account, setAccount] = useState(editing?.account_id ?? defaultAccount);
   const [direction, setDirection] = useState<"in" | "out">(editing?.direction ?? "out");
-  const [counterpart, setCounterpart] = useState(editing?.counterpart_code ?? "");
-  const [line, setLine] = useState<CashFlowLine | "">(editing?.cash_flow_line ?? "");
-  const [lineChosen, setLineChosen] = useState(!!editing);
-  const [amountCents, setAmountCents] = useState(
-    editing ? String(Math.round(editing.amount * 100)) : "",
-  );
-  const [status, setStatus] = useState<keyof typeof statusLabels>(
-    editing && editing.status !== "paid" ? editing.status : "planned",
-  );
-  const [keepOpen, setKeepOpen] = useState(false);
-  const [formKey, setFormKey] = useState(0);
+  const [rows, setRows] = useState([0]);
+  const nextRow = useRef(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const currency = data.accounts.find((a) => a.id === account)?.currency ?? "USD";
-  const money = (cents: string) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(cents) / 100);
-  const transfer = line === "internal_transfer";
 
-  function choose(nextCounterpart: string, nextDirection: "in" | "out") {
-    setCounterpart(nextCounterpart);
-    setDirection(nextDirection);
-    const suggestion = suggestedLine(data, nextCounterpart, nextDirection);
-    const cashCounterpart = suggestion === "internal_transfer";
-    // Keep a line the user chose while it still fits; transfers always follow the counterpart.
-    if (
-      !lineChosen ||
-      cashCounterpart ||
-      line === "internal_transfer" ||
-      (line && cashFlowLines[line].direction && cashFlowLines[line].direction !== nextDirection)
-    ) {
-      setLine(suggestion);
-      setLineChosen(false);
-    }
+  function addRow() {
+    const row = nextRow.current++;
+    setRows((current) => [...current, row]);
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    if (!line) {
-      setError("Select a cash flow classification that matches the direction.");
-      return;
-    }
-    const parsed = forecastSchema.safeParse({
-      ...(editing ? { id: editing.id } : {}),
-      account_code: account,
-      counterpart_code: counterpart,
-      description: String(form.get("description") ?? ""),
-      direction,
-      amount: Number(amountCents) / 100,
-      expected_date: String(form.get("expected_date") ?? ""),
-      status,
-      cash_flow_line: line,
-      variance_note: String(form.get("variance_note") ?? ""),
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues.map((issue) => issue.message).join(" "));
-      return;
+    const forecasts: CashForecast[] = [];
+    for (const [index, row] of rows.entries()) {
+      const get = (field: string) => String(form.get(field + "-" + row) ?? "");
+      const partyId = get("party_id");
+      if (get("line") !== "internal_transfer" && !partyId) {
+        setError(
+          "Forecast " +
+            (index + 1) +
+            ": select a " +
+            (direction === "in" ? "customer." : "vendor."),
+        );
+        return;
+      }
+      const parsed = forecastSchema.safeParse({
+        id: editing?.id,
+        account_code: account,
+        direction,
+        counterpart_code: get("counterpart"),
+        description: get("description"),
+        amount: Number(get("amount")) / 100,
+        expected_date: get("expected_date"),
+        document_date: get("document_date") || null,
+        party_id: partyId || null,
+        status: get("status"),
+        cash_flow_line: get("line"),
+        variance_note: editing?.variance_note,
+      });
+      if (!parsed.success) {
+        setError(
+          "Forecast " +
+            (index + 1) +
+            ": " +
+            parsed.error.issues.map((issue) => issue.message).join(" "),
+        );
+        return;
+      }
+      forecasts.push(parsed.data);
     }
     setPending(true);
     setError("");
-    setNotice("");
     try {
-      await saveCashForecast({ data: { companyId, ...parsed.data } });
-      if (keepOpen && !editing) {
-        await onSaved("");
-        setNotice("Forecast saved. Add the next one.");
-        setAmountCents("");
-        setFormKey((k) => k + 1);
-      } else await onSaved(editing ? "Forecast updated." : "Forecast saved.");
+      await saveCashForecasts({ data: { companyId, forecasts } });
+      await onSaved(
+        editing
+          ? "Forecast updated."
+          : forecasts.length === 1
+            ? "Forecast saved."
+            : "Forecasts saved.",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save. Please try again.");
     } finally {
       setPending(false);
     }
   }
-
-  const counterpartOptions = data.glAccounts
-    .filter((a) => a.code !== account)
-    .map((a) => ({
-      value: a.code,
-      label: `${a.code} · ${a.name}`,
-      detail: a.cash ? "Bank / cash · transfer" : a.type,
-    }));
   return (
     <Dialog
       open
@@ -173,189 +159,78 @@ export function CashForecastForm({
         if (!open && !pending) onClose();
       }}
     >
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto overscroll-contain"
-        style={{ width: "96vw", maxWidth: "1200px" }}
-      >
-        <DialogHeader>
+      <DialogContent className="flex max-h-[96dvh] w-[98vw] max-w-[1600px] flex-col overflow-visible">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{editing ? "Edit forecast" : "New forecast"}</DialogTitle>
           <DialogDescription className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2">
             <span className="block text-xs font-medium text-ink2">Company</span>
             <span className="block text-lg font-bold text-brand">{companyName}</span>
           </DialogDescription>
         </DialogHeader>
-        <form key={formKey} onSubmit={submit} className="space-y-4">
+        <form
+          onSubmit={submit}
+          className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-1 pb-1"
+        >
           {error && (
             <p role="alert" className="text-sm text-red-800">
               {error}
             </p>
           )}
-          {notice && (
-            <p role="status" className="text-sm text-green-800">
-              {notice}
-            </p>
-          )}
-          <p className="text-xs text-ink3">
-            Forecasts are plans and never post journal entries. Actual cash comes from the General
-            Ledger: post the bank movement (Bank Feed, payments or journals), then mark the forecast
-            realized.
-          </p>
-          <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Bank / cash account">
-              {editing ? (
-                <span className={control + " block"}>
-                  {data.accounts.find((a) => a.id === account)?.name ?? account}
-                </span>
-              ) : (
-                <SearchableSelect
-                  label="Bank / cash account"
-                  value={account}
-                  onChange={setAccount}
-                  required
-                  autoFocus
-                  placeholder="Select a bank or cash account"
-                  options={data.accounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.id} · ${a.name}`,
-                    detail: a.currency,
-                  }))}
-                />
-              )}
-            </Field>
-            <Field label="Type">
-              <select
-                value={direction}
-                onChange={(e) => choose(counterpart, e.target.value as "in" | "out")}
-                className={control}
-              >
-                <option value="in">Inflow</option>
-                <option value="out">Outflow</option>
-              </select>
-            </Field>
-            <Field label={direction === "in" ? "Expected receipt date" : "Expected payment date"}>
-              <input
-                name="expected_date"
-                type="date"
-                defaultValue={editing?.due_date ?? today}
-                required
-                className={control}
-              />
-            </Field>
-            <Field label="Description" className="sm:col-span-2 lg:col-span-3">
-              <textarea
-                rows={2}
-                name="description"
-                defaultValue={editing?.description}
-                required
-                maxLength={240}
-                className={control}
-              />
-            </Field>
-            <Field label="Category · counterpart account">
-              {editing?.transfer_account_id ? (
-                <span className={control + " block"}>
-                  {data.accounts.find((a) => a.id === counterpart)?.name ?? counterpart}
-                </span>
-              ) : (
-                <SearchableSelect
-                  label="Counterpart account"
-                  value={counterpart}
-                  onChange={(value) => choose(value, direction)}
-                  required
-                  placeholder="Select the account this cash pays or comes from"
-                  options={counterpartOptions}
-                />
-              )}
-              <span>
-                The Chart of Accounts is the category list. Choosing another bank or cash account
-                records a transfer with both legs.
-              </span>
-            </Field>
-            <Field label={`Amount (${currency})`}>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder={money("0")}
-                value={amountCents ? money(amountCents) : ""}
-                onChange={(e) =>
-                  setAmountCents(e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14))
+          <fieldset disabled={pending} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Bank / cash account">
+                {editing ? (
+                  <span className={control + " block"}>
+                    {data.accounts.find((a) => a.id === account)?.name ?? account}
+                  </span>
+                ) : (
+                  <SearchableSelect
+                    fitViewport
+                    popupClassName="z-[70] min-w-64 max-w-[var(--radix-popover-content-available-width)] shadow-lg"
+                    label="Bank / cash account"
+                    value={account}
+                    onChange={setAccount}
+                    required
+                    autoFocus
+                    placeholder="Select a bank or cash account"
+                    options={data.accounts.map((a) => ({
+                      value: a.id,
+                      label: `${a.id} · ${a.name}`,
+                      detail: a.currency,
+                    }))}
+                  />
+                )}
+              </Field>
+              <Field label="Type">
+                <select
+                  value={direction}
+                  onChange={(e) => setDirection(e.target.value as "in" | "out")}
+                  className={control}
+                >
+                  <option value="in">Inflow</option>
+                  <option value="out">Outflow</option>
+                </select>
+              </Field>
+            </div>
+            {rows.map((row, index) => (
+              <ForecastRow
+                key={row}
+                row={row}
+                index={index}
+                account={account}
+                direction={direction}
+                data={data}
+                editing={editing}
+                today={today}
+                onAdd={!editing && index === rows.length - 1 ? addRow : undefined}
+                onRemove={
+                  rows.length > 1
+                    ? () => setRows((current) => current.filter((id) => id !== row))
+                    : undefined
                 }
-                required
-                className={control}
               />
-            </Field>
-            <Field label="US GAAP cash flow classification">
-              {transfer ? (
-                <span className={control + " block"}>{cashFlowLines.internal_transfer.label}</span>
-              ) : (
-                <SearchableSelect
-                  label="Cash flow classification"
-                  value={line}
-                  onChange={(value) => {
-                    setLine(value as CashFlowLine);
-                    setLineChosen(true);
-                  }}
-                  required
-                  placeholder="Select a cash flow line"
-                  options={Object.entries(cashFlowLines)
-                    .filter(
-                      ([key, l]) =>
-                        key !== "internal_transfer" &&
-                        (l.direction === null || l.direction === direction),
-                    )
-                    .map(([key, l]) => ({ value: key, label: `${l.activity} · ${l.label}` }))}
-                />
-              )}
-              {!lineChosen && line && !transfer && (
-                <span>Suggested from the counterpart account&apos;s cash flow mapping.</span>
-              )}
-            </Field>
-            <Field label="Status">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as typeof status)}
-                className={control}
-              >
-                {Object.entries(statusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <span>
-                Realized and cancelled forecasts leave the projection but keep their original plan
-                for forecast vs. actual.
-              </span>
-            </Field>
-            <Field label="Variance explanation" className="sm:col-span-2 lg:col-span-3">
-              <textarea
-                name="variance_note"
-                rows={2}
-                maxLength={1000}
-                defaultValue={editing?.variance_note ?? ""}
-                className={control}
-                placeholder="Explain amount changes, receipt/payment delays, cancelled sales or unexpected costs."
-              />
-              {editing?.forecast_amount != null && (
-                <span className="block">
-                  Original plan: {editing.forecast_direction === "out" ? "−" : "+"}
-                  {money(String(Math.round(editing.forecast_amount * 100)))} on{" "}
-                  {editing.forecast_date}.
-                </span>
-              )}
-            </Field>
-            {!editing && (
-              <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-3">
-                <input
-                  type="checkbox"
-                  checked={keepOpen}
-                  onChange={(e) => setKeepOpen(e.target.checked)}
-                  className="h-4 w-4 accent-brand"
-                />
-                Continue adding forecasts (keep this window open after saving)
-              </label>
-            )}
-            <div className="flex items-end gap-3">
+            ))}
+            <div className="flex items-center gap-3">
               <button className={button}>{pending ? "Saving…" : "Save"}</button>
               <button type="button" className="text-sm underline" onClick={onClose}>
                 Cancel
@@ -370,5 +245,220 @@ export function CashForecastForm({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ForecastRow({
+  row,
+  index,
+  account,
+  direction,
+  data,
+  editing,
+  today,
+  onRemove,
+  onAdd,
+}: {
+  row: number;
+  index: number;
+  account: string;
+  direction: "in" | "out";
+  data: CashData;
+  editing: CashTransaction | null;
+  today: string;
+  onRemove: (() => void) | undefined;
+  onAdd: (() => void) | undefined;
+}) {
+  const [counterpart, setCounterpart] = useState(editing?.counterpart_code ?? "");
+  const [chosenLine, setChosenLine] = useState<CashFlowLine | "">(editing?.cash_flow_line ?? "");
+  const [amountCents, setAmountCents] = useState(
+    editing ? String(Math.round(editing.amount * 100)) : "",
+  );
+  const [status, setStatus] = useState<keyof typeof statusLabels>(
+    editing && editing.status !== "paid" ? editing.status : "planned",
+  );
+
+  const [parties, setParties] = useState({
+    in: editing?.direction === "in" ? (editing.party_id ?? "") : "",
+    out: editing?.direction === "out" ? (editing.party_id ?? "") : "",
+  });
+  const suggestion = suggestedLine(data, counterpart, direction);
+  const lineChosen =
+    !!chosenLine &&
+    chosenLine !== "internal_transfer" &&
+    (!cashFlowLines[chosenLine].direction || cashFlowLines[chosenLine].direction === direction);
+  const line = suggestion === "internal_transfer" || !lineChosen ? suggestion : chosenLine;
+  const partyLabel = direction === "in" ? "Customer" : "Vendor";
+  const partyId = parties[direction];
+  const partyOptions =
+    (direction === "in" ? data.customers : data.vendors)?.map((party) => ({
+      value: party.id,
+      label: party.name,
+    })) ?? [];
+  if (partyId && !partyOptions.some((party) => party.value === partyId))
+    partyOptions.push({ value: partyId, label: partyId });
+  const name = (field: string) => field + "-" + row;
+  const currency = data.accounts.find((a) => a.id === account)?.currency ?? "USD";
+  const money = (cents: string) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(cents) / 100);
+  const transfer = line === "internal_transfer";
+
+  const counterpartOptions = data.glAccounts
+    .filter((a) => a.code !== account)
+    .map((a) => ({
+      value: a.code,
+      label: `${a.code} · ${a.name}`,
+      detail: a.cash ? "Bank / cash · transfer" : a.type,
+    }));
+
+  return (
+    <section
+      aria-label={"Forecast " + (index + 1)}
+      className="space-y-3 rounded-md border border-line p-3"
+    >
+      {onRemove && (
+        <button type="button" className="block ml-auto text-sm underline" onClick={onRemove}>
+          Remove line {index + 1}
+        </button>
+      )}
+      <input type="hidden" name={name("counterpart")} value={counterpart} />
+      <input type="hidden" name={name("line")} value={line} />
+      <input type="hidden" name={name("amount")} value={amountCents} />
+      <input type="hidden" name={name("party_id")} value={transfer ? "" : partyId} />
+      <div className={transfer ? "" : "grid gap-3 sm:grid-cols-2"}>
+        <Field label="Description">
+          <textarea
+            rows={1}
+            name={name("description")}
+            defaultValue={editing?.description}
+            required
+            maxLength={240}
+            className={control}
+          />
+        </Field>
+
+        {!transfer && (
+          <Field label={partyLabel}>
+            <SearchableSelect
+              fitViewport
+              popupClassName="z-[70] min-w-64 max-w-[var(--radix-popover-content-available-width)] shadow-lg"
+              label={partyLabel}
+              value={partyId}
+              required
+              options={partyOptions}
+              placeholder={direction === "in" ? "Select a customer" : "Select a vendor"}
+              onChange={(value) => setParties((current) => ({ ...current, [direction]: value }))}
+            />
+          </Field>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1.5fr_0.8fr_1fr_1.3fr]">
+        <Field label="Category · counterpart account">
+          {editing?.transfer_account_id ? (
+            <span className={control + " block"}>
+              {data.accounts.find((a) => a.id === counterpart)?.name ?? counterpart}
+            </span>
+          ) : (
+            <SearchableSelect
+              fitViewport
+              popupClassName="z-[70] min-w-64 max-w-[var(--radix-popover-content-available-width)] shadow-lg"
+              label="Counterpart account"
+              value={counterpart}
+              onChange={(value) => {
+                setCounterpart(value);
+                if (suggestedLine(data, value, direction) === "internal_transfer")
+                  setChosenLine("");
+              }}
+              required
+              placeholder="Select an account"
+              options={counterpartOptions}
+            />
+          )}
+        </Field>
+        <Field label={`Amount (${currency})`}>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder={money("0")}
+            value={amountCents ? money(amountCents) : ""}
+            onChange={(e) =>
+              setAmountCents(e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 14))
+            }
+            required
+            className={control}
+          />
+        </Field>
+        <Field label="US GAAP cash flow classification">
+          {transfer ? (
+            <span className={control + " block"}>{cashFlowLines.internal_transfer.label}</span>
+          ) : (
+            <SearchableSelect
+              fitViewport
+              popupClassName="z-[70] min-w-64 max-w-[var(--radix-popover-content-available-width)] shadow-lg"
+              label="Cash flow classification"
+              value={line}
+              onChange={(value) => setChosenLine(value as CashFlowLine)}
+              required
+              placeholder="Select a cash flow line"
+              options={Object.entries(cashFlowLines)
+                .filter(
+                  ([key, l]) =>
+                    key !== "internal_transfer" &&
+                    (l.direction === null || l.direction === direction),
+                )
+                .map(([key, l]) => ({ value: key, label: `${l.activity} · ${l.label}` }))}
+            />
+          )}
+        </Field>
+        <Field label="Status">
+          <select
+            name={name("status")}
+            value={status}
+            onChange={(e) => setStatus(e.target.value as typeof status)}
+            className={control}
+          >
+            {Object.entries(statusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Document date">
+          <input
+            type="date"
+            name={name("document_date")}
+            defaultValue={editing?.document_date ?? ""}
+            className={control}
+          />
+        </Field>
+        <div className="flex items-end gap-2">
+          <Field
+            className="min-w-0 flex-1"
+            label={direction === "in" ? "Expected receipt date" : "Expected payment date"}
+          >
+            <input
+              type="date"
+              name={name("expected_date")}
+              defaultValue={editing?.due_date ?? today}
+              required
+              className={control}
+            />
+          </Field>
+          {onAdd && (
+            <button
+              type="button"
+              aria-label="Add forecast line"
+              title="Add forecast line"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-brand text-white"
+              onClick={onAdd}
+            >
+              <Plus className="size-5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
