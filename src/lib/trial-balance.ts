@@ -57,6 +57,13 @@ export interface TrialReport {
   centers: { id: string; name: string; code: string }[];
   groups: { code: string; name: string; descendants: string[] }[];
   accounts: TrialRow[];
+  quickBooksBalances?: {
+    code: string;
+    name: string;
+    date: string;
+    currency: string;
+    amount: string;
+  }[];
   total_debit: string;
   total_credit: string;
   difference: string;

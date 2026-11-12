@@ -6,6 +6,7 @@ import { PageTitle, Panel, Kpi, Table, Th, Td, Note } from "@/components/ui-kit"
 import { pageHead } from "@/lib/head";
 import { displayAmount, exactSum, type TrialFilters, type TrialReport } from "@/lib/trial-balance";
 import { exportTrial } from "@/lib/trial-balance-export";
+import { formatCurrency } from "@/lib/format";
 export const Route = createFileRoute("/trial-balance")({
   head: () =>
     pageHead(
@@ -282,6 +283,34 @@ function CompanyTrial({ companyId, companyName }: { companyId: string; companyNa
       {q.isPending && <p role="status">Calculating posted ledger balances…</p>}
       {report && (
         <>
+          {!!report.quickBooksBalances?.length && (
+            <Panel title="QuickBooks reported balances">
+              <p className="mb-3 text-sm text-ink2">
+                Latest imported balance per account through the report end date. Trial Balance
+                totals reflect posted General Ledger entries.
+              </p>
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Account</Th>
+                    <Th>Balance date</Th>
+                    <Th align="right">QuickBooks balance</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.quickBooksBalances.map(({ code, name, date, currency, amount }) => (
+                    <tr key={code}>
+                      <Td>
+                        {code} · {name}
+                      </Td>
+                      <Td>{date}</Td>
+                      <Td align="right">{formatCurrency(amount, currency)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Panel>
+          )}
           <section className="grid gap-3 sm:grid-cols-4">
             <Kpi
               label="Total Debit"

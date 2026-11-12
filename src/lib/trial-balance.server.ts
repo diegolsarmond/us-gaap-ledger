@@ -78,6 +78,21 @@ export async function generateTrialBalance(raw: unknown): Promise<TrialReport> {
     );
     const debit = exactSum(scoped.map((r) => r.closing_debit)),
       credit = exactSum(scoped.map((r) => r.closing_credit));
+    const quickBooksBalances = f.costCenter
+      ? []
+      : (
+          await c.query<NonNullable<TrialReport["quickBooksBalances"]>[number]>(
+            `SELECT DISTINCT ON (b.account_code) b.account_code AS code,a.name,
+              b.balance_date::text AS date,b.currency,b.amount::text
+             FROM bank_report_balances b
+             JOIN ledger_accounts a ON (a.company_id,a.id)=(b.company_id,b.account_code)
+             WHERE b.company_id=$1 AND b.balance_date<=$2::date
+               AND ($3='' OR a.type=$3)
+               AND strpos(lower(a.id || ' ' || a.name),lower($4))>0
+             ORDER BY b.account_code,b.balance_date DESC`,
+            [f.companyId, f.end, f.accountType, f.search],
+          )
+        ).rows;
     const result: TrialReport = {
       company: auth.company.name,
       currency: auth.company.baseCurrency,
@@ -86,6 +101,7 @@ export async function generateTrialBalance(raw: unknown): Promise<TrialReport> {
       periods: periods as unknown as TrialReport["periods"],
       centers: centers as unknown as TrialReport["centers"],
       accounts: scoped,
+      quickBooksBalances,
       groups,
       ...summary,
       status: !/[1-9]/.test(summary.difference) ? "Balanced" : "Out of Balance",
