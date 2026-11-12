@@ -130,16 +130,33 @@ export async function replaceLedger(
     await client.query(`DELETE FROM ${childTable(domain, collection)} WHERE company_id=$1`, [
       companyId,
     ]);
-  await client.query(`DELETE FROM ${ledgerTable(domain)} WHERE company_id=$1`, [companyId]);
+  const table = ledgerTable(domain);
+  const preserveAccounts = domain === "accounts";
+  if (preserveAccounts) {
+    // Retained accounts are referenced by cash forecasts and bank report data.
+    await client.query(
+      `DELETE FROM ${table} WHERE company_id=$1 AND id <> ALL($2::text[])`,
+      [companyId, rows.map((row) => row["code"])],
+    );
+  } else {
+    await client.query(`DELETE FROM ${table} WHERE company_id=$1`, [companyId]);
+  }
   for (const [position, row] of rows.entries()) {
     const id = domain === "accounts" || domain === "currencies" ? row["code"] : row["id"];
     const fields = spec.fields.filter(
       (f) =>
-        f.column !== "id" && (!f.path.startsWith("sourceAccount.") || row["sourceAccount"] != null),
+        f.column !== "id" &&
+        (preserveAccounts || !f.path.startsWith("sourceAccount.") || row["sourceAccount"] != null),
     );
     const values = [companyId, id, position, ...fields.map((f) => get(row, f.path) ?? null)];
+    const columns = ["position", ...fields.map((field) => field.column)];
+    const onConflict = preserveAccounts
+      ? ` ON CONFLICT (company_id,id) DO UPDATE SET ${columns.map((column) => `${column}=EXCLUDED.${column}`).join(",")}
+          WHERE ROW(${columns.map((column) => `${table}.${column}`).join(",")})
+            IS DISTINCT FROM ROW(${columns.map((column) => `EXCLUDED.${column}`).join(",")})`
+      : "";
     await client.query(
-      `INSERT INTO ${ledgerTable(domain)}(company_id,id,position,${fields.map((f) => f.column).join(",")}) VALUES(${values.map((_, i) => "$" + (i + 1)).join(",")})`,
+      `INSERT INTO ${table}(company_id,id,${columns.join(",")}) VALUES(${values.map((_, i) => "$" + (i + 1)).join(",")})${onConflict}`,
       values,
     );
     for (const [collection, fields] of Object.entries(spec.children)) {

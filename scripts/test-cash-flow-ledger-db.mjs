@@ -289,6 +289,14 @@ try {
     amount: 400,
     cash_flow_line: "internal_transfer",
   });
+  const { readLedger, replaceLedger } = await import("../src/lib/ledger-storage.server.ts");
+  const chart = await readLedger(pool, company, "accounts");
+  const rentAccount = chart.find((account) => account.code === forecast.counterpart_code);
+  assert.ok(rentAccount);
+  rentAccount.description = "Updated account description";
+  await replaceLedger(pool, company, "accounts", chart);
+  assert.deepEqual(await readLedger(pool, company, "accounts"), chart);
+
   data = await service.load(company);
   const rentPlan = data.transactions.find((t) => t.description === "February rent");
   const legs = data.transactions.filter((t) => t.description === "Move to reserve");
