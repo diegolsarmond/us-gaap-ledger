@@ -134,10 +134,10 @@ export async function replaceLedger(
   const preserveAccounts = domain === "accounts";
   if (preserveAccounts) {
     // Retained accounts are referenced by cash forecasts and bank report data.
-    await client.query(
-      `DELETE FROM ${table} WHERE company_id=$1 AND id <> ALL($2::text[])`,
-      [companyId, rows.map((row) => row["code"])],
-    );
+    await client.query(`DELETE FROM ${table} WHERE company_id=$1 AND id <> ALL($2::text[])`, [
+      companyId,
+      rows.map((row) => row["code"]),
+    ]);
   } else {
     await client.query(`DELETE FROM ${table} WHERE company_id=$1`, [companyId]);
   }
