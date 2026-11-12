@@ -66,6 +66,7 @@ type ForecastRow = {
   amount: number;
   expected_date: string;
   document_date: string | null;
+  project_id: string | null;
   party_id: string | null;
   status: "planned" | "realized" | "cancelled";
   cash_flow_line: CashFlowLine;
@@ -77,7 +78,7 @@ type ForecastRow = {
   transfer_account_code: string | null;
 };
 const forecastColumns = `id,account_code,counterpart_code,description,direction,amount::float8,
-  expected_date::text,document_date::text,party_id,status,cash_flow_line,variance_note,forecast_amount::float8,
+  expected_date::text,document_date::text,party_id,project_id,status,cash_flow_line,variance_note,forecast_amount::float8,
   forecast_date::text,forecast_direction,transfer_id,transfer_account_code`;
 
 const forecastTransaction = (f: ForecastRow): CashTransaction => ({
@@ -91,6 +92,7 @@ const forecastTransaction = (f: ForecastRow): CashTransaction => ({
   due_date: f.expected_date,
   document_date: f.document_date,
   party_id: f.party_id,
+  project_id: f.project_id,
   paid_date: null,
   status: f.status,
   cash_flow_line: f.cash_flow_line,
@@ -119,6 +121,7 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
     invoices,
     customers,
     vendors,
+    projects,
   ] = await Promise.all([
     readChart(client, companyId),
     client.query<CashFlowMapping>(
@@ -142,6 +145,10 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
     ),
     client.query<{ id: string; name: string }>(
       "SELECT id,display_name AS name FROM ledger_vendors WHERE company_id=$1 ORDER BY name",
+      [companyId],
+    ),
+    client.query<{ id: string; code: string; name: string }>(
+      "SELECT id,code,name FROM ledger_projects WHERE company_id=$1 ORDER BY code,name",
       [companyId],
     ),
   ]);
@@ -211,6 +218,7 @@ async function readCashData(client: PoolClient, companyId: string): Promise<Cash
     mappings: mappings.rows,
     customers: customers.rows,
     vendors: vendors.rows,
+    projects: projects.rows,
     glAccounts: chart.map((account) => ({
       code: account.code,
       name: account.name,
@@ -474,6 +482,15 @@ export async function saveForecasts(companyId: string, forecasts: CashForecast[]
         ]);
         if (!party.rowCount) throw new Error("Select a customer or vendor from this company.");
       }
+      const projectId =
+        data.project_id === undefined ? (previous?.project_id ?? null) : data.project_id;
+      if (projectId && projectId !== previous?.project_id) {
+        const project = await client.query(
+          "SELECT 1 FROM ledger_projects WHERE company_id=$1 AND id=$2",
+          [companyId, projectId],
+        );
+        if (!project.rowCount) throw new Error("Select a project from this company.");
+      }
       const leg = (
         accountCode: string,
         counterpart: string,
@@ -491,17 +508,18 @@ export async function saveForecasts(companyId: string, forecasts: CashForecast[]
         data.variance_note,
         data.document_date === undefined ? (previous?.document_date ?? null) : data.document_date,
         partyId,
+        projectId,
       ];
       const mirrorDirection = data.direction === "in" ? "out" : "in";
       if (previous) {
         const update = `UPDATE cash_forecasts SET account_code=$2,counterpart_code=$3,description=$4,direction=$5,
-        amount=$6,expected_date=$7,status=$8,cash_flow_line=$9,variance_note=$10,document_date=$11,party_id=$12 WHERE company_id=$1`;
-        await client.query(update + " AND id=$13", [
+        amount=$6,expected_date=$7,status=$8,cash_flow_line=$9,variance_note=$10,document_date=$11,party_id=$12,project_id=$13 WHERE company_id=$1`;
+        await client.query(update + " AND id=$14", [
           ...leg(data.account_code, data.counterpart_code, data.direction),
           previous.id,
         ]);
         if (previous.transfer_id) {
-          const other = await client.query(update + " AND transfer_id=$13 AND id<>$14", [
+          const other = await client.query(update + " AND transfer_id=$14 AND id<>$15", [
             ...leg(data.counterpart_code, data.account_code, mirrorDirection),
             previous.transfer_id,
             previous.id,
@@ -511,9 +529,9 @@ export async function saveForecasts(companyId: string, forecasts: CashForecast[]
       } else {
         const transferId = transfer ? crypto.randomUUID() : null;
         const insert = `INSERT INTO cash_forecasts(company_id,account_code,counterpart_code,description,direction,amount,
-        expected_date,status,cash_flow_line,variance_note,document_date,party_id,created_by,transfer_id,transfer_account_code,
+        expected_date,status,cash_flow_line,variance_note,document_date,party_id,project_id,created_by,transfer_id,transfer_account_code,
         forecast_amount,forecast_date,forecast_direction)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$6,$7,$5)`;
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$6,$7,$5)`;
         await client.query(insert, [
           ...leg(data.account_code, data.counterpart_code, data.direction),
           auth.user.id,

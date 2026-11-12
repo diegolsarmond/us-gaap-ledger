@@ -322,25 +322,35 @@ try {
     ...vendorSchema.parse({ displayName: "Rent vendor", companyName: "Rent vendor" }),
     id: "rent-vendor",
   }]);
+  await pool.query(
+    "INSERT INTO ledger_projects(company_id,id,position,code,name,client_name,budget,contract_value,status,start_date,end_date,notes) VALUES($1,'rent-project',0,'RENT','Rent project','',0,0,'Active','2026-01-01','2026-12-31','')",
+    [company],
+  );
   const batchRow = {
     ...forecast,
     description: "Batch rent",
     document_date: "2026-02-02",
     party_id: "rent-vendor",
+    project_id: "rent-project",
   };
   await assert.rejects(
     service.saveForecasts(company, [batchRow, { ...batchRow, party_id: "unknown" }]),
     /Select a customer or vendor/,
+  );
+  await assert.rejects(
+    service.saveForecasts(company, [batchRow, { ...batchRow, project_id: "unknown" }]),
+    /Select a project from this company/,
   );
   data = await service.load(company);
   assert.ok(!data.transactions.some((t) => t.description === "Batch rent"));
   await service.saveForecasts(company, [batchRow, { ...batchRow, description: "Batch rent 2" }]);
   data = await service.load(company);
   assert.deepEqual(data.vendors, [{ id: "rent-vendor", name: "Rent vendor" }]);
+  assert.deepEqual(data.projects, [{ id: "rent-project", code: "RENT", name: "Rent project" }]);
   const batch = data.transactions.filter((t) => t.description.startsWith("Batch rent"));
-  assert.deepEqual(batch.map((t) => [t.party_id, t.document_date]), [
-    ["rent-vendor", "2026-02-02"],
-    ["rent-vendor", "2026-02-02"],
+  assert.deepEqual(batch.map((t) => [t.party_id, t.document_date, t.project_id]), [
+    ["rent-vendor", "2026-02-02", "rent-project"],
+    ["rent-vendor", "2026-02-02", "rent-project"],
   ]);
 
   const proof = await service.checkGlCash({

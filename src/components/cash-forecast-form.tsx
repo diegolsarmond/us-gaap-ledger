@@ -120,6 +120,7 @@ export function CashForecastForm({
         expected_date: get("expected_date"),
         document_date: get("document_date") || null,
         party_id: partyId || null,
+        project_id: get("project_id") || null,
         status: get("status"),
         cash_flow_line: get("line"),
         variance_note: editing?.variance_note,
@@ -325,7 +326,7 @@ function ForecastRow({
       <input type="hidden" name={name("line")} value={line} />
       <input type="hidden" name={name("amount")} value={amountCents} />
       <input type="hidden" name={name("party_id")} value={transfer ? "" : partyId} />
-      <div className={transfer ? "" : "grid gap-3 sm:grid-cols-2"}>
+      <div className={`grid gap-3 ${transfer ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         <Field label="Description">
           <textarea
             rows={1}
@@ -351,6 +352,22 @@ function ForecastRow({
             />
           </Field>
         )}
+        <Field label="Project">
+          <SearchableSelect
+            fitViewport
+            popupClassName="z-[70] min-w-64 max-w-[var(--radix-popover-content-available-width)] shadow-lg"
+            name={name("project_id")}
+            label="Project"
+            defaultValue={editing?.project_id ?? ""}
+            options={[
+              { value: "", label: "No project" },
+              ...(data.projects ?? []).map((project) => ({
+                value: project.id,
+                label: project.code ? project.code + " · " + project.name : project.name,
+              })),
+            ]}
+          />
+        </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1.5fr_0.8fr_1fr_1.3fr]">
         <Field label="Category · counterpart account">

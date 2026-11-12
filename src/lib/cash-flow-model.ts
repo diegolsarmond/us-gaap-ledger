@@ -92,6 +92,7 @@ export const forecastSchema = z
     amount: money.positive(),
     expected_date: dateSchema,
     document_date: dateSchema.nullable().optional(),
+    project_id: z.string().min(1).max(200).nullable().optional(),
     party_id: z.string().min(1).max(200).nullable().optional(),
     status: z.enum(["planned", "realized", "cancelled"]),
     cash_flow_line: cashFlowLineSchema,
@@ -147,6 +148,7 @@ export type CashTransaction = {
   /** Posting date of actual cash; null for forecasts. */
   paid_date: string | null;
   document_date?: string | null;
+  project_id?: string | null;
   party_id?: string | null;
   status: "planned" | "paid" | "realized" | "cancelled";
   cash_flow_line: CashFlowLine;
@@ -169,6 +171,7 @@ export type CashData = {
   transactions: CashTransaction[];
   mappings: CashFlowMapping[];
   customers?: { id: string; name: string }[];
+  projects?: { id: string; code: string; name: string }[];
   vendors?: { id: string; name: string }[];
   glAccounts: {
     code: string;
